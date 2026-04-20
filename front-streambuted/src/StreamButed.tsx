@@ -7,22 +7,31 @@ import { Toast } from "./components/ui/Toast";
 
 import { BottomPlayer } from "./components/layout/BottomPlayer";
 import { ExpandedPlayer } from "./components/layout/ExpandedPlayer";
-import { ListenerSidebar, ArtistSidebar, AdminSidebar } from "./components/layout/Sidebars";
+import { MainSidebar, AdminSidebar } from "./components/layout/Sidebars";
 import LogoutButton from "./components/layout/LogoutButton";
 
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
 import { SettingsPage } from "./pages/SettingsPage";
 
-import { HomePage, SearchPage, AlbumDetailPage, ArtistProfilePage } from "./pages/listener/ListenerPages";
+import {
+  HomePage,
+  SearchPage,
+  AlbumDetailPage,
+  ArtistProfilePage,
+} from "./pages/listener/ListenerPages";
 import {
   ArtistDashboardPage,
   MyTracksPage,
   UploadSinglePage,
   CreateAlbumPage,
   EditTrackPage,
-  ArtistAnalyticsPage
+  ArtistAnalyticsPage,
 } from "./pages/artist/ArtistPages";
-import { AdminOverviewPage, AdminUsersPage, AdminModerationPage } from "./pages/admin/AdminPages";
+import {
+  AdminOverviewPage,
+  AdminUsersPage,
+  AdminModerationPage,
+} from "./pages/admin/AdminPages";
 
 type Role = "listener" | "artist" | "admin";
 type AuthPage = "login" | "register";
@@ -82,7 +91,18 @@ export default function StreamButed() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const toast = useCallback((msg: string) => setToastMsg(msg), []);
 
-  // Simulate progress
+  // Allows child components (e.g. SettingsPage) to promote the current user
+  // to artist in real-time, without requiring a full re-login.
+  const onUpdateUser = useCallback((updated: AppUser) => {
+    setUser(updated);
+    // Navigate to the artist dashboard after promotion so new
+    // capabilities are immediately visible to the user.
+    if (updated.role === "artist") {
+      setPage("artist-dashboard");
+    }
+  }, []);
+
+  // Simulate track progress
   useEffect(() => {
     if (!isPlaying || !currentTrack) return;
 
@@ -121,10 +141,14 @@ export default function StreamButed() {
     if (i > 0) playTrack(trackList[i - 1]);
   };
 
+  // Role is read from the JWT payload — no manual role selection at login.
   const handleLogin = (u: AppUser) => {
     setUser(u);
-    setAuthPage("login");
-    setPage(u.role === "admin" ? "admin-overview" : u.role === "artist" ? "artist-dashboard" : "home");
+    
+    // Admins land on their dedicated overview; all other users start on home.
+    setPage(u.role === "admin" ? "admin-overview" : "home");
+
+    // Reset navigation and player state on new login
     setViewAlbum(null);
     setViewArtist(null);
     setEditTrack(null);
@@ -150,172 +174,52 @@ export default function StreamButed() {
 
   if (!user) {
     if (authPage === "login") {
-      return <LoginPage onLogin={handleLogin} onRegister={() => setAuthPage("register")} />;
+      return (
+        <LoginPage
+          onLogin={handleLogin}
+          onRegister={() => setAuthPage("register")}
+        />
+      );
     }
-    return <RegisterPage onLogin={handleLogin} onBack={() => setAuthPage("login")} />;
-  }
-
-  const roleLabel = user.role === "admin" ? "Administrador" : user.role === "artist" ? "Artista" : "Oyente";
-
-  if (user.role === "admin") {
-    const adminPages: Record<string, ReactNode> = {
-      "admin-overview": <AdminOverviewPage />,
-      "admin-users": <AdminUsersPage toast={toast} />,
-      "admin-content": (
-        <div className="page-inner">
-          <div className="page-title">Contenido</div>
-          <div className="empty-state">
-            <div className="empty-icon">📁</div>
-            <div className="empty-text">Gestión de Contenido</div>
-          </div>
-        </div>
-      ),
-      "admin-reports": (
-        <div className="page-inner">
-          <div className="page-title">Reportes</div>
-          <div className="empty-state">
-            <div className="empty-icon">📊</div>
-            <div className="empty-text">Reportes del Sistema</div>
-          </div>
-        </div>
-      ),
-      "admin-moderation": <AdminModerationPage toast={toast} />,
-      settings: <SettingsPage user={user} toast={toast} />
-    };
-
     return (
-      <div className="app-shell">
-        <SessionBar user={user} roleLabel={roleLabel} onLogout={handleLogout} />
-
-        {expandedPlayer && currentTrack && (
-          <ExpandedPlayer
-            track={currentTrack}
-            queue={trackList}
-            isPlaying={isPlaying}
-            onToggle={() => setIsPlaying((p: boolean) => !p)}
-            onClose={() => setExpandedPlayer(false)}
-            progress={progress}
-            setProgress={setProgress}
-            volume={volume}
-            setVolume={setVolume}
-            shuffle={shuffle}
-            setShuffle={setShuffle}
-            repeat={repeat}
-            setRepeat={setRepeat}
-            onNext={handleNext}
-            onPrev={handlePrev}
-            onSelectTrack={playTrack}
-          />
-        )}
-
-        <div className="app-body">
-          <AdminSidebar page={page} setPage={setPage} user={user} />
-          <div className="main-content">{adminPages[page] || adminPages["admin-overview"]}</div>
-        </div>
-
-        {toastMsg && <Toast msg={toastMsg} onDone={() => setToastMsg(null)} />}
-      </div>
+      <RegisterPage onLogin={handleLogin} onBack={() => setAuthPage("login")} />
     );
   }
 
-  if (user.role === "artist") {
-    const artistPages: Record<string, ReactNode> = {
-      "artist-dashboard": (
-        <ArtistDashboardPage
-          user={user}
-          onPlayTrack={playTrack}
-          currentTrack={currentTrack}
-          setPage={setPage}
-        />
-      ),
-      "artist-tracks": <MyTracksPage setPage={setPage} setEditTrack={setEditTrack} toast={toast} />,
-      "artist-upload": <UploadSinglePage toast={toast} />,
-      "artist-album": <CreateAlbumPage toast={toast} />,
-      "artist-edit-track": <EditTrackPage track={editTrack} setPage={setPage} toast={toast} />,
-      "artist-analytics": <ArtistAnalyticsPage />,
-      settings: <SettingsPage user={user} toast={toast} />,
-      search: (
-        <SearchPage
-          onPlayTrack={playTrack}
-          currentTrack={currentTrack}
-          setPage={setPage}
-          setViewAlbum={setViewAlbum}
-          setViewArtist={setViewArtist}
-        />
-      ),
-      "album-detail": (
-        <AlbumDetailPage
-          albumId={viewAlbum}
-          onPlayTrack={playTrack}
-          currentTrack={currentTrack}
-          setPage={setPage}
-          setViewArtist={setViewArtist}
-        />
-      ),
-      "artist-profile": (
-        <ArtistProfilePage
-          artistId={viewArtist}
-          onPlayTrack={playTrack}
-          currentTrack={currentTrack}
-          setPage={setPage}
-          setViewAlbum={setViewAlbum}
-        />
-      )
-    };
+  const roleLabel =
+    user.role === "admin"
+      ? "Administrador"
+      : user.role === "artist"
+      ? "Artista"
+      : "Oyente";
 
-    return (
-      <div className="app-shell">
-        <SessionBar user={user} roleLabel={roleLabel} onLogout={handleLogout} />
+  // Reusable expanded player node — identical for every role.
+  const expandedPlayerNode =
+    expandedPlayer && currentTrack ? (
+      <ExpandedPlayer
+        track={currentTrack}
+        queue={trackList}
+        isPlaying={isPlaying}
+        onToggle={() => setIsPlaying((p: boolean) => !p)}
+        onClose={() => setExpandedPlayer(false)}
+        progress={progress}
+        setProgress={setProgress}
+        volume={volume}
+        setVolume={setVolume}
+        shuffle={shuffle}
+        setShuffle={setShuffle}
+        repeat={repeat}
+        setRepeat={setRepeat}
+        onNext={handleNext}
+        onPrev={handlePrev}
+        onSelectTrack={playTrack}
+      />
+    ) : null;
 
-        {expandedPlayer && currentTrack && (
-          <ExpandedPlayer
-            track={currentTrack}
-            queue={trackList}
-            isPlaying={isPlaying}
-            onToggle={() => setIsPlaying((p: boolean) => !p)}
-            onClose={() => setExpandedPlayer(false)}
-            progress={progress}
-            setProgress={setProgress}
-            volume={volume}
-            setVolume={setVolume}
-            shuffle={shuffle}
-            setShuffle={setShuffle}
-            repeat={repeat}
-            setRepeat={setRepeat}
-            onNext={handleNext}
-            onPrev={handlePrev}
-            onSelectTrack={playTrack}
-          />
-        )}
-
-        <div className="app-body">
-          <ArtistSidebar page={page} setPage={setPage} user={user} />
-          <div className="main-content">{artistPages[page] || artistPages["artist-dashboard"]}</div>
-        </div>
-
-        <BottomPlayer
-          track={currentTrack}
-          isPlaying={isPlaying}
-          onToggle={() => setIsPlaying((p: boolean) => !p)}
-          onExpand={() => setExpandedPlayer(true)}
-          progress={progress}
-          setProgress={setProgress}
-          volume={volume}
-          setVolume={setVolume}
-          shuffle={shuffle}
-          setShuffle={setShuffle}
-          repeat={repeat}
-          setRepeat={setRepeat}
-          onNext={handleNext}
-          onPrev={handlePrev}
-        />
-
-        {toastMsg && <Toast msg={toastMsg} onDone={() => setToastMsg(null)} />}
-      </div>
-    );
-  }
-
-  const listenerPages: Record<string, ReactNode> = {
+  // Unified page registry — roles are not branched here; the sidebar
+  // controls which items are visible per role.
+  const allPages: Record<string, ReactNode> = {
+    // ── Discover (all roles) ─────────────────────────────────────────
     home: (
       <HomePage
         onPlayTrack={playTrack}
@@ -340,7 +244,18 @@ export default function StreamButed() {
         <div className="empty-state">
           <div className="empty-icon">🎵</div>
           <div className="empty-text">Tu biblioteca está vacía</div>
-          <div className="empty-sub">Guarda álbumes y pistas para verlos aquí</div>
+          <div className="empty-sub">
+            Guarda álbumes y pistas para verlos aquí
+          </div>
+        </div>
+      </div>
+    ),
+    lives: (
+      <div className="page-inner">
+        <div className="page-title">Lives</div>
+        <div className="empty-state">
+          <div className="empty-icon">🔴</div>
+          <div className="empty-text">No hay lives activos ahora</div>
         </div>
       </div>
     ),
@@ -362,39 +277,91 @@ export default function StreamButed() {
         setViewAlbum={setViewAlbum}
       />
     ),
-    settings: <SettingsPage user={user} toast={toast} />
+
+    // ── Artist management ────────────────────────────────────────────
+    "artist-dashboard": (
+      <ArtistDashboardPage
+        user={user}
+        onPlayTrack={playTrack}
+        currentTrack={currentTrack}
+        setPage={setPage}
+      />
+    ),
+    "artist-tracks": (
+      <MyTracksPage
+        setPage={setPage}
+        setEditTrack={setEditTrack}
+        toast={toast}
+      />
+    ),
+    "artist-upload": <UploadSinglePage toast={toast} />,
+    "artist-album": <CreateAlbumPage toast={toast} />,
+    "artist-edit-track": (
+      <EditTrackPage track={editTrack} setPage={setPage} toast={toast} />
+    ),
+    "artist-analytics": <ArtistAnalyticsPage />,
+
+    // ── Admin ────────────────────────────────────────────────────────
+    "admin-overview": <AdminOverviewPage />,
+    "admin-users": <AdminUsersPage toast={toast} />,
+    "admin-content": (
+      <div className="page-inner">
+        <div className="page-title">Contenido</div>
+        <div className="empty-state">
+          <div className="empty-icon">📁</div>
+          <div className="empty-text">Gestión de Contenido</div>
+        </div>
+      </div>
+    ),
+    "admin-reports": (
+      <div className="page-inner">
+        <div className="page-title">Reportes</div>
+        <div className="empty-state">
+          <div className="empty-icon">📊</div>
+          <div className="empty-text">Reportes del Sistema</div>
+        </div>
+      </div>
+    ),
+    "admin-moderation": <AdminModerationPage toast={toast} />,
+
+    // ── Shared ───────────────────────────────────────────────────────
+    settings: (
+      <SettingsPage user={user} toast={toast} onUpdateUser={onUpdateUser} />
+    ),
   };
+
+  // Admin uses its own dedicated sidebar.
+  if (user.role === "admin") {
+    return (
+      <div className="app-shell">
+        <SessionBar user={user} roleLabel={roleLabel} onLogout={handleLogout} />
+        {expandedPlayerNode}
+        <div className="app-body">
+          <AdminSidebar page={page} setPage={setPage} user={user} />
+          <div className="main-content">
+            {allPages[page] || allPages["admin-overview"]}
+          </div>
+        </div>
+        {toastMsg && <Toast msg={toastMsg} onDone={() => setToastMsg(null)} />}
+      </div>
+    );
+  }
+
+  // Listeners and artists share the same shell — the unified MainSidebar
+  // reveals Manage sections only when the user holds the artist role,
+  // giving the experience of expanding capabilities rather than switching apps.
+  const defaultPage = user.role === "artist" ? "artist-dashboard" : "home";
 
   return (
     <div className="app-shell">
       <SessionBar user={user} roleLabel={roleLabel} onLogout={handleLogout} />
-
-      {expandedPlayer && currentTrack && (
-        <ExpandedPlayer
-          track={currentTrack}
-          queue={trackList}
-          isPlaying={isPlaying}
-          onToggle={() => setIsPlaying((p: boolean) => !p)}
-          onClose={() => setExpandedPlayer(false)}
-          progress={progress}
-          setProgress={setProgress}
-          volume={volume}
-          setVolume={setVolume}
-          shuffle={shuffle}
-          setShuffle={setShuffle}
-          repeat={repeat}
-          setRepeat={setRepeat}
-          onNext={handleNext}
-          onPrev={handlePrev}
-          onSelectTrack={playTrack}
-        />
-      )}
-
+      {expandedPlayerNode}
       <div className="app-body">
-        <ListenerSidebar page={page} setPage={setPage} user={user} />
-        <div className="main-content">{listenerPages[page] || listenerPages.home}</div>
+        <MainSidebar page={page} setPage={setPage} user={user} />
+        <div className="main-content">
+          {allPages[page] || allPages[defaultPage]}
+        </div>
       </div>
-
       <BottomPlayer
         track={currentTrack}
         isPlaying={isPlaying}
@@ -411,7 +378,6 @@ export default function StreamButed() {
         onNext={handleNext}
         onPrev={handlePrev}
       />
-
       {toastMsg && <Toast msg={toastMsg} onDone={() => setToastMsg(null)} />}
     </div>
   );
