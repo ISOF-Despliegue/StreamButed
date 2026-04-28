@@ -1,0 +1,965 @@
+{
+  "info": {
+    "_postman_id": "9e44243f-067f-4bc2-a843-e312d507fc12",
+    "name": "StreamButed - Identity + Catalog Integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "End-to-end integration checks for identity-service and catalog-service, including cross-service communication via user promotion event."
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const now = Date.now();",
+          "if (!pm.collectionVariables.get('runSuffix')) {",
+          "  pm.collectionVariables.set('runSuffix', String(now));",
+          "}",
+          "if (!pm.collectionVariables.get('testEmail')) {",
+          "  pm.collectionVariables.set('testEmail', `postman+${now}@example.com`);",
+          "}",
+          "if (!pm.collectionVariables.get('testUsername')) {",
+          "  pm.collectionVariables.set('testUsername', `postman${now}`);",
+          "}",
+          "if (!pm.collectionVariables.get('testPassword')) {",
+          "  pm.collectionVariables.set('testPassword', 'Passw0rd!23');",
+          "}",
+          "if (!pm.collectionVariables.get('coverAssetId')) {",
+          "  pm.collectionVariables.set('coverAssetId', '11111111-1111-4111-8111-111111111111');",
+          "}",
+          "if (!pm.collectionVariables.get('audioAssetId')) {",
+          "  pm.collectionVariables.set('audioAssetId', '22222222-2222-4222-8222-222222222222');",
+          "}",
+          "if (!pm.collectionVariables.get('trackCoverAssetId')) {",
+          "  pm.collectionVariables.set('trackCoverAssetId', '33333333-3333-4333-8333-333333333333');",
+          "}",
+          "if (!pm.collectionVariables.get('albumTitle')) {",
+          "  pm.collectionVariables.set('albumTitle', `Album ${now}`);",
+          "}",
+          "if (!pm.collectionVariables.get('trackTitle')) {",
+          "  pm.collectionVariables.set('trackTitle', `Track ${now}`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "Identity - Actuator Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{identityBaseUrl}}/actuator/health",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('health UP', function () { pm.expect(json.status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/health",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('catalog status ok', function () { pm.expect(json.status).to.eql('ok'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Identity Auth + User Lifecycle",
+      "item": [
+        {
+          "name": "Auth - Register Listener",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"username\": \"{{testUsername}}\",\n  \"password\": \"{{testPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "pm.collectionVariables.set('registeredRole', json.role);",
+                  "pm.test('register returns accessToken', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; });",
+                  "pm.test('register role is listener', function () { pm.expect(json.role).to.eql('listener'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Users - Get Me (Listener)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{identityBaseUrl}}/api/v1/users/me",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('userId', json.id);",
+                  "pm.test('user id exists', function () { pm.expect(json.id).to.match(/^[0-9a-fA-F-]{36}$/); });",
+                  "pm.test('role is listener before promote', function () { pm.expect(json.role).to.eql('listener'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "pm.test('login returns accessToken', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; });",
+                  "pm.test('set-cookie refresh token is present', function () {",
+                  "  const setCookie = pm.response.headers.get('Set-Cookie') || '';",
+                  "  pm.expect(setCookie).to.include('refresh_token=');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Refresh (cookie based)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{identityBaseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "pm.test('refresh returns new accessToken', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Users - Promote Listener To Artist",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{identityBaseUrl}}/api/v1/users/promote",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "promote"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('promotedRole', json.role);",
+                  "pm.test('role switched to artist', function () { pm.expect(json.role).to.eql('artist'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Users - Promote Again (negative)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{identityBaseUrl}}/api/v1/users/promote",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "promote"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is client error', function () { pm.expect(pm.response.code).to.be.within(400, 499); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Login After Promote (artist token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "pm.test('artist token received', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Cross-Service Sync (Identity -> Catalog)",
+      "item": [
+        {
+          "name": "Catalog - Get Promoted Artist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/artists/{{userId}}",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "artists",
+                "{{userId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 (artist replicated from identity event)', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('artistId', json.artistId);",
+                  "pm.test('artist id equals promoted user id', function () { pm.expect(json.artistId).to.eql(pm.collectionVariables.get('userId')); });",
+                  "pm.test('display name exists', function () { pm.expect(json.displayName).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Catalog Protected CRUD",
+      "item": [
+        {
+          "name": "Catalog - Create Album",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{albumTitle}}\",\n  \"coverAssetId\": \"{{coverAssetId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/albums",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('albumId', json.albumId);",
+                  "pm.test('album id exists', function () { pm.expect(json.albumId).to.match(/^[0-9a-fA-F-]{36}$/); });",
+                  "pm.test('album title echoed', function () { pm.expect(json.title).to.eql(pm.collectionVariables.get('albumTitle')); });",
+                  "pm.test('album artist equals promoted user', function () { pm.expect(json.artistId).to.eql(pm.collectionVariables.get('userId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Get Album",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/albums/{{albumId}}",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums",
+                "{{albumId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('album id matches', function () { pm.expect(json.albumId).to.eql(pm.collectionVariables.get('albumId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Update Album",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{albumTitle}} UPDATED\"\n}"
+            },
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/albums/{{albumId}}",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums",
+                "{{albumId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('album title updated', function () { pm.expect(json.title).to.eql(`${pm.collectionVariables.get('albumTitle')} UPDATED`); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Create Track In Album",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{trackTitle}}\",\n  \"audioAssetId\": \"{{audioAssetId}}\",\n  \"coverAssetId\": \"{{trackCoverAssetId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/albums/{{albumId}}/tracks",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums",
+                "{{albumId}}",
+                "tracks"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('trackId', json.trackId);",
+                  "pm.test('track id exists', function () { pm.expect(json.trackId).to.match(/^[0-9a-fA-F-]{36}$/); });",
+                  "pm.test('track linked to album', function () { pm.expect(json.albumId).to.eql(pm.collectionVariables.get('albumId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Get Track",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/tracks/{{trackId}}",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "tracks",
+                "{{trackId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('track id matches', function () { pm.expect(json.trackId).to.eql(pm.collectionVariables.get('trackId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Update Track",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{trackTitle}} UPDATED\"\n}"
+            },
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/tracks/{{trackId}}",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "tracks",
+                "{{trackId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('track title updated', function () { pm.expect(json.title).to.eql(`${pm.collectionVariables.get('trackTitle')} UPDATED`); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/search?q={{runSuffix}}&limit=20&offset=0",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{runSuffix}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('search has arrays', function () {",
+                  "  pm.expect(json.artists).to.be.an('array');",
+                  "  pm.expect(json.albums).to.be.an('array');",
+                  "  pm.expect(json.tracks).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Retire Track",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/tracks/{{trackId}}/retire",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "tracks",
+                "{{trackId}}",
+                "retire"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('track retired', function () { pm.expect(json.status).to.eql('RETIRADO'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Retire Album",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/albums/{{albumId}}/retire",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums",
+                "{{albumId}}",
+                "retire"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('album retired', function () { pm.expect(json.status).to.eql('RETIRADO'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Negative Tests",
+      "item": [
+        {
+          "name": "Identity - Login wrong password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"WrongPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Create Album without token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"NoAuth Album\",\n  \"coverAssetId\": \"11111111-1111-4111-8111-111111111111\"\n}"
+            },
+            "url": {
+              "raw": "{{catalogBaseUrl}}/api/v1/catalog/albums",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "artistId",
+      "value": ""
+    },
+    {
+      "key": "albumId",
+      "value": ""
+    },
+    {
+      "key": "trackId",
+      "value": ""
+    },
+    {
+      "key": "testEmail",
+      "value": ""
+    },
+    {
+      "key": "testUsername",
+      "value": ""
+    },
+    {
+      "key": "testPassword",
+      "value": ""
+    },
+    {
+      "key": "runSuffix",
+      "value": ""
+    },
+    {
+      "key": "coverAssetId",
+      "value": ""
+    },
+    {
+      "key": "audioAssetId",
+      "value": ""
+    },
+    {
+      "key": "trackCoverAssetId",
+      "value": ""
+    },
+    {
+      "key": "albumTitle",
+      "value": ""
+    },
+    {
+      "key": "trackTitle",
+      "value": ""
+    }
+  ]
+}
