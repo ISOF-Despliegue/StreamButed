@@ -81,7 +81,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
       RABBITMQ_USER_PROMOTED_QUEUE: catalog.user.promoted
-      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
     ports:
       - "${CATALOG_PORT:-8082}:${CATALOG_PORT:-8082}"
 
