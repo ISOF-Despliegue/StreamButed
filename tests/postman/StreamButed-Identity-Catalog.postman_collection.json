@@ -960,7 +960,7 @@
        "script": {
         "type": "text/javascript",
         "exec": [
-         "pm.test('status 400 or similar', function () { pm.expect(pm.response.code).to.be.within(400,499); });"
+         "pm.test('status 400', function () { pm.response.to.have.status(400); });"
         ]
        }
       }
