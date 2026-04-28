@@ -16,9 +16,10 @@ Monorepo de microservicios de StreamButed con orquestacion centralizada en la ra
 
 ## Levantar todo el ecosistema
 
-Desde la raiz del repositorio:
+Desde la raiz del repositorio, inicializa primero los submodulos git requeridos por `identity-service` y `catalog-service`:
 
 ```bash
+git submodule update --init --recursive
 docker compose up -d --build
 ```
 
