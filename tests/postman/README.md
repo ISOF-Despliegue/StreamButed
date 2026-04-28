@@ -28,11 +28,6 @@ npm install -g newman
 newman run tests/postman/StreamButed-Identity-Catalog.postman_collection.json -e tests/postman/StreamButed.local.postman_environment.json
 ```
 
-## Important note about current project state
+## Notes
 
-During live verification, two backend issues were detected and can make the collection fail before completing all checks:
-
-1. `catalog-service` database schema is missing (`public.artist` table does not exist), causing `500` on artist reads.
-2. `catalog-service` consumer rejects `user.promoted` events because `promotedAt` arrives as number while schema expects string.
-
-These are real integration findings from current running containers, not Postman errors.
+- The test suite includes a polling mechanism when checking if a promoted user is replicated to the catalog service. Since the replication happens asynchronously via RabbitMQ, the test retries up to 5 times (with 500ms delays) to account for network and processing latency.

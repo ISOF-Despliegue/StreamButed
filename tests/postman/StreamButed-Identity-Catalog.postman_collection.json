@@ -416,11 +416,52 @@
           },
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const maxRetries = 5;",
+                  "const retryDelayMs = 500;",
+                  "let attempts = 0;",
+                  "let lastError = null;",
+                  "",
+                  "async function pollForArtist() {",
+                  "  while (attempts < maxRetries) {",
+                  "    try {",
+                  "      const response = await pm.sendRequest({",
+                  "        url: `${pm.collectionVariables.get('catalogBaseUrl')}/api/v1/catalog/artists/${pm.collectionVariables.get('userId')}`,",
+                  "        method: 'GET'",
+                  "      });",
+                  "",
+                  "      if (response.code === 200) {",
+                  "        const artist = response.json();",
+                  "        pm.collectionVariables.set('artistId', artist.artistId);",
+                  "        console.log('Artist replicated successfully on attempt ' + (attempts + 1));",
+                  "        return;",
+                  "      }",
+                  "    } catch (error) {",
+                  "      lastError = error;",
+                  "    }",
+                  "",
+                  "    attempts++;",
+                  "    if (attempts < maxRetries) {",
+                  "      await new Promise(resolve => setTimeout(resolve, retryDelayMs));",
+                  "    }",
+                  "  }",
+                  "",
+                  "  console.warn(`Artist not found after ${maxRetries} attempts. Will attempt regular request.`);",
+                  "}",
+                  "",
+                  "pollForArtist();"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 200 (artist replicated from identity event)', function () { pm.response.to.have.status(200); });",
+                  "pm.test('status 200 (artist replicated from identity event via async RabbitMQ)', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
                   "pm.collectionVariables.set('artistId', json.artistId);",
                   "pm.test('artist id equals promoted user id', function () { pm.expect(json.artistId).to.eql(pm.collectionVariables.get('userId')); });",
