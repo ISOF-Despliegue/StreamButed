@@ -1003,7 +1003,7 @@
        "script": {
         "type": "text/javascript",
         "exec": [
-         "pm.test('status 400 or similar', function () { pm.expect(pm.response.code).to.be.within(400,499); });"
+         "pm.test('status 400 for invalid newRole', function () { pm.expect(pm.response.code).to.eql(400); });"
         ]
        }
       }
