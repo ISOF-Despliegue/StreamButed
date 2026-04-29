@@ -73,7 +73,12 @@ services:
       DB_URL: jdbc:postgresql://identity-postgres:5432/${POSTGRES_IDENTITY_DB:?missing}
       DB_USERNAME: ${POSTGRES_USER:?missing}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?missing}
-      JWT_SECRET: ${JWT_SECRET:?missing}
+      JWT_ISSUER: ${JWT_ISSUER:-http://identity-service:8081}
+      JWT_KEY_ID: ${JWT_KEY_ID:-}
+      JWT_RSA_PRIVATE_KEY_PEM: ${JWT_RSA_PRIVATE_KEY_PEM:-}
+      JWT_RSA_PUBLIC_KEY_PEM: ${JWT_RSA_PUBLIC_KEY_PEM:-}
+      JWT_RSA_PRIVATE_KEY_BASE64: ${JWT_RSA_PRIVATE_KEY_BASE64:-}
+      JWT_RSA_PUBLIC_KEY_BASE64: ${JWT_RSA_PUBLIC_KEY_BASE64:-}
       EVENT_SIGNING_SECRET: ${EVENT_SIGNING_SECRET:?missing}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost}
       RABBITMQ_HOST: rabbitmq
@@ -107,7 +112,9 @@ services:
     environment:
       PORT: ${CATALOG_PORT:-8082}
       DATABASE_URL: postgresql://${POSTGRES_USER:?missing}:${POSTGRES_PASSWORD:?missing}@catalog-postgres:5432/${POSTGRES_CATALOG_DB:?missing}?schema=public
-      JWT_SECRET: ${JWT_SECRET:?missing}
+      JWT_JWKS_URL: ${JWT_JWKS_URL:-http://identity-service:8081/api/v1/auth/.well-known/jwks.json}
+      JWT_ISSUER: ${JWT_ISSUER:-http://identity-service:8081}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:?missing}:${RABBITMQ_DEFAULT_PASS:?missing}@rabbitmq:5672
       EVENT_SIGNING_SECRET: ${EVENT_SIGNING_SECRET:?missing}
       RABBITMQ_USER_PROMOTED_QUEUE: catalog.user.promoted
