@@ -4,10 +4,22 @@ Monorepo de microservicios de StreamButed con orquestacion centralizada en la ra
 
 ## Servicios incluidos en el compose maestro
 
-- `postgres` (PostgreSQL 16.2-alpine)
+- `identity-postgres` (PostgreSQL 16.2-alpine)
+- `catalog-postgres` (PostgreSQL 16.2-alpine)
 - `rabbitmq` (RabbitMQ 3.12-management-alpine)
 - `identity-service`
 - `catalog-service`
+- `gateway` (nginx)
+
+## Bases de datos
+
+Cada microservicio usa su propia instancia PostgreSQL y su propio volumen de persistencia:
+
+- `identity-postgres`: crea la base `${POSTGRES_IDENTITY_DB}` y persiste en `identity_postgres_data`.
+- `catalog-postgres`: crea la base `${POSTGRES_CATALOG_DB}` y persiste en `catalog_postgres_data`.
+
+Los servicios se conectan por la red interna de Docker usando el puerto `5432` de cada contenedor.
+Los puertos publicados en el host son configurables con `POSTGRES_IDENTITY_PORT` y `POSTGRES_CATALOG_PORT`.
 
 ## Requisitos
 
@@ -53,11 +65,18 @@ Para mejorar la integridad y autenticidad de los eventos publicados por el `iden
 
 Nota: guarda `EVENT_SIGNING_SECRET` en un almacén seguro en producción y rota el secreto según tu política de seguridad.
 
-## Puertos por defecto
+## Puertos por defecto publicados en el host
+
+- Gateway HTTP: `80`
+- Identity PostgreSQL: `5433`
+- Catalog PostgreSQL: `5434`
+- RabbitMQ AMQP: `5672`
+- RabbitMQ Management: `15672`
+
+## Puertos internos de servicios
+
+Estos puertos solo se exponen dentro de la red Docker; el trafico HTTP externo debe entrar por el gateway:
 
 - Identity HTTP: `8081`
 - Identity gRPC: `9091`
 - Catalog HTTP: `8082`
-- PostgreSQL: `5432`
-- RabbitMQ AMQP: `5672`
-- RabbitMQ Management: `15672`
