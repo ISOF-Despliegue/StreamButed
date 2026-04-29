@@ -9,6 +9,7 @@ Monorepo de microservicios de StreamButed con orquestacion centralizada en la ra
 - `rabbitmq` (RabbitMQ 3.12-management-alpine)
 - `identity-service`
 - `catalog-service`
+- `gateway` (nginx)
 
 ## Bases de datos
 
