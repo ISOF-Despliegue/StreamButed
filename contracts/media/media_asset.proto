@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package streambuted.media.v1;
 
+option java_package = "streambuted.media.v1";
+option java_outer_classname = "MediaAssetProto";
+option java_multiple_files = true;
+
 service MediaAssetService {
   rpc GetAssetMetadata(GetAssetMetadataRequest) returns (AssetMetadataResponse);
 }
