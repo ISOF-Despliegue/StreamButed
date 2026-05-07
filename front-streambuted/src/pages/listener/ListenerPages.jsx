@@ -1,154 +1,328 @@
-import { useState } from "react";
-import { IcMusic, IcSearch, IcPlay, IcHeart } from "../../components/icons/Icons";
-import { ALBUMS, TRACKS, ARTISTS, fmtNum, fmtTime } from "../../data/mockData";
-import { AlbumCard } from "../../components/ui/AlbumCard";
-import { TrackRow } from "../../components/ui/TrackRow";
+import { useEffect, useMemo, useState } from 'react';
+import { IcMusic, IcSearch } from '../../components/icons/Icons';
+import { AlbumCard } from '../../components/ui/AlbumCard';
+import { TrackRow } from '../../components/ui/TrackRow';
+import { catalogService } from '../../services/catalogService';
+import { getAssetUrl } from '../../services/mediaService';
+import { formatDate } from '../../utils/formatters';
 
-export function HomePage({ onPlayTrack, currentTrack, setPage, setViewAlbum, setViewArtist }) {
+function getErrorMessage(error) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'No se pudo cargar la informacion.';
+}
+
+function InlineState({ title, message }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-text">{title}</div>
+      {message && <div className="empty-sub">{message}</div>}
+    </div>
+  );
+}
+
+export function HomePage({ setPage }) {
   return (
     <div className="page-inner">
       <div className="page-header">
         <div className="page-title">Home</div>
-      </div>
-
-      <div className="section">
-        <div className="section-header">
-          <div className="section-title">Trending Albums</div>
-          <button className="see-all-btn">See all</button>
-        </div>
-        <div className="album-grid">
-          {ALBUMS.map(al => <AlbumCard key={al.id} album={al} onClick={() => { setViewAlbum(al.id); setPage("album-detail"); }} />)}
-          {ALBUMS.map(al => <AlbumCard key={al.id + "x"} album={{ ...al, title: al.title + " (Deluxe)" }} onClick={() => { setViewAlbum(al.id); setPage("album-detail"); }} />)}
+        <div className="page-subtitle">
+          Catalog, Identity y Media ya se consumen desde Gateway. Usa Search para consultar contenido real.
         </div>
       </div>
 
-      <div className="section">
-        <div className="section-header">
-          <div className="section-title">Popular Singles</div>
-          <button className="see-all-btn">See all</button>
-        </div>
-        <div className="album-grid">
-          {TRACKS.slice(0, 6).map(t => (
-            <div key={t.id} className="album-card" onClick={() => onPlayTrack(t)}>
-              <div className="album-thumb">
-                <div style={{ fontSize: 28, color: "var(--t3)" }}><IcMusic /></div>
-                <div className="play-overlay" style={{ color: "#fff", fontSize: 32 }}>▶</div>
-              </div>
-              <div className="album-card-title">{t.title}</div>
-              <div className="album-card-artist">{t.artist}</div>
-            </div>
-          ))}
-        </div>
+      <div className="settings-card" style={{ maxWidth: 760 }}>
+        <div className="settings-card-title">Catalogo conectado</div>
+        <p style={{ color: 'var(--t2)', fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>
+          Esta pantalla ya no muestra albums o canciones mock. Cuando el backend agregue endpoints de
+          recomendaciones, home podra poblarse con datos productivos.
+        </p>
+        <button className="btn-primary" onClick={() => setPage('search')}>
+          Buscar en Catalog
+        </button>
       </div>
     </div>
   );
 }
 
 export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, setViewArtist }) {
-  const [q, setQ] = useState("");
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState({ artists: [], albums: [], tracks: [] });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const filtered = q.trim()
-    ? { tracks: TRACKS.filter(t => t.title.toLowerCase().includes(q.toLowerCase()) || t.artist.toLowerCase().includes(q.toLowerCase())),
-        albums: ALBUMS.filter(a => a.title.toLowerCase().includes(q.toLowerCase()) || a.artist.toLowerCase().includes(q.toLowerCase())) }
-    : { tracks: TRACKS, albums: ALBUMS };
+  useEffect(() => {
+    const normalizedQuery = query.trim();
+
+    if (!normalizedQuery) {
+      setResults({ artists: [], albums: [], tracks: [] });
+      setError('');
+      setHasSearched(false);
+      setIsLoading(false);
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      setIsLoading(true);
+      setError('');
+      setHasSearched(true);
+
+      try {
+        const response = await catalogService.searchCatalog({
+          q: normalizedQuery,
+          limit: 20,
+          offset: 0,
+        });
+        setResults({
+          artists: response.artists ?? [],
+          albums: response.albums ?? [],
+          tracks: response.tracks ?? [],
+        });
+      } catch (err) {
+        setError(getErrorMessage(err));
+      } finally {
+        setIsLoading(false);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [query]);
+
+  const isEmpty = useMemo(
+    () => hasSearched && !isLoading && !error && !results.artists.length && !results.albums.length && !results.tracks.length,
+    [error, hasSearched, isLoading, results]
+  );
 
   return (
     <div>
       <div className="search-header">
         <div className="search-input-wrap">
           <span className="search-icon"><IcSearch /></span>
-          <input type="text" placeholder="Busca canciones, artistas, álbumes..." value={q} onChange={e => setQ(e.target.value)} />
+          <input
+            type="text"
+            placeholder="Busca canciones, artistas, albums..."
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
         </div>
       </div>
       <div className="page-inner" style={{ paddingTop: 24 }}>
-        <div className="section">
-          <div className="section-header">
-            <div className="section-title">Top Songs</div>
-            <button className="see-all-btn">See all</button>
-          </div>
-          <table className="track-list" style={{ width: "100%" }}>
-            <thead><tr>
-              <th style={{ width: 40 }}>#</th>
-              <th>Título</th>
-              <th>Reproducciones</th>
-              <th style={{ textAlign: "right" }}>Duración</th>
-            </tr></thead>
-            <tbody>
-              {filtered.tracks.slice(0, 7).map((t, i) => (
-                <TrackRow key={t.id} track={t} index={i} isPlaying={currentTrack?.id === t.id} onPlay={() => onPlayTrack(t)}
-                  onArtistClick={id => { setViewArtist(id); setPage("artist-profile"); }} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {!query.trim() && (
+          <InlineState
+            title="Busca en el catalogo real"
+            message="La busqueda llama GET /api/v1/catalog/search por Gateway."
+          />
+        )}
 
-        <div className="section">
-          <div className="section-header">
-            <div className="section-title">Álbumes</div>
-            <button className="see-all-btn">See all</button>
+        {isLoading && <InlineState title="Buscando..." message="Consultando Catalog Service." />}
+        {error && <InlineState title="No se pudo buscar" message={error} />}
+        {isEmpty && <InlineState title="Sin resultados" message="Catalog no devolvio artistas, albums ni pistas para esta busqueda." />}
+
+        {results.artists.length > 0 && (
+          <div className="section">
+            <div className="section-header">
+              <div className="section-title">Artistas</div>
+            </div>
+            <div className="album-grid">
+              {results.artists.map((artist) => (
+                <div
+                  key={artist.artistId}
+                  className="album-card"
+                  onClick={() => { setViewArtist(artist.artistId); setPage('artist-profile'); }}
+                >
+                  <div className="album-thumb">
+                    <div style={{ fontSize: 28, color: 'var(--t3)' }}><IcMusic /></div>
+                  </div>
+                  <div className="album-card-title">{artist.displayName}</div>
+                  <div className="album-card-artist">Artista</div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="album-grid">
-            {filtered.albums.map(al => <AlbumCard key={al.id} album={al} onClick={() => { setViewAlbum(al.id); setPage("album-detail"); }} />)}
+        )}
+
+        {results.tracks.length > 0 && (
+          <div className="section">
+            <div className="section-header">
+              <div className="section-title">Pistas</div>
+            </div>
+            <table className="track-list" style={{ width: '100%' }}>
+              <thead><tr>
+                <th style={{ width: 40 }}>#</th>
+                <th>Titulo</th>
+                <th>Estado</th>
+                <th style={{ textAlign: 'right' }}>Duracion</th>
+              </tr></thead>
+              <tbody>
+                {results.tracks.map((track, index) => (
+                  <TrackRow
+                    key={track.trackId}
+                    track={track}
+                    index={index}
+                    isPlaying={currentTrack?.trackId === track.trackId}
+                    onPlay={() => onPlayTrack(track)}
+                    onArtistClick={artistId => { setViewArtist(artistId); setPage('artist-profile'); }}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
+
+        {results.albums.length > 0 && (
+          <div className="section">
+            <div className="section-header">
+              <div className="section-title">Albums</div>
+            </div>
+            <div className="album-grid">
+              {results.albums.map(album => (
+                <AlbumCard
+                  key={album.albumId}
+                  album={album}
+                  onClick={() => { setViewAlbum(album.albumId); setPage('album-detail'); }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack, setPage, setViewArtist }) {
-  const album = ALBUMS.find(a => a.id === albumId) || ALBUMS[0];
-  const tracks = TRACKS.filter(t => album.trackIds.includes(t.id));
+export function AlbumDetailPage({ albumId, setPage, setViewArtist }) {
+  const [album, setAlbum] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!albumId) return undefined;
+
+    let mounted = true;
+    setIsLoading(true);
+    setError('');
+
+    catalogService.getAlbum(albumId)
+      .then((response) => {
+        if (mounted) setAlbum(response);
+      })
+      .catch((err) => {
+        if (mounted) setError(getErrorMessage(err));
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [albumId]);
+
+  if (!albumId) {
+    return <div className="page-inner"><InlineState title="Album no seleccionado" /></div>;
+  }
+
+  if (isLoading) {
+    return <div className="page-inner"><InlineState title="Cargando album..." /></div>;
+  }
+
+  if (error) {
+    return <div className="page-inner"><InlineState title="No se pudo cargar el album" message={error} /></div>;
+  }
+
+  if (!album) {
+    return <div className="page-inner"><InlineState title="Album no encontrado" /></div>;
+  }
 
   return (
     <div>
       <div className="album-hero">
         <div className="album-hero-cover">
-          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)", fontSize: 56 }}><IcMusic /></div>
+          {album.coverAssetId ? (
+            <img src={getAssetUrl(album.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', fontSize: 56 }}><IcMusic /></div>
+          )}
         </div>
         <div className="album-hero-info">
-          <div className="album-hero-type">Álbum</div>
+          <div className="album-hero-type">Album</div>
           <div className="album-hero-title">{album.title}</div>
           <div className="album-hero-meta">
-            <span style={{ color: "var(--accent)", cursor: "pointer" }} onClick={() => { setViewArtist(album.artistId); setPage("artist-profile"); }}>{album.artist}</span>
+            <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => { setViewArtist(album.artistId); setPage('artist-profile'); }}>
+              Artista {album.artistId.slice(0, 8)}
+            </span>
             <span className="dot-sep" />
-            <span>{album.year}</span>
+            <span>{album.status}</span>
             <span className="dot-sep" />
-            <span>{tracks.length} pistas</span>
-          </div>
-          <div className="album-actions">
-            <button className="btn-primary" style={{ display: "flex", alignItems: "center", gap: 8 }} onClick={() => tracks[0] && onPlayTrack(tracks[0])}>
-              <IcPlay />Play
-            </button>
-            <button className="btn-ghost"><IcHeart /></button>
+            <span>{formatDate(album.createdAt)}</span>
           </div>
         </div>
       </div>
-      <div className="track-table-wrap">
-        <table className="track-list">
-          <thead><tr>
-            <th style={{ width: 40 }}>#</th>
-            <th>Título</th>
-            <th>Reproducciones</th>
-            <th style={{ textAlign: "right" }}>Duración</th>
-          </tr></thead>
-          <tbody>
-            {tracks.map((t, i) => (
-              <TrackRow key={t.id} track={t} index={i} isPlaying={currentTrack?.id === t.id} onPlay={() => onPlayTrack(t)}
-                onArtistClick={id => { setViewArtist(id); setPage("artist-profile"); }} />
-            ))}
-          </tbody>
-        </table>
+      <div className="page-inner">
+        <InlineState
+          title="Tracklist pendiente"
+          message="Catalog Service aun no expone un endpoint publico para listar pistas por album. No se inventan pistas ni reproducciones."
+        />
       </div>
     </div>
   );
 }
 
 export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack, setPage, setViewAlbum }) {
-  const artist = ARTISTS.find(a => a.id === artistId) || ARTISTS[0];
-  const tracks = TRACKS.filter(t => t.artistId === artist.id);
-  const albums = ALBUMS.filter(a => a.artistId === artist.id);
-  const [following, setFollowing] = useState(false);
+  const [artist, setArtist] = useState(null);
+  const [tracks, setTracks] = useState([]);
+  const [albums, setAlbums] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!artistId) return undefined;
+
+    let mounted = true;
+    setIsLoading(true);
+    setError('');
+
+    Promise.all([
+      catalogService.getArtist(artistId),
+      catalogService.listArtistTracks(artistId),
+      catalogService.listArtistAlbums(artistId),
+    ])
+      .then(([artistResponse, trackResponse, albumResponse]) => {
+        if (!mounted) return;
+        setArtist(artistResponse);
+        setTracks(trackResponse);
+        setAlbums(albumResponse);
+      })
+      .catch((err) => {
+        if (mounted) setError(getErrorMessage(err));
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [artistId]);
+
+  if (!artistId) {
+    return <div className="page-inner"><InlineState title="Artista no seleccionado" /></div>;
+  }
+
+  if (isLoading) {
+    return <div className="page-inner"><InlineState title="Cargando artista..." /></div>;
+  }
+
+  if (error) {
+    return <div className="page-inner"><InlineState title="No se pudo cargar el artista" message={error} /></div>;
+  }
+
+  if (!artist) {
+    return <div className="page-inner"><InlineState title="Artista no encontrado" /></div>;
+  }
 
   return (
     <div>
@@ -156,43 +330,59 @@ export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack, setPage
         <div className="artist-banner-gradient" />
       </div>
       <div className="artist-info-row">
-        <div className="artist-avatar-lg">{artist.initials}</div>
+        <div className="artist-avatar-lg">{artist.displayName[0]?.toUpperCase()}</div>
         <div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 4 }}>Artista</div>
-          <div className="artist-name-lg">{artist.name}</div>
-          <div className="artist-stats">{fmtNum(artist.followers)} seguidores</div>
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 4 }}>Artista</div>
+          <div className="artist-name-lg">{artist.displayName}</div>
+          <div className="artist-stats">{artist.biography || 'Sin biografia publicada.'}</div>
         </div>
-        <button className={`follow-btn${following ? " following" : ""}`} onClick={() => setFollowing(f => !f)}>
-          {following ? "✓ Siguiendo" : "+ Seguir"}
-        </button>
       </div>
 
-      <div style={{ padding: "0 32px 40px" }}>
+      <div style={{ padding: '0 32px 40px' }}>
         <div className="section">
-          <div className="section-title" style={{ marginBottom: 16 }}>Popular Tracks</div>
-          <table className="track-list">
-            <thead><tr>
-              <th style={{ width: 40 }}>#</th>
-              <th>Título</th>
-              <th>Reproducciones</th>
-              <th style={{ textAlign: "right" }}>Duración</th>
-            </tr></thead>
-            <tbody>
-              {tracks.slice(0, 5).map((t, i) => (
-                <TrackRow key={t.id} track={t} index={i} isPlaying={currentTrack?.id === t.id} onPlay={() => onPlayTrack(t)} />
-              ))}
-            </tbody>
-          </table>
+          <div className="section-title" style={{ marginBottom: 16 }}>Pistas publicadas</div>
+          {tracks.length === 0 ? (
+            <InlineState title="Sin pistas publicadas" />
+          ) : (
+            <table className="track-list">
+              <thead><tr>
+                <th style={{ width: 40 }}>#</th>
+                <th>Titulo</th>
+                <th>Estado</th>
+                <th style={{ textAlign: 'right' }}>Duracion</th>
+              </tr></thead>
+              <tbody>
+                {tracks.map((track, index) => (
+                  <TrackRow
+                    key={track.trackId}
+                    track={{ ...track, artist: artist.displayName }}
+                    index={index}
+                    isPlaying={currentTrack?.trackId === track.trackId}
+                    onPlay={() => onPlayTrack({ ...track, artist: artist.displayName })}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="section">
           <div className="section-header">
-            <div className="section-title">Discografía</div>
-            <button className="see-all-btn">See all</button>
+            <div className="section-title">Discografia</div>
           </div>
-          <div className="album-grid">
-            {albums.map(al => <AlbumCard key={al.id} album={al} onClick={() => { setViewAlbum(al.id); setPage("album-detail"); }} />)}
-          </div>
+          {albums.length === 0 ? (
+            <InlineState title="Sin albums publicados" />
+          ) : (
+            <div className="album-grid">
+              {albums.map(album => (
+                <AlbumCard
+                  key={album.albumId}
+                  album={{ ...album, artist: artist.displayName }}
+                  onClick={() => { setViewAlbum(album.albumId); setPage('album-detail'); }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
