@@ -2,11 +2,13 @@ import { IcMusic } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import { formatDuration, formatNumber } from '../../utils/formatters';
 
-export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick }) {
+export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaText }) {
   const trackId = track.trackId || track.id;
   const artistName = track.artist || track.artistName || track.artistId || 'Artista';
   const duration = track.durationSeconds ?? track.duration;
-  const meta = track.plays !== undefined ? formatNumber(track.plays) : (track.genre || track.status || 'Catalogo');
+  const meta = metaText !== undefined
+    ? metaText
+    : (track.plays !== undefined ? formatNumber(track.plays) : (track.genre || track.status || 'Catalogo'));
 
   return (
     <tr className={`track-row${isPlaying ? ' playing' : ''}`} onClick={onPlay}>
