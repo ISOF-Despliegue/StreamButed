@@ -21,7 +21,8 @@ function withQuery(path: string, params: Record<string, string | number | undefi
     }
   });
 
-  return `${path}?${searchParams.toString()}`;
+  const queryString = searchParams.toString();
+  return queryString ? `${path}?${queryString}` : path;
 }
 
 export const catalogService = {
