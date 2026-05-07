@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, Menu, shell } from "electron";
 import path from "node:path";
 
 const isDev = process.argv.includes("--dev");
@@ -14,6 +14,7 @@ function createMainWindow(): void {
     minHeight: 700,
     title: "StreamButed",
     backgroundColor: "#0A0A0D",
+    autoHideMenuBar: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -22,6 +23,8 @@ function createMainWindow(): void {
       sandbox: true,
     },
   });
+
+  mainWindow.setMenuBarVisibility(false);
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
@@ -42,6 +45,7 @@ function createMainWindow(): void {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   createMainWindow();
 
   app.on("activate", () => {
