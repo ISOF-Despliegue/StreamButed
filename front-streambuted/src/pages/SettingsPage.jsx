@@ -111,7 +111,11 @@ export function SettingsPage({ user, toast }) {
         <div className="avatar-upload-row">
           <div className="avatar-upload-img">
             {user.profileImageAssetId ? (
-              <img src={getAssetUrl(user.profileImageAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+              <img
+                src={getAssetUrl(user.profileImageAssetId)}
+                alt={`Foto de perfil de ${user.username || 'usuario'}`}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+              />
             ) : (
               user.username[0]?.toUpperCase()
             )}
