@@ -32,6 +32,7 @@ export function SettingsPage({ user, toast }) {
   const [username, setUsername] = useState(user.username);
   const [bio, setBio] = useState(user.bio ?? '');
   const [profileImageFile, setProfileImageFile] = useState(null);
+  const [profilePreviewUrl, setProfilePreviewUrl] = useState('');
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -43,6 +44,27 @@ export function SettingsPage({ user, toast }) {
     setUsername(user.username);
     setBio(user.bio ?? '');
   }, [user]);
+
+  useEffect(() => {
+    if (!profileImageFile) {
+      setProfilePreviewUrl('');
+      return;
+    }
+
+    if (typeof URL.createObjectURL !== 'function') {
+      setProfilePreviewUrl('');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(profileImageFile);
+    setProfilePreviewUrl(previewUrl);
+
+    return () => {
+      if (typeof URL.revokeObjectURL === 'function') {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [profileImageFile]);
 
   const handleProfileImageChange = (event) => {
     const selectedFile = event.target.files?.[0] ?? null;
@@ -146,7 +168,13 @@ export function SettingsPage({ user, toast }) {
         <div className="settings-card-title">Profile</div>
         <div className="avatar-upload-row">
           <div className="avatar-upload-img">
-            {user.profileImageAssetId ? (
+            {profilePreviewUrl ? (
+              <img
+                src={profilePreviewUrl}
+                alt={`Previsualizacion de foto de perfil de ${user.username || 'usuario'}`}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+              />
+            ) : user.profileImageAssetId ? (
               <img
                 src={getAssetUrl(user.profileImageAssetId)}
                 alt={`Foto de perfil de ${user.username || 'usuario'}`}

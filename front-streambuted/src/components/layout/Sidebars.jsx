@@ -3,6 +3,7 @@ import {
   IcDashboard, IcTracks, IcUpload, IcChart, IcMusic,
   IcOverview, IcUsers, IcContent, IcReport, IcShield,
 } from '../icons/Icons';
+import { getAssetUrl } from '../../services/mediaService';
 
 /**
  * MainSidebar — used by both listeners and artists.
@@ -44,6 +45,15 @@ export function MainSidebar({ page, setPage, user }) {
   );
 
   const roleLabel = user.role === 'artist' ? 'Artist' : 'Listener';
+
+  const avatarNode = user.profileImageAssetId ? (
+    <img
+      src={getAssetUrl(user.profileImageAssetId)}
+      alt={`Foto de perfil de ${user.username || 'usuario'}`}
+    />
+  ) : (
+    user.username[0]?.toUpperCase()
+  );
 
   return (
     <div className="sidebar">
@@ -96,7 +106,7 @@ export function MainSidebar({ page, setPage, user }) {
 
       <div className="sidebar-footer">
         <div className="user-chip">
-          <div className="user-avatar">{user.username[0]?.toUpperCase()}</div>
+          <div className="user-avatar">{avatarNode}</div>
           <div className="user-info">
             <div className="user-name">{user.username}</div>
             <div className="user-role">{roleLabel}</div>
@@ -152,7 +162,14 @@ export function AdminSidebar({ page, setPage, user }) {
             className="user-avatar"
             style={{ background: 'rgba(167,139,250,0.2)', color: '#A78BFA' }}
           >
-            {user.username[0]?.toUpperCase()}
+            {user.profileImageAssetId ? (
+              <img
+                src={getAssetUrl(user.profileImageAssetId)}
+                alt={`Foto de perfil de ${user.username || 'usuario'}`}
+              />
+            ) : (
+              user.username[0]?.toUpperCase()
+            )}
           </div>
           <div className="user-info">
             <div className="user-name">{user.username}</div>
