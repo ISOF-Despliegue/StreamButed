@@ -1,6 +1,11 @@
 import { useState } from 'react';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_MAX_LENGTH = 320;
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 50;
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
@@ -17,15 +22,19 @@ export function LoginPage({ onLogin, onRegister }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async () => {
-    if (!email.trim()) return setError('Email requerido.');
-    if (!EMAIL_PATTERN.test(email)) return setError('Email invalido.');
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) return setError('Email requerido.');
+    if (normalizedEmail.length > EMAIL_MAX_LENGTH) return setError('Email supera 320 caracteres.');
+    if (!EMAIL_PATTERN.test(normalizedEmail)) return setError('Email invalido.');
     if (!password) return setError('Password requerido.');
+    if (password.length > PASSWORD_MAX_LENGTH) return setError('Password supera 128 caracteres.');
 
     setError('');
     setIsSubmitting(true);
 
     try {
-      await onLogin({ email: email.trim(), password });
+      await onLogin({ email: normalizedEmail, password });
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -45,25 +54,29 @@ export function LoginPage({ onLogin, onRegister }) {
         <div className="auth-sub">Sign in with your backend account</div>
 
         <div className="form-group">
-          <label className="form-label">Email</label>
+          <label className="form-label" htmlFor="login-email">Email</label>
           <input
+            id="login-email"
             type="email"
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
+            maxLength={EMAIL_MAX_LENGTH}
           />
         </div>
 
         <div className="form-group">
-          <label className="form-label">Password</label>
+          <label className="form-label" htmlFor="login-password">Password</label>
           <input
+            id="login-password"
             type="password"
             placeholder="Enter your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             autoComplete="current-password"
+            maxLength={PASSWORD_MAX_LENGTH}
           />
         </div>
 
@@ -116,16 +129,27 @@ export function RegisterPage({ onRegister, onBack }) {
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   const handleCreate = async () => {
-    if (!form.email.trim() || !form.username.trim() || !form.password) {
+    const normalizedEmail = form.email.trim();
+    const normalizedUsername = form.username.trim();
+
+    if (!normalizedEmail || !normalizedUsername || !form.password) {
       return setError('Todos los campos son requeridos.');
     }
 
-    if (!EMAIL_PATTERN.test(form.email)) {
+    if (normalizedEmail.length > EMAIL_MAX_LENGTH) {
+      return setError('El email no puede superar 320 caracteres.');
+    }
+
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
       return setError('Email invalido.');
     }
 
-    if (form.password.length < 8) {
-      return setError('El password debe tener al menos 8 caracteres.');
+    if (normalizedUsername.length < USERNAME_MIN_LENGTH || normalizedUsername.length > USERNAME_MAX_LENGTH) {
+      return setError('El username debe tener entre 3 y 50 caracteres.');
+    }
+
+    if (form.password.length < PASSWORD_MIN_LENGTH || form.password.length > PASSWORD_MAX_LENGTH) {
+      return setError('El password debe tener entre 8 y 128 caracteres.');
     }
 
     if (form.password !== form.confirm) {
@@ -137,8 +161,8 @@ export function RegisterPage({ onRegister, onBack }) {
 
     try {
       await onRegister({
-        email: form.email.trim(),
-        username: form.username.trim(),
+        email: normalizedEmail,
+        username: normalizedUsername,
         password: form.password,
       });
     } catch (err) {
@@ -158,27 +182,47 @@ export function RegisterPage({ onRegister, onBack }) {
         <div className="auth-title">Create your account</div>
         <div className="auth-sub">New accounts start as listeners</div>
 
-        {(['email', 'username', 'password', 'confirm']).map((key, index) => (
-          <div className="form-group" key={key}>
-            <label className="form-label">
-              {['Email', 'Username', 'Password', 'Confirm password'][index]}
-            </label>
-            <input
-              type={key.includes('password') || key === 'confirm' ? 'password' : key === 'email' ? 'email' : 'text'}
-              placeholder={
-                [
-                  'Enter your email',
-                  'Choose a username',
-                  'Create a password',
-                  'Confirm your password',
-                ][index]
-              }
-              value={form[key]}
-              onChange={set(key)}
-              autoComplete={key === 'confirm' ? 'new-password' : key}
-            />
-          </div>
-        ))}
+        {(['email', 'username', 'password', 'confirm']).map((key, index) => {
+          const inputId = `register-${key}`;
+          const isPasswordField = key === 'password' || key === 'confirm';
+          let inputType = 'text';
+          if (isPasswordField) {
+            inputType = 'password';
+          } else if (key === 'email') {
+            inputType = 'email';
+          }
+          const placeholders = [
+            'Enter your email',
+            'Choose a username',
+            'Create a password',
+            'Confirm your password',
+          ];
+          const labels = ['Email', 'Username', 'Password', 'Confirm password'];
+          let maxLength = PASSWORD_MAX_LENGTH;
+          if (key === 'email') {
+            maxLength = EMAIL_MAX_LENGTH;
+          } else if (key === 'username') {
+            maxLength = USERNAME_MAX_LENGTH;
+          }
+
+          return (
+            <div className="form-group" key={key}>
+              <label className="form-label" htmlFor={inputId}>
+                {labels[index]}
+              </label>
+              <input
+                id={inputId}
+                type={inputType}
+                placeholder={placeholders[index]}
+                value={form[key]}
+                onChange={set(key)}
+                autoComplete={key === 'confirm' ? 'new-password' : key}
+                maxLength={maxLength}
+                minLength={isPasswordField ? PASSWORD_MIN_LENGTH : undefined}
+              />
+            </div>
+          );
+        })}
 
         {error && (
           <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>

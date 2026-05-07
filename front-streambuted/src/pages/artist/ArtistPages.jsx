@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { IcMusic } from '../../components/icons/Icons';
 import { TrackRow } from '../../components/ui/TrackRow';
+import { FilePicker } from '../../components/ui/FilePicker';
 import { catalogService } from '../../services/catalogService';
 import { mediaService } from '../../services/mediaService';
 import { formatDate } from '../../utils/formatters';
@@ -25,6 +26,47 @@ const TRACK_GENRES = [
   'Indie',
   'Otro',
 ];
+
+const TRACK_TITLE_MAX_LENGTH = 220;
+const ALBUM_TITLE_MAX_LENGTH = 220;
+const GENRE_MAX_LENGTH = 80;
+
+const MAX_AUDIO_SIZE_BYTES = 200 * 1024 * 1024;
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+function normalizeText(value) {
+  return (value ?? '').trim();
+}
+
+function validateCoverImage(file) {
+  if (!file) return 'Portada requerida por Catalog.';
+  if (file.type && !ALLOWED_IMAGE_TYPES.has(file.type)) return 'Formato de imagen invalido. Usa JPG, PNG o WEBP.';
+  if (file.size > MAX_IMAGE_SIZE_BYTES) return 'La imagen supera el maximo de 5 MB.';
+  return '';
+}
+
+function validateAudio(file) {
+  if (!file) return 'Audio requerido.';
+  if (file.size > MAX_AUDIO_SIZE_BYTES) return 'El audio supera el maximo de 200 MB.';
+  return '';
+}
+
+function buildFileChangeHandler({ validate, setFile, setError }) {
+  return (event) => {
+    const selectedFile = event.target.files?.[0] ?? null;
+    const errorMessage = validate(selectedFile);
+    if (errorMessage) {
+      event.target.value = '';
+      setFile(null);
+      setError(errorMessage);
+      return;
+    }
+    setError('');
+    setFile(selectedFile);
+  };
+}
 
 function shortId(value) {
   return value ? `${value.slice(0, 8)}...` : 'Sin album';
@@ -340,11 +382,31 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
     };
   }, [user?.id]);
 
+  const handleAudioChange = buildFileChangeHandler({
+    validate: validateAudio,
+    setFile: setAudioFile,
+    setError,
+  });
+
+  const handleCoverChange = buildFileChangeHandler({
+    validate: validateCoverImage,
+    setFile: setCoverFile,
+    setError,
+  });
+
   const handlePublish = async () => {
-    if (!title.trim()) return setError('Titulo requerido.');
-    if (!genre.trim()) return setError('Genero requerido.');
-    if (!audioFile) return setError('Audio requerido.');
-    if (!coverFile) return setError('Portada requerida por Catalog.');
+    const normalizedTitle = normalizeText(title);
+    const normalizedGenre = normalizeText(genre);
+
+    if (!normalizedTitle) return setError('Titulo requerido.');
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El titulo no puede superar 220 caracteres.');
+    if (!normalizedGenre) return setError('Genero requerido.');
+    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El genero no puede superar 80 caracteres.');
+
+    const audioError = validateAudio(audioFile);
+    if (audioError) return setError(audioError);
+    const coverError = validateCoverImage(coverFile);
+    if (coverError) return setError(coverError);
 
     setError('');
     setIsSubmitting(true);
@@ -353,8 +415,8 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
       const audio = await mediaService.uploadAudio(audioFile);
       const cover = await mediaService.uploadCatalogImage(coverFile, 'TRACK_COVER');
       const payload = {
-        title: title.trim(),
-        genre: genre.trim(),
+        title: normalizedTitle,
+        genre: normalizedGenre,
         audioAssetId: audio.assetId,
         coverAssetId: cover.assetId,
       };
@@ -388,19 +450,32 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
       <div className="settings-card" style={{ maxWidth: 760 }}>
         <div className="settings-card-title">Audio</div>
         <div className="form-group-mb">
-          <label className="form-label">Track Title</label>
-          <input value={title} onChange={event => setTitle(event.target.value)} placeholder="Enter track title" />
+          <label className="form-label" htmlFor="upload-track-title">Track Title</label>
+          <input
+            id="upload-track-title"
+            value={title}
+            onChange={event => setTitle(event.target.value)}
+            placeholder="Enter track title"
+            maxLength={TRACK_TITLE_MAX_LENGTH}
+          />
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Genero</label>
-          <input list="track-genres" value={genre} onChange={event => setGenre(event.target.value)} placeholder="Rock, Pop, Electronica..." />
+          <label className="form-label" htmlFor="upload-track-genre">Genero</label>
+          <input
+            id="upload-track-genre"
+            list="track-genres"
+            value={genre}
+            onChange={event => setGenre(event.target.value)}
+            placeholder="Rock, Pop, Electronica..."
+            maxLength={GENRE_MAX_LENGTH}
+          />
           <datalist id="track-genres">
             {TRACK_GENRES.map(option => <option key={option} value={option} />)}
           </datalist>
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Album destino</label>
-          <select value={albumId} onChange={event => setAlbumId(event.target.value)}>
+          <label className="form-label" htmlFor="upload-track-album">Album destino</label>
+          <select id="upload-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
             <option value="">Publicar como single</option>
             {albums.map(album => (
               <option key={album.albumId} value={album.albumId}>{album.title}</option>
@@ -411,14 +486,24 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
           </div>
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Audio file</label>
-          <input type="file" accept="audio/mpeg,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm" onChange={event => setAudioFile(event.target.files?.[0] ?? null)} />
-          <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>{audioFile ? audioFile.name : 'MP3, WAV, FLAC, OGG o WEBM - max 200 MB'}</div>
+          <div className="form-label">Audio file</div>
+          <FilePicker
+            accept="audio/mpeg,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
+            file={audioFile}
+            onChange={handleAudioChange}
+            helperText="MP3, WAV, FLAC, OGG o WEBM - max 200 MB"
+            buttonLabel="Seleccionar archivo"
+          />
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Cover image</label>
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setCoverFile(event.target.files?.[0] ?? null)} />
-          <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>{coverFile ? coverFile.name : 'JPG, PNG o WEBP - max 5 MB'}</div>
+          <div className="form-label">Cover image</div>
+          <FilePicker
+            accept="image/png,image/jpeg,image/webp"
+            file={coverFile}
+            onChange={handleCoverChange}
+            helperText="JPG, PNG o WEBP - max 5 MB"
+            buttonLabel="Seleccionar archivo"
+          />
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={handlePublish} disabled={isSubmitting}>
@@ -435,9 +520,18 @@ export function CreateAlbumPage({ toast }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const handleCoverChange = buildFileChangeHandler({
+    validate: validateCoverImage,
+    setFile: setCoverFile,
+    setError,
+  });
+
   const handleCreate = async () => {
-    if (!title.trim()) return setError('Titulo requerido.');
-    if (!coverFile) return setError('Portada requerida por Catalog.');
+    const normalizedTitle = normalizeText(title);
+    if (!normalizedTitle) return setError('Titulo requerido.');
+    if (normalizedTitle.length > ALBUM_TITLE_MAX_LENGTH) return setError('El titulo no puede superar 220 caracteres.');
+    const coverError = validateCoverImage(coverFile);
+    if (coverError) return setError(coverError);
 
     setError('');
     setIsSubmitting(true);
@@ -445,7 +539,7 @@ export function CreateAlbumPage({ toast }) {
     try {
       const cover = await mediaService.uploadCatalogImage(coverFile, 'ALBUM_COVER');
       await catalogService.createAlbum({
-        title: title.trim(),
+        title: normalizedTitle,
         coverAssetId: cover.assetId,
       });
       setTitle('');
@@ -464,13 +558,24 @@ export function CreateAlbumPage({ toast }) {
       <div className="settings-card" style={{ maxWidth: 760 }}>
         <div className="settings-card-title">Album Info</div>
         <div className="form-group-mb">
-          <label className="form-label">Album Title</label>
-          <input value={title} onChange={event => setTitle(event.target.value)} placeholder="Enter album title" />
+          <label className="form-label" htmlFor="create-album-title">Album Title</label>
+          <input
+            id="create-album-title"
+            value={title}
+            onChange={event => setTitle(event.target.value)}
+            placeholder="Enter album title"
+            maxLength={ALBUM_TITLE_MAX_LENGTH}
+          />
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Cover image</label>
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setCoverFile(event.target.files?.[0] ?? null)} />
-          <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>{coverFile ? coverFile.name : 'JPG, PNG o WEBP - max 5 MB'}</div>
+          <div className="form-label">Cover image</div>
+          <FilePicker
+            accept="image/png,image/jpeg,image/webp"
+            file={coverFile}
+            onChange={handleCoverChange}
+            helperText="JPG, PNG o WEBP - max 5 MB"
+            buttonLabel="Seleccionar archivo"
+          />
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={handleCreate} disabled={isSubmitting}>
@@ -522,16 +627,21 @@ export function EditTrackPage({ track, user, setPage, toast }) {
   }
 
   const save = async () => {
-    if (!title.trim()) return setError('Titulo requerido.');
-    if (!genre.trim()) return setError('Genero requerido.');
+    const normalizedTitle = normalizeText(title);
+    const normalizedGenre = normalizeText(genre);
+
+    if (!normalizedTitle) return setError('Titulo requerido.');
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El titulo no puede superar 220 caracteres.');
+    if (!normalizedGenre) return setError('Genero requerido.');
+    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El genero no puede superar 80 caracteres.');
 
     setError('');
     setIsSubmitting(true);
 
     try {
       await catalogService.updateTrack(track.trackId, {
-        title: title.trim(),
-        genre: genre.trim(),
+        title: normalizedTitle,
+        genre: normalizedGenre,
         albumId: albumId || null,
       });
       toast('Cambios guardados');
@@ -567,19 +677,19 @@ export function EditTrackPage({ track, user, setPage, toast }) {
       <div className="page-header"><div className="page-title">Edit Track</div></div>
       <div className="settings-card" style={{ maxWidth: 700 }}>
         <div className="form-group-mb">
-          <label className="form-label">Title</label>
-          <input value={title} onChange={event => setTitle(event.target.value)} />
+          <label className="form-label" htmlFor="edit-track-title">Title</label>
+          <input id="edit-track-title" value={title} onChange={event => setTitle(event.target.value)} maxLength={TRACK_TITLE_MAX_LENGTH} />
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Genero</label>
-          <input list="edit-track-genres" value={genre} onChange={event => setGenre(event.target.value)} />
+          <label className="form-label" htmlFor="edit-track-genre">Genero</label>
+          <input id="edit-track-genre" list="edit-track-genres" value={genre} onChange={event => setGenre(event.target.value)} maxLength={GENRE_MAX_LENGTH} />
           <datalist id="edit-track-genres">
             {TRACK_GENRES.map(option => <option key={option} value={option} />)}
           </datalist>
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Album</label>
-          <select value={albumId} onChange={event => setAlbumId(event.target.value)}>
+          <label className="form-label" htmlFor="edit-track-album">Album</label>
+          <select id="edit-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
             <option value="">Single / sin album</option>
             {albums.map(album => (
               <option key={album.albumId} value={album.albumId}>{album.title}</option>

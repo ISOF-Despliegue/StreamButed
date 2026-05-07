@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { catalogService } from '../services/catalogService';
 import { getAssetUrl, mediaService } from '../services/mediaService';
+import { FilePicker } from '../components/ui/FilePicker';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
@@ -43,9 +44,44 @@ export function SettingsPage({ user, toast }) {
     setBio(user.bio ?? '');
   }, [user]);
 
+  const handleProfileImageChange = (event) => {
+    const selectedFile = event.target.files?.[0] ?? null;
+    if (!selectedFile) {
+      setProfileImageFile(null);
+      return;
+    }
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowedTypes.includes(selectedFile.type)) {
+      event.target.value = '';
+      setProfileImageFile(null);
+      setError('Formato de imagen invalido. Usa JPG, PNG o WEBP.');
+      return;
+    }
+
+    const maxSizeBytes = 5 * 1024 * 1024;
+    if (selectedFile.size > maxSizeBytes) {
+      event.target.value = '';
+      setProfileImageFile(null);
+      setError('La imagen supera el maximo de 5 MB.');
+      return;
+    }
+
+    setError('');
+    setProfileImageFile(selectedFile);
+  };
+
   const handleSave = async () => {
-    if (!username.trim()) {
-      return setError('Username requerido.');
+    const normalizedUsername = username.trim();
+    const normalizedBio = bio.trim();
+
+    if (!normalizedUsername) return setError('Username requerido.');
+    if (normalizedUsername.length < 3 || normalizedUsername.length > 50) {
+      return setError('Username debe tener entre 3 y 50 caracteres.');
+    }
+
+    if (normalizedBio.length > 1000) {
+      return setError('Bio no puede superar 1000 caracteres.');
     }
 
     setIsSaving(true);
@@ -60,8 +96,8 @@ export function SettingsPage({ user, toast }) {
       }
 
       await updateProfile({
-        username: username.trim(),
-        bio: bio.trim() || null,
+        username: normalizedUsername,
+        bio: normalizedBio || null,
         profileImageAssetId,
       });
 
@@ -121,34 +157,36 @@ export function SettingsPage({ user, toast }) {
             )}
           </div>
           <div>
-            <input
-              type="file"
+            <FilePicker
               accept="image/png,image/jpeg,image/webp"
-              onChange={event => setProfileImageFile(event.target.files?.[0] ?? null)}
+              file={profileImageFile}
+              onChange={handleProfileImageChange}
+              helperText="JPG, PNG o WEBP. Max 5 MB."
+              buttonLabel="Seleccionar archivo"
             />
-            <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-              {profileImageFile ? profileImageFile.name : 'JPG, PNG o WEBP. Max 5 MB.'}
-            </div>
           </div>
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Username</label>
+          <label className="form-label" htmlFor="settings-username">Username</label>
           <input
+            id="settings-username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Enter username"
+            maxLength={50}
           />
         </div>
         <div className="form-group-mb">
-          <label className="form-label">Bio</label>
+          <label className="form-label" htmlFor="settings-bio">Bio</label>
           <textarea
+            id="settings-bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             placeholder="Tell us about yourself"
             rows={4}
-            maxLength={300}
+            maxLength={1000}
           />
-          <div className="char-count">{bio.length} / 300</div>
+          <div className="char-count">{bio.length} / 1000</div>
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
