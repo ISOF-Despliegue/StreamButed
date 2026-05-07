@@ -1,38 +1,35 @@
 import { useState } from 'react';
 
-/**
- * LoginPage
- *
- * Role selection has been removed. The system reads the role directly
- * from the JWT payload returned by the identity service. New users
- * always receive the listener role by default; admin accounts are
- * provisioned exclusively via the database.
- */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function getErrorMessage(error) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'No se pudo completar la solicitud.';
+}
+
 export function LoginPage({ onLogin, onRegister }) {
   const [email, setEmail] = useState('');
-  const [pass, setPass] = useState('');
-  const [err, setErr] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = () => {
-    if (!email) return setErr('Email is required.');
-    if (!pass) return setErr('Password is required.');
-    setErr('');
+  const handleLogin = async () => {
+    if (!email.trim()) return setError('Email requerido.');
+    if (!EMAIL_PATTERN.test(email)) return setError('Email invalido.');
+    if (!password) return setError('Password requerido.');
 
-    // Simulate JWT role resolution: in production the role comes from the
-    // decoded token payload. Here we hard-code the admin detection by email
-    // prefix so the demo still works without a real backend.
-    if (email === 'admin@streambuted.com' && pass === 'admin123') {
-      onLogin({ 
-        email: 'admin@streambuted.com', 
-        role: 'admin', 
-        name: 'Admin Principal' 
-      });
-    } else {
-      onLogin({ 
-        email, 
-        role: 'listener', 
-        name: email.split('@')[0] || 'User' 
-      });
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      await onLogin({ email: email.trim(), password });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -45,7 +42,7 @@ export function LoginPage({ onLogin, onRegister }) {
           <div className="auth-logo-mark">S</div>
         </div>
         <div className="auth-title">Welcome to StreamButed</div>
-        <div className="auth-sub">Sign in to continue</div>
+        <div className="auth-sub">Sign in with your backend account</div>
 
         <div className="form-group">
           <label className="form-label">Email</label>
@@ -54,6 +51,7 @@ export function LoginPage({ onLogin, onRegister }) {
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
           />
         </div>
 
@@ -62,40 +60,34 @@ export function LoginPage({ onLogin, onRegister }) {
           <input
             type="password"
             placeholder="Enter your password"
-            value={pass}
-            onChange={(e) => setPass(e.target.value)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            autoComplete="current-password"
           />
         </div>
 
-        {err && (
-          <div style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {err}
+        {error && (
+          <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
+            {error}
           </div>
         )}
-
-        <div className="forgot-row">
-          <span className="auth-link" style={{ fontSize: 13 }}>
-            Forgot your password?
-          </span>
-        </div>
 
         <button
           className="btn-primary"
           style={{ width: '100%', marginBottom: 16 }}
           onClick={handleLogin}
+          disabled={isSubmitting}
         >
-          Sign In
+          {isSubmitting ? 'Signing in...' : 'Sign In'}
         </button>
-
-        <div className="form-divider">
-          <span>or</span>
-        </div>
 
         <button
           className="btn-ghost"
-          style={{ width: '100%', marginBottom: 16 }}
+          style={{ width: '100%', marginBottom: 16, opacity: 0.55, cursor: 'not-allowed' }}
           type="button"
+          disabled
+          title="Proveedor OAuth no configurado"
         >
           Continue with Google
         </button>
@@ -111,31 +103,49 @@ export function LoginPage({ onLogin, onRegister }) {
   );
 }
 
-/**
- * RegisterPage
- *
- * Every new account starts as a listener. Artists are promoted later
- * through the Settings page; admin accounts are created directly in the DB.
- */
-export function RegisterPage({ onLogin, onBack }) {
+export function RegisterPage({ onRegister, onBack }) {
   const [form, setForm] = useState({
     email: '',
     username: '',
     password: '',
     confirm: '',
   });
-  const [err, setErr] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  const handleCreate = () => {
-    if (!form.email || !form.username || !form.password)
-      return setErr('All fields are required.');
-    if (form.password !== form.confirm)
-      return setErr('Passwords do not match.');
-    setErr('');
-    // New accounts are always assigned the listener role by the backend.
-    onLogin({ email: form.email, role: 'listener', name: form.username });
+  const handleCreate = async () => {
+    if (!form.email.trim() || !form.username.trim() || !form.password) {
+      return setError('Todos los campos son requeridos.');
+    }
+
+    if (!EMAIL_PATTERN.test(form.email)) {
+      return setError('Email invalido.');
+    }
+
+    if (form.password.length < 8) {
+      return setError('El password debe tener al menos 8 caracteres.');
+    }
+
+    if (form.password !== form.confirm) {
+      return setError('Los passwords no coinciden.');
+    }
+
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      await onRegister({
+        email: form.email.trim(),
+        username: form.username.trim(),
+        password: form.password,
+      });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -146,32 +156,33 @@ export function RegisterPage({ onLogin, onBack }) {
           <div className="auth-logo-mark">S</div>
         </div>
         <div className="auth-title">Create your account</div>
-        <div className="auth-sub">Join StreamButed today</div>
+        <div className="auth-sub">New accounts start as listeners</div>
 
-        {(['email', 'username', 'password', 'confirm']).map((k, i) => (
-          <div className="form-group" key={k}>
+        {(['email', 'username', 'password', 'confirm']).map((key, index) => (
+          <div className="form-group" key={key}>
             <label className="form-label">
-              {['Email', 'Username', 'Password', 'Confirm password'][i]}
+              {['Email', 'Username', 'Password', 'Confirm password'][index]}
             </label>
             <input
-              type={k.includes('pass') || k === 'confirm' ? 'password' : 'text'}
+              type={key.includes('password') || key === 'confirm' ? 'password' : key === 'email' ? 'email' : 'text'}
               placeholder={
                 [
                   'Enter your email',
                   'Choose a username',
                   'Create a password',
                   'Confirm your password',
-                ][i]
+                ][index]
               }
-              value={form[k]}
-              onChange={set(k)}
+              value={form[key]}
+              onChange={set(key)}
+              autoComplete={key === 'confirm' ? 'new-password' : key}
             />
           </div>
         ))}
 
-        {err && (
-          <div style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {err}
+        {error && (
+          <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
+            {error}
           </div>
         )}
 
@@ -179,18 +190,17 @@ export function RegisterPage({ onLogin, onBack }) {
           className="btn-primary"
           style={{ width: '100%', marginBottom: 16 }}
           onClick={handleCreate}
+          disabled={isSubmitting}
         >
-          Create Account
+          {isSubmitting ? 'Creating...' : 'Create Account'}
         </button>
-
-        <div className="form-divider">
-          <span>or</span>
-        </div>
 
         <button
           className="btn-ghost"
-          style={{ width: '100%', marginBottom: 16 }}
+          style={{ width: '100%', marginBottom: 16, opacity: 0.55, cursor: 'not-allowed' }}
           type="button"
+          disabled
+          title="Proveedor OAuth no configurado"
         >
           Sign up with Google
         </button>

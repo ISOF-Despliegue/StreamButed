@@ -1,6 +1,6 @@
 import {
   IcHome, IcSearch, IcLib, IcSettings,
-  IcDashboard, IcTracks, IcUpload, IcChart,
+  IcDashboard, IcTracks, IcUpload, IcChart, IcMusic,
   IcOverview, IcUsers, IcContent, IcReport, IcShield,
 } from '../icons/Icons';
 
@@ -16,7 +16,7 @@ export function MainSidebar({ page, setPage, user }) {
     { id: 'home', label: 'Home', icon: <IcHome /> },
     { id: 'search', label: 'Search', icon: <IcSearch /> },
     { id: 'library', label: 'Library', icon: <IcLib /> },
-    { id: 'lives', label: 'Lives', icon: <span style={{ fontSize: 14 }}>🔴</span> },
+    { id: 'lives', label: 'Lives', icon: <span style={{ fontSize: 14 }}>Live</span> },
     { id: 'settings', label: 'Settings', icon: <IcSettings /> },
   ];
 
@@ -26,9 +26,10 @@ export function MainSidebar({ page, setPage, user }) {
       ? [
           { id: 'artist-dashboard', label: 'Dashboard', icon: <IcDashboard /> },
           { id: 'artist-tracks', label: 'My Tracks', icon: <IcTracks /> },
+          { id: 'artist-albums', label: 'Albums', icon: <IcMusic /> },
           { id: 'artist-analytics', label: 'Analytics', icon: <IcChart /> },
           { id: 'artist-upload', label: 'Upload +', icon: <IcUpload /> },
-          { id: 'lives', label: 'Do Live', icon: <span style={{ fontSize: 14 }}>🎙️</span> },
+          { id: 'lives', label: 'Do Live', icon: <span style={{ fontSize: 14 }}>Live</span> },
         ]
       : [];
 
@@ -95,9 +96,9 @@ export function MainSidebar({ page, setPage, user }) {
 
       <div className="sidebar-footer">
         <div className="user-chip">
-          <div className="user-avatar">{user.name[0]?.toUpperCase()}</div>
+          <div className="user-avatar">{user.username[0]?.toUpperCase()}</div>
           <div className="user-info">
-            <div className="user-name">{user.name}</div>
+            <div className="user-name">{user.username}</div>
             <div className="user-role">{roleLabel}</div>
           </div>
         </div>
@@ -151,10 +152,10 @@ export function AdminSidebar({ page, setPage, user }) {
             className="user-avatar"
             style={{ background: 'rgba(167,139,250,0.2)', color: '#A78BFA' }}
           >
-            {user.name[0]?.toUpperCase()}
+            {user.username[0]?.toUpperCase()}
           </div>
           <div className="user-info">
-            <div className="user-name">{user.name}</div>
+            <div className="user-name">{user.username}</div>
             <div className="user-role">Administrator</div>
           </div>
         </div>

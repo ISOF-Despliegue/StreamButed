@@ -609,4 +609,9 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .empty-icon { font-size: 48px; }
 .empty-text { font-size: 16px; font-weight: 600; color: var(--t2); }
 .empty-sub { font-size: 14px; }
-.my-tracks-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; };
+.my-tracks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
