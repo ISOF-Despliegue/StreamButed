@@ -59,7 +59,22 @@ function validateCoverImage(file) {
 
 function validateAudio(file) {
   if (!file) return 'Audio requerido.';
-  if (file.type && !ALLOWED_AUDIO_TYPES.has(file.type)) {
+  
+  // Infer type from extension if file.type is empty
+  let fileType = file.type;
+  if (!fileType && file.name) {
+    const ext = file.name.toLowerCase().split('.').pop();
+    const extToMime = {
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'flac': 'audio/flac',
+      'ogg': 'audio/ogg',
+      'webm': 'audio/webm',
+    };
+    fileType = extToMime[ext] || '';
+  }
+  
+  if (!fileType || !ALLOWED_AUDIO_TYPES.has(fileType)) {
     return 'Formato de audio invalido. Usa MP3, WAV, FLAC, OGG o WEBM.';
   }
   if (file.size > MAX_AUDIO_SIZE_BYTES) return 'El audio supera el maximo de 200 MB.';
@@ -581,7 +596,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         <div className="form-group-mb">
           <div className="form-label">Audio file</div>
           <FilePicker
-            accept="audio/mpeg,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
+            accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
             file={audioFile}
             onChange={handleAudioChange}
             helperText="MP3, WAV, FLAC, OGG o WEBM - max 200 MB"
