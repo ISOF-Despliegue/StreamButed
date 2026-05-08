@@ -81,4 +81,43 @@ describe("artist upload forms", () => {
       });
     });
   });
+
+  it("creates album and tracks when songs are provided in album form", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.createAlbum).mockResolvedValue({
+      albumId: "album-1",
+      title: "Album con canciones",
+      coverAssetId: "cover-1",
+      artistId: "artist-1",
+      status: "PUBLISHED",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as never);
+
+    const { container } = render(<CreateAlbumPage toast={jest.fn()} />);
+    const fileInputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
+    const coverInput = fileInputs[0];
+    const firstTrackAudioInput = fileInputs[1];
+
+    await user.type(screen.getByPlaceholderText("Enter album title"), "Album con canciones");
+    await user.upload(coverInput, new File(["cover"], "cover.png", { type: "image/png" }));
+    await user.type(screen.getByPlaceholderText("Titulo de la cancion"), "Cancion 1");
+    await user.upload(firstTrackAudioInput, new File(["audio"], "track-1.mp3", { type: "audio/mpeg" }));
+    await user.click(screen.getByRole("button", { name: "Publicar Album" }));
+
+    await waitFor(() => {
+      expect(mediaService.uploadCatalogImage).toHaveBeenCalledWith(expect.any(File), "ALBUM_COVER");
+      expect(mediaService.uploadAudio).toHaveBeenCalledWith(expect.any(File));
+      expect(catalogService.createAlbum).toHaveBeenCalledWith({
+        title: "Album con canciones",
+        coverAssetId: "cover-1",
+      });
+      expect(catalogService.createTrackInAlbum).toHaveBeenCalledWith("album-1", {
+        title: "Cancion 1",
+        genre: "Otro",
+        audioAssetId: "audio-1",
+        coverAssetId: "cover-1",
+      });
+    });
+  });
 });

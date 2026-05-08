@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { IcMusic } from '../../components/icons/Icons';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { FilePicker } from '../../components/ui/FilePicker';
@@ -35,6 +35,16 @@ const MAX_AUDIO_SIZE_BYTES = 200 * 1024 * 1024;
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const ALLOWED_AUDIO_TYPES = new Set([
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/flac',
+  'audio/x-flac',
+  'audio/ogg',
+  'audio/webm',
+]);
 
 function normalizeText(value) {
   return (value ?? '').trim();
@@ -49,8 +59,84 @@ function validateCoverImage(file) {
 
 function validateAudio(file) {
   if (!file) return 'Audio requerido.';
+  
+  // Infer type from extension if file.type is empty
+  let fileType = file.type;
+  if (!fileType && file.name) {
+    const ext = file.name.toLowerCase().split('.').pop();
+    const extToMime = {
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'flac': 'audio/flac',
+      'ogg': 'audio/ogg',
+      'webm': 'audio/webm',
+    };
+    fileType = extToMime[ext] || '';
+  }
+  
+  if (!fileType || !ALLOWED_AUDIO_TYPES.has(fileType)) {
+    return 'Formato de audio invalido. Usa MP3, WAV, FLAC, OGG o WEBM.';
+  }
   if (file.size > MAX_AUDIO_SIZE_BYTES) return 'El audio supera el maximo de 200 MB.';
   return '';
+}
+
+function createEmptyAlbumTrackDraft(id) {
+  return {
+    id,
+    title: '',
+    audioFile: null,
+  };
+}
+
+function collectAlbumTracksToPublish(albumTracks) {
+  const hasAnyTrackData = albumTracks.some((track) =>
+    normalizeText(track.title).length > 0 || track.audioFile
+  );
+
+  if (!hasAnyTrackData) {
+    return { tracksToPublish: [], errorMessage: '' };
+  }
+
+  const tracksToPublish = [];
+  for (const track of albumTracks) {
+    const normalizedTrackTitle = normalizeText(track.title);
+    const hasTitle = normalizedTrackTitle.length > 0;
+    const hasAudio = Boolean(track.audioFile);
+
+    if (!hasTitle && !hasAudio) {
+      continue;
+    }
+
+    if (!hasTitle || !hasAudio) {
+      return {
+        tracksToPublish: [],
+        errorMessage: 'Cada cancion debe incluir titulo y archivo de audio, o dejarse vacia.'
+      };
+    }
+
+    if (normalizedTrackTitle.length > TRACK_TITLE_MAX_LENGTH) {
+      return {
+        tracksToPublish: [],
+        errorMessage: 'El titulo de cada cancion no puede superar 220 caracteres.'
+      };
+    }
+
+    const audioError = validateAudio(track.audioFile);
+    if (audioError) {
+      return {
+        tracksToPublish: [],
+        errorMessage: audioError
+      };
+    }
+
+    tracksToPublish.push({
+      title: normalizedTrackTitle,
+      audioFile: track.audioFile,
+    });
+  }
+
+  return { tracksToPublish, errorMessage: '' };
 }
 
 function buildFileChangeHandler({ validate, setFile, setError }) {
@@ -353,6 +439,7 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
 export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadAlbumConsumed = undefined }) {
   const [audioFile, setAudioFile] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
   const [albumId, setAlbumId] = useState(initialAlbumId ?? '');
@@ -381,6 +468,27 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
       isMounted = false;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    if (typeof URL.createObjectURL !== 'function') {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(coverFile);
+    setCoverPreviewUrl(previewUrl);
+
+    return () => {
+      if (typeof URL.revokeObjectURL === 'function') {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [coverFile]);
 
   const handleAudioChange = buildFileChangeHandler({
     validate: validateAudio,
@@ -488,7 +596,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         <div className="form-group-mb">
           <div className="form-label">Audio file</div>
           <FilePicker
-            accept="audio/mpeg,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
+            accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
             file={audioFile}
             onChange={handleAudioChange}
             helperText="MP3, WAV, FLAC, OGG o WEBM - max 200 MB"
@@ -504,6 +612,15 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
             helperText="JPG, PNG o WEBP - max 5 MB"
             buttonLabel="Seleccionar archivo"
           />
+          {coverPreviewUrl && (
+            <div style={{ marginTop: 10 }}>
+              <img
+                src={coverPreviewUrl}
+                alt="Previsualizacion de portada"
+                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+              />
+            </div>
+          )}
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={handlePublish} disabled={isSubmitting}>
@@ -517,6 +634,9 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
 export function CreateAlbumPage({ toast }) {
   const [title, setTitle] = useState('');
   const [coverFile, setCoverFile] = useState(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
+  const nextTrackIdRef = useRef(2);
+  const [albumTracks, setAlbumTracks] = useState([createEmptyAlbumTrackDraft(1)]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -526,6 +646,27 @@ export function CreateAlbumPage({ toast }) {
     setError,
   });
 
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    if (typeof URL.createObjectURL !== 'function') {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(coverFile);
+    setCoverPreviewUrl(previewUrl);
+
+    return () => {
+      if (typeof URL.revokeObjectURL === 'function') {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [coverFile]);
+
   const handleCreate = async () => {
     const normalizedTitle = normalizeText(title);
     if (!normalizedTitle) return setError('Titulo requerido.');
@@ -533,23 +674,92 @@ export function CreateAlbumPage({ toast }) {
     const coverError = validateCoverImage(coverFile);
     if (coverError) return setError(coverError);
 
+    const { tracksToPublish, errorMessage } = collectAlbumTracksToPublish(albumTracks);
+    if (errorMessage) {
+      return setError(errorMessage);
+    }
+
     setError('');
     setIsSubmitting(true);
 
     try {
       const cover = await mediaService.uploadCatalogImage(coverFile, 'ALBUM_COVER');
-      await catalogService.createAlbum({
+      const album = await catalogService.createAlbum({
         title: normalizedTitle,
         coverAssetId: cover.assetId,
       });
+
+      for (const track of tracksToPublish) {
+        const audio = await mediaService.uploadAudio(track.audioFile);
+        await catalogService.createTrackInAlbum(album.albumId, {
+          title: track.title,
+          genre: 'Otro',
+          audioAssetId: audio.assetId,
+          coverAssetId: cover.assetId,
+        });
+      }
+
       setTitle('');
       setCoverFile(null);
-      toast('Album creado');
+      setAlbumTracks([createEmptyAlbumTrackDraft(1)]);
+      nextTrackIdRef.current = 2;
+      toast(
+        tracksToPublish.length
+          ? `Album creado con ${tracksToPublish.length} canciones.`
+          : 'Album creado'
+      );
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const addAlbumTrackRow = () => {
+    const id = nextTrackIdRef.current;
+    nextTrackIdRef.current += 1;
+    setAlbumTracks((currentTracks) => [...currentTracks, createEmptyAlbumTrackDraft(id)]);
+  };
+
+  const removeAlbumTrackRow = (trackId) => {
+    setAlbumTracks((currentTracks) => {
+      if (currentTracks.length === 1) {
+        return [createEmptyAlbumTrackDraft(1)];
+      }
+
+      return currentTracks.filter((track) => track.id !== trackId);
+    });
+  };
+
+  const updateAlbumTrackTitle = (trackId, value) => {
+    setAlbumTracks((currentTracks) =>
+      currentTracks.map((track) =>
+        track.id === trackId ? { ...track, title: value } : track
+      )
+    );
+  };
+
+  const handleAlbumTrackAudioChange = (trackId, event) => {
+    const selectedFile = event.target.files?.[0] ?? null;
+    const audioError = selectedFile ? validateAudio(selectedFile) : '';
+
+    if (audioError) {
+      event.target.value = '';
+      setAlbumTracks((currentTracks) =>
+        currentTracks.map((track) =>
+          track.id === trackId ? { ...track, audioFile: null } : track
+        )
+      );
+      setError(audioError);
+      return;
+    }
+
+    setError('');
+    setAlbumTracks((currentTracks) =>
+      currentTracks.map((track) =>
+        track.id === trackId ? { ...track, audioFile: selectedFile } : track
+      )
+    );
   };
 
   return (
@@ -576,6 +786,78 @@ export function CreateAlbumPage({ toast }) {
             helperText="JPG, PNG o WEBP - max 5 MB"
             buttonLabel="Seleccionar archivo"
           />
+          {coverPreviewUrl && (
+            <div style={{ marginTop: 10 }}>
+              <img
+                src={coverPreviewUrl}
+                alt="Previsualizacion de portada del album"
+                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+              />
+            </div>
+          )}
+        </div>
+        <div className="form-group-mb">
+          <div className="form-label">Canciones del album (opcional)</div>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {albumTracks.map((track, index) => (
+              <div
+                key={track.id}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: 12,
+                  background: 'var(--surface-2)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, color: 'var(--t2)' }}>Cancion #{index + 1}</div>
+                  <button
+                    className="btn-ghost"
+                    style={{ padding: '4px 10px', fontSize: 12 }}
+                    onClick={() => removeAlbumTrackRow(track.id)}
+                    type="button"
+                    disabled={isSubmitting}
+                  >
+                    Quitar
+                  </button>
+                </div>
+
+                <div className="form-group-mb" style={{ marginBottom: 10 }}>
+                  <label className="form-label" htmlFor={`album-track-title-${track.id}`}>Nombre de la cancion</label>
+                  <input
+                    id={`album-track-title-${track.id}`}
+                    value={track.title}
+                    onChange={(event) => updateAlbumTrackTitle(track.id, event.target.value)}
+                    placeholder="Titulo de la cancion"
+                    maxLength={TRACK_TITLE_MAX_LENGTH}
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <FilePicker
+                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
+                    file={track.audioFile}
+                    onChange={(event) => handleAlbumTrackAudioChange(track.id, event)}
+                    helperText="MP3, WAV, FLAC, OGG o WEBM - max 200 MB"
+                    buttonLabel="Seleccionar archivo"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            className="btn-ghost"
+            style={{ marginTop: 12 }}
+            onClick={addAlbumTrackRow}
+            type="button"
+            disabled={isSubmitting}
+          >
+            + Agregar otra cancion
+          </button>
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
+            Solo se requiere nombre y audio. El genero se establece como "Otro" automaticamente.
+          </div>
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={handleCreate} disabled={isSubmitting}>
