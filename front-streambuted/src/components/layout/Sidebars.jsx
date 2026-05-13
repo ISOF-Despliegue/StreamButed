@@ -1,9 +1,26 @@
+import { memo, useCallback } from 'react';
 import {
   IcHome, IcSearch, IcLib, IcSettings,
   IcDashboard, IcTracks, IcUpload, IcChart, IcMusic,
   IcOverview, IcUsers, IcContent, IcReport, IcShield,
 } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
+
+function SidebarNavItem({ item, isActive, onSelect }) {
+  const handleClick = useCallback(() => {
+    onSelect(item.id);
+  }, [item.id, onSelect]);
+
+  return (
+    <button
+      type="button"
+      className={`nav-item${isActive ? ' active' : ''}`}
+      onClick={handleClick}
+    >
+      {item.icon}<span>{item.label}</span>
+    </button>
+  );
+}
 
 /**
  * MainSidebar — used by both listeners and artists.
@@ -12,7 +29,7 @@ import { getAssetUrl } from '../../services/mediaService';
  * Manage section is gated behind the artist role so that capability expansion
  * feels seamless rather than abrupt (no sidebar swap on promotion).
  */
-export function MainSidebar({ page, setPage, user }) {
+function MainSidebarComponent({ page, setPage, user }) {
   const discoverItems = [
     { id: 'home', label: 'Home', icon: <IcHome /> },
     { id: 'search', label: 'Search', icon: <IcSearch /> },
@@ -33,16 +50,6 @@ export function MainSidebar({ page, setPage, user }) {
           { id: 'lives', label: 'Do Live', icon: <span style={{ fontSize: 14 }}>Live</span> },
         ]
       : [];
-
-  const NavItem = ({ item }) => (
-    <div
-      key={item.id}
-      className={`nav-item${page === item.id ? ' active' : ''}`}
-      onClick={() => setPage(item.id)}
-    >
-      {item.icon}<span>{item.label}</span>
-    </div>
-  );
 
   const roleLabel = user.role === 'artist' ? 'Artist' : 'Listener';
 
@@ -77,7 +84,7 @@ export function MainSidebar({ page, setPage, user }) {
       </div>
       <div className="sidebar-section" style={{ paddingTop: 4 }}>
         {discoverItems.map((item) => (
-          <NavItem key={item.id} item={item} />
+          <SidebarNavItem key={item.id} item={item} isActive={page === item.id} onSelect={setPage} />
         ))}
       </div>
 
@@ -98,7 +105,7 @@ export function MainSidebar({ page, setPage, user }) {
           </div>
           <div className="sidebar-section" style={{ paddingTop: 4 }}>
             {manageItems.map((item) => (
-              <NavItem key={item.id} item={item} />
+              <SidebarNavItem key={item.id} item={item} isActive={page === item.id} onSelect={setPage} />
             ))}
           </div>
         </>
@@ -117,7 +124,7 @@ export function MainSidebar({ page, setPage, user }) {
   );
 }
 
-export function AdminSidebar({ page, setPage, user }) {
+function AdminSidebarComponent({ page, setPage, user }) {
   const items = [
     { id: 'admin-overview', label: 'Overview', icon: <IcOverview /> },
     { id: 'admin-users', label: 'Usuarios', icon: <IcUsers /> },
@@ -147,13 +154,12 @@ export function AdminSidebar({ page, setPage, user }) {
       </div>
       <div className="sidebar-section" style={{ paddingTop: 4 }}>
         {items.map((it) => (
-          <div
+          <SidebarNavItem
             key={it.id}
-            className={`nav-item${page === it.id ? ' active' : ''}`}
-            onClick={() => setPage(it.id)}
-          >
-            {it.icon}<span>{it.label}</span>
-          </div>
+            item={it}
+            isActive={page === it.id}
+            onSelect={setPage}
+          />
         ))}
       </div>
       <div className="sidebar-footer">
@@ -180,3 +186,6 @@ export function AdminSidebar({ page, setPage, user }) {
     </div>
   );
 }
+
+export const MainSidebar = memo(MainSidebarComponent);
+export const AdminSidebar = memo(AdminSidebarComponent);

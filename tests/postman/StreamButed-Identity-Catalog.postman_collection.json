@@ -1,9 +1,9 @@
 {
  "info": {
   "_postman_id": "9e44243f-067f-4bc2-a843-e312d507fc12",
-  "name": "StreamButed - Identity + Catalog Integration",
+  "name": "StreamButed - Identity + Catalog + Playback Integration",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-  "description": "End-to-end integration checks for identity-service and catalog-service, including cross-service communication via user promotion event."
+  "description": "End-to-end integration checks for identity-service, catalog-service and playback health, including cross-service communication via user promotion event."
  },
  "event": [
   {
@@ -101,6 +101,36 @@
          "pm.test('status 200', function () { pm.response.to.have.status(200); });",
          "const json = pm.response.json();",
          "pm.test('catalog status ok', function () { pm.expect(json.status).to.eql('ok'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Playback - Health",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{playbackBaseUrl}}/health",
+       "host": [
+        "{{playbackBaseUrl}}"
+       ],
+       "path": [
+        "health"
+       ]
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+         "const json = pm.response.json();",
+         "pm.test('playback healthy', function () { pm.expect(json.status).to.eql('healthy'); });",
+         "pm.test('streaming service name', function () { pm.expect(json.service).to.eql('streaming-service'); });"
         ]
        }
       }

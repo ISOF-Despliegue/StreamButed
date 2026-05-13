@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package streambuted.catalog.v1;
+
+service CatalogPlaybackService {
+  rpc GetPlayableTrack (GetPlayableTrackRequest) returns (PlayableTrackResponse);
+}
+
+message GetPlayableTrackRequest {
+  string track_id = 1;
+}
+
+message PlayableTrackResponse {
+  string track_id = 1;
+  string status = 2;
+  string audio_asset_id = 3;
+  double duration_seconds = 4;
+  bool exists = 5;
+}

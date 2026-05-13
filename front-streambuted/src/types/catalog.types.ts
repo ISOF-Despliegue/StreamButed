@@ -4,6 +4,7 @@ export interface Artist {
   artistId: string;
   displayName: string;
   biography: string | null;
+  profileImageAssetId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +27,7 @@ export interface Track {
   genre: string;
   audioAssetId: string;
   coverAssetId: string | null;
+  durationSeconds?: number | null;
   status: CatalogStatus;
   createdAt: string;
   updatedAt: string;
@@ -37,6 +39,11 @@ export interface CatalogSearchResponse {
   tracks: Track[];
   limit?: number;
   offset?: number;
+}
+
+export interface AlbumTracksResponse {
+  albumId: string;
+  tracks: Track[];
 }
 
 export interface CatalogSearchParams {
@@ -61,6 +68,7 @@ export interface CreateTrackRequest {
   genre: string;
   audioAssetId: string;
   coverAssetId: string;
+  durationSeconds?: number | null;
 }
 
 export interface UpdateTrackRequest {
@@ -69,9 +77,11 @@ export interface UpdateTrackRequest {
   genre?: string;
   audioAssetId?: string;
   coverAssetId?: string;
+  durationSeconds?: number | null;
 }
 
 export interface UpdateArtistRequest {
   displayName?: string;
   biography?: string | null;
+  profileImageAssetId?: string | null;
 }

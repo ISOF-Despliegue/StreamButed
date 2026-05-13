@@ -23,6 +23,71 @@ function InlineState({ title, message }) {
   );
 }
 
+async function getArtistNamesById(items) {
+  const artistIds = Array.from(new Set(
+    items
+      .map(item => item.artistId)
+      .filter(Boolean)
+  ));
+
+  const entries = await Promise.all(
+    artistIds.map(async (artistId) => {
+      try {
+        const artist = await catalogService.getArtist(artistId);
+        return [artistId, artist.displayName];
+      } catch {
+        return [artistId, null];
+      }
+    })
+  );
+
+  return Object.fromEntries(entries.filter(([, displayName]) => Boolean(displayName)));
+}
+
+function withArtistNames(items, artistNamesById) {
+  return items.map(item => ({
+    ...item,
+    artist: artistNamesById[item.artistId] ?? item.artist ?? item.artistName ?? 'Artista',
+  }));
+}
+
+async function getAlbumTitlesById(tracks, knownAlbums = []) {
+  const titlesById = Object.fromEntries(
+    knownAlbums
+      .filter(album => album.albumId && album.title)
+      .map(album => [album.albumId, album.title])
+  );
+
+  const missingAlbumIds = Array.from(new Set(
+    tracks
+      .map(track => track.albumId)
+      .filter(albumId => albumId && !titlesById[albumId])
+  ));
+
+  const entries = await Promise.all(
+    missingAlbumIds.map(async (albumId) => {
+      try {
+        const album = await catalogService.getAlbum(albumId);
+        return [albumId, album.title];
+      } catch {
+        return [albumId, null];
+      }
+    })
+  );
+
+  return {
+    ...titlesById,
+    ...Object.fromEntries(entries.filter(([, title]) => Boolean(title))),
+  };
+}
+
+function withAlbumContext(tracks, albumTitlesById) {
+  return tracks.map(track => ({
+    ...track,
+    albumTitle: track.albumId && albumTitlesById[track.albumId] ? albumTitlesById[track.albumId] : 'Single',
+  }));
+}
+
 export function HomePage({ setPage }) {
   return (
     <div className="page-inner">
@@ -65,6 +130,8 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
       return undefined;
     }
 
+    let isActive = true;
+
     const timeoutId = window.setTimeout(async () => {
       setIsLoading(true);
       setError('');
@@ -76,19 +143,31 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
           limit: 20,
           offset: 0,
         });
+        const artistNamesById = await getArtistNamesById([
+          ...(response.albums ?? []),
+          ...(response.tracks ?? []),
+        ]);
+        const albums = withArtistNames(response.albums ?? [], artistNamesById);
+        const albumTitlesById = await getAlbumTitlesById(response.tracks ?? [], albums);
+        const tracks = withAlbumContext(withArtistNames(response.tracks ?? [], artistNamesById), albumTitlesById);
+
+        if (!isActive) return;
         setResults({
           artists: response.artists ?? [],
-          albums: response.albums ?? [],
-          tracks: response.tracks ?? [],
+          albums,
+          tracks,
         });
       } catch (err) {
-        setError(getErrorMessage(err));
+        if (isActive) setError(getErrorMessage(err));
       } finally {
-        setIsLoading(false);
+        if (isActive) setIsLoading(false);
       }
     }, 300);
 
-    return () => window.clearTimeout(timeoutId);
+    return () => {
+      isActive = false;
+      window.clearTimeout(timeoutId);
+    };
   }, [query]);
 
   const isEmpty = useMemo(
@@ -134,7 +213,11 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
                   onClick={() => { setViewArtist(artist.artistId); setPage('artist-profile'); }}
                 >
                   <div className="album-thumb">
-                    <div style={{ fontSize: 28, color: 'var(--t3)' }}><IcMusic /></div>
+                    {artist.profileImageAssetId ? (
+                      <img src={getAssetUrl(artist.profileImageAssetId)} alt={`Foto de ${artist.displayName}`} />
+                    ) : (
+                      <div style={{ fontSize: 28, color: 'var(--t3)' }}><IcMusic /></div>
+                    )}
                   </div>
                   <div className="album-card-title">{artist.displayName}</div>
                   <div className="album-card-artist">Artista</div>
@@ -153,8 +236,9 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
               <thead><tr>
                 <th style={{ width: 40 }}>#</th>
                 <th>Titulo</th>
-                <th>Estado</th>
-                <th style={{ textAlign: 'right' }}>Duracion</th>
+                <th>Genero</th>
+                <th>Album</th>
+                <th className="track-duration-col">Duracion</th>
               </tr></thead>
               <tbody>
                 {results.tracks.map((track, index) => (
@@ -165,6 +249,8 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
                     isPlaying={currentTrack?.trackId === track.trackId}
                     onPlay={() => onPlayTrack(track)}
                     onArtistClick={artistId => { setViewArtist(artistId); setPage('artist-profile'); }}
+                    metaText={track.genre || 'Sin genero'}
+                    contextText={track.albumTitle}
                   />
                 ))}
               </tbody>
@@ -193,8 +279,9 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
   );
 }
 
-export function AlbumDetailPage({ albumId, setPage, setViewArtist }) {
+export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack, setPage, setViewArtist }) {
   const [album, setAlbum] = useState(null);
+  const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -205,9 +292,20 @@ export function AlbumDetailPage({ albumId, setPage, setViewArtist }) {
     setIsLoading(true);
     setError('');
 
-    catalogService.getAlbum(albumId)
-      .then((response) => {
-        if (mounted) setAlbum(response);
+    Promise.all([
+      catalogService.getAlbum(albumId),
+      catalogService.listAlbumTracks(albumId),
+    ])
+      .then(async ([albumResponse, trackResponse]) => {
+        if (!mounted) return;
+        const artistNamesById = await getArtistNamesById([
+          albumResponse,
+          ...(trackResponse.tracks ?? []),
+        ]);
+        if (!mounted) return;
+        setAlbum(withArtistNames([albumResponse], artistNamesById)[0]);
+        const tracksWithArtists = withArtistNames(trackResponse.tracks ?? [], artistNamesById);
+        setTracks(tracksWithArtists);
       })
       .catch((err) => {
         if (mounted) setError(getErrorMessage(err));
@@ -252,7 +350,7 @@ export function AlbumDetailPage({ albumId, setPage, setViewArtist }) {
           <div className="album-hero-title">{album.title}</div>
           <div className="album-hero-meta">
             <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => { setViewArtist(album.artistId); setPage('artist-profile'); }}>
-              Artista {album.artistId.slice(0, 8)}
+              {album.artist || 'Artista'}
             </span>
             <span className="dot-sep" />
             <span>{album.status}</span>
@@ -262,10 +360,33 @@ export function AlbumDetailPage({ albumId, setPage, setViewArtist }) {
         </div>
       </div>
       <div className="page-inner">
-        <InlineState
-          title="Tracklist pendiente"
-          message="Catalog Service aun no expone un endpoint publico para listar pistas por album. No se inventan pistas ni reproducciones."
-        />
+        {tracks.length === 0 ? (
+          <InlineState title="Sin pistas publicadas" />
+        ) : (
+          <table className="track-list">
+            <thead><tr>
+              <th style={{ width: 40 }}>#</th>
+              <th>Titulo</th>
+              <th>Genero</th>
+              <th className="track-duration-col">Duracion</th>
+            </tr></thead>
+            <tbody>
+              {tracks.map((track, index) => (
+                <TrackRow
+                  key={track.trackId}
+                  track={track}
+                  index={index}
+                  isPlaying={currentTrack?.trackId === track.trackId}
+                  onPlay={() => onPlayTrack(
+                    track,
+                    tracks,
+                    album.albumId
+                  )}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -330,7 +451,13 @@ export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack, setPage
         <div className="artist-banner-gradient" />
       </div>
       <div className="artist-info-row">
-        <div className="artist-avatar-lg">{artist.displayName[0]?.toUpperCase()}</div>
+        <div className="artist-avatar-lg">
+          {artist.profileImageAssetId ? (
+            <img src={getAssetUrl(artist.profileImageAssetId)} alt={`Foto de ${artist.displayName}`} />
+          ) : (
+            artist.displayName[0]?.toUpperCase()
+          )}
+        </div>
         <div>
           <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 4 }}>Artista</div>
           <div className="artist-name-lg">{artist.displayName}</div>
@@ -348,8 +475,8 @@ export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack, setPage
               <thead><tr>
                 <th style={{ width: 40 }}>#</th>
                 <th>Titulo</th>
-                <th>Estado</th>
-                <th style={{ textAlign: 'right' }}>Duracion</th>
+                <th>Genero</th>
+                <th className="track-duration-col">Duracion</th>
               </tr></thead>
               <tbody>
                 {tracks.map((track, index) => (

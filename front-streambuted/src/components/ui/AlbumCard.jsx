@@ -2,7 +2,7 @@ import { IcMusic } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 
 export function AlbumCard({ album, onClick }) {
-  const artistName = album.artist || album.artistName || album.artistId || 'Catalogo';
+  const artistName = album.artist || album.artistName || 'Catalogo';
 
   return (
     <div className="album-card" onClick={onClick}>

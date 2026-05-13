@@ -1,17 +1,34 @@
-import { IcChevron, IcMusic, IcShuffle, IcSkipBack, IcPlay, IcSkipFwd, IcRepeat, IcVolume } from '../icons/Icons';
+import { IcChevron, IcMusic, IcShuffle, IcSkipBack, IcPlay, IcPause, IcSkipFwd, IcRepeat, IcVolume } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import { ProgressBar } from '../ui/ProgressBar';
+import { formatDuration } from '../../utils/formatters';
 
-export function ExpandedPlayer({ track, queue, onClose, volume, setVolume, onSelectTrack }) {
+export function ExpandedPlayer({
+  track,
+  queue,
+  onClose,
+  volume,
+  setVolume,
+  onSelectTrack,
+  playback,
+  onTogglePlay,
+  onSeek,
+  onNext,
+  onPrevious,
+  onToggleShuffle
+}) {
   if (!track) return null;
 
-  const artistName = track.artist || track.artistName || track.artistId || 'Artista';
+  const artistName = track.artist || track.artistName || 'Artista';
+  const progressMax = playback.durationSeconds > 0 ? playback.durationSeconds : 1;
 
   return (
     <div className="expanded-player-overlay">
       <div className="ep-main">
         <button className="ep-close" onClick={onClose}><IcChevron dir="down" /></button>
-        <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 20, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Player preparado</div>
+        <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 20, textTransform: 'uppercase' }}>
+          {playback.isLoading ? 'Cargando audio' : 'Reproduccion'}
+        </div>
         <div className="ep-cover">
           {track.coverAssetId ? (
             <img src={getAssetUrl(track.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -22,21 +39,47 @@ export function ExpandedPlayer({ track, queue, onClose, volume, setVolume, onSel
         <div className="ep-meta">
           <div className="ep-title">{track.title}</div>
           <div className="ep-artist">{artistName}</div>
-          <div style={{ color: 'var(--t3)', fontSize: 13, marginTop: 8 }}>Streaming Service aun no esta disponible.</div>
+          {playback.error && (
+            <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>{playback.error}</div>
+          )}
         </div>
         <div className="ep-progress">
           <div className="player-progress" style={{ width: '100%' }}>
-            <span className="progress-time">--:--</span>
-            <ProgressBar value={0} max={1} onChange={() => {}} />
-            <span className="progress-time right">Pendiente</span>
+            <span className="progress-time">{formatDuration(playback.positionSeconds)}</span>
+            <ProgressBar value={playback.positionSeconds} max={progressMax} onChange={onSeek} />
+            <span className="progress-time right">{formatDuration(playback.durationSeconds || null)}</span>
           </div>
         </div>
         <div className="ep-controls">
-          <button className="btn-icon" disabled title="Streaming pendiente"><IcShuffle /></button>
-          <button className="btn-icon" disabled title="Streaming pendiente"><IcSkipBack /></button>
-          <button className="ep-play-btn" disabled title="Streaming Service pendiente"><IcPlay /></button>
-          <button className="btn-icon" disabled title="Streaming pendiente"><IcSkipFwd /></button>
-          <button className="btn-icon" disabled title="Streaming pendiente"><IcRepeat /></button>
+          <button
+            className="btn-icon"
+            disabled={!playback.canUseAlbumControls}
+            title="Aleatorio del album"
+            aria-pressed={playback.shuffleEnabled}
+            onClick={onToggleShuffle}
+          >
+            <IcShuffle />
+          </button>
+          <button
+            className="btn-icon"
+            disabled={!playback.canUseAlbumControls}
+            title="Pista anterior"
+            onClick={onPrevious}
+          >
+            <IcSkipBack />
+          </button>
+          <button className="ep-play-btn" disabled={playback.isLoading} title="Reproducir o pausar" onClick={onTogglePlay}>
+            {playback.isPlaying ? <IcPause /> : <IcPlay />}
+          </button>
+          <button
+            className="btn-icon"
+            disabled={!playback.canUseAlbumControls}
+            title="Siguiente pista"
+            onClick={onNext}
+          >
+            <IcSkipFwd />
+          </button>
+          <button className="btn-icon" disabled title="Repetir"><IcRepeat /></button>
         </div>
         <div className="ep-vol">
           <button className="btn-icon"><IcVolume /></button>
@@ -66,7 +109,7 @@ export function ExpandedPlayer({ track, queue, onClose, volume, setVolume, onSel
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div className="queue-name">{t.title}</div>
-                <div className="queue-artist">{t.artist || t.artistName || t.artistId || 'Artista'}</div>
+                <div className="queue-artist">{t.artist || t.artistName || 'Artista'}</div>
               </div>
               <div className="queue-dur">--:--</div>
             </div>
