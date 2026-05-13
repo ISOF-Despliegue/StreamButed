@@ -4,7 +4,12 @@ import { authTokenStore } from "./authTokenStore";
 describe("playbackService", () => {
   beforeEach(() => {
     authTokenStore.clear();
-    global.fetch = jest.fn();
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
   });
 
   it("creates stream sessions and resolves gateway stream URLs", async () => {

@@ -34,6 +34,7 @@ const GENRE_MAX_LENGTH = 80;
 
 const MAX_AUDIO_SIZE_BYTES = 200 * 1024 * 1024;
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const AUDIO_ACCEPT = 'audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,video/mp4,.mp3,.wav,.flac,.ogg,.webm,.m4a,.mp4';
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const ALLOWED_AUDIO_TYPES = new Set([
@@ -199,6 +200,7 @@ export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
   const [tracks, setTracks] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRetiringTrack, setIsRetiringTrack] = useState(false);
   const [error, setError] = useState('');
   const [trackToRetire, setTrackToRetire] = useState(null);
 
@@ -227,15 +229,18 @@ export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
   }, [loadTracks]);
 
   const retire = async () => {
-    if (!trackToRetire?.trackId) return;
+    if (!trackToRetire?.trackId || isRetiringTrack) return;
 
     try {
+      setIsRetiringTrack(true);
       await catalogService.retireTrack(trackToRetire.trackId);
       toast('Pista retirada');
       setTrackToRetire(null);
       await loadTracks();
     } catch (err) {
       toast(getErrorMessage(err));
+    } finally {
+      setIsRetiringTrack(false);
     }
   };
 
@@ -297,7 +302,7 @@ export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
         title="Retirar pista"
         message={`Esta accion retirara "${trackToRetire?.title ?? 'esta pista'}" del catalogo. Los oyentes ya no podran reproducirla desde la app.`}
         confirmLabel="Retirar pista"
-        isLoading={isLoading}
+        isLoading={isRetiringTrack}
         onConfirm={retire}
         onCancel={() => setTrackToRetire(null)}
       />
@@ -309,6 +314,7 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
   const [albums, setAlbums] = useState([]);
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRetiringAlbum, setIsRetiringAlbum] = useState(false);
   const [error, setError] = useState('');
   const [albumToRetire, setAlbumToRetire] = useState(null);
 
@@ -335,15 +341,18 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
   }, [loadAlbums]);
 
   const retire = async () => {
-    if (!albumToRetire?.albumId) return;
+    if (!albumToRetire?.albumId || isRetiringAlbum) return;
 
     try {
+      setIsRetiringAlbum(true);
       await catalogService.retireAlbum(albumToRetire.albumId);
       toast('Album retirado');
       setAlbumToRetire(null);
       await loadAlbums();
     } catch (err) {
       toast(getErrorMessage(err));
+    } finally {
+      setIsRetiringAlbum(false);
     }
   };
 
@@ -410,7 +419,7 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
         title="Retirar album"
         message={`Esta accion retirara "${albumToRetire?.title ?? 'este album'}" del catalogo y afectara su disponibilidad para los oyentes.`}
         confirmLabel="Retirar album"
-        isLoading={isLoading}
+        isLoading={isRetiringAlbum}
         onConfirm={retire}
         onCancel={() => setAlbumToRetire(null)}
       />
@@ -426,6 +435,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
   const [albumId, setAlbumId] = useState(initialAlbumId ?? '');
+  const [lockedAlbum, setLockedAlbum] = useState(null);
   const [albums, setAlbums] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -433,6 +443,33 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
   useEffect(() => {
     setAlbumId(initialAlbumId ?? '');
   }, [initialAlbumId]);
+
+  useEffect(() => {
+    if (!initialAlbumId) {
+      setLockedAlbum(null);
+      return undefined;
+    }
+
+    const albumFromList = albums.find(album => album.albumId === initialAlbumId);
+    if (albumFromList) {
+      setLockedAlbum(albumFromList);
+      return undefined;
+    }
+
+    let isMounted = true;
+    catalogService
+      .getAlbum(initialAlbumId)
+      .then(album => {
+        if (isMounted) setLockedAlbum(album);
+      })
+      .catch(() => {
+        if (isMounted) setLockedAlbum(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [albums, initialAlbumId]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -571,7 +608,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
           <div className="form-group-mb">
             <div className="form-label">Album destino</div>
             <div style={{ fontSize: 14, color: 'var(--t1)' }}>
-              {albums.find(album => album.albumId === initialAlbumId)?.title ?? 'Album seleccionado'}
+              {lockedAlbum?.title ?? 'Cargando album...'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
               Esta cancion se agregara directamente a este album.
@@ -594,10 +631,10 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         <div className="form-group-mb">
           <div className="form-label">Audio file</div>
           <FilePicker
-            accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
+            accept={AUDIO_ACCEPT}
             file={audioFile}
             onChange={handleAudioChange}
-            helperText="MP3, WAV, FLAC, OGG o WEBM - max 200 MB"
+            helperText="MP3, WAV, FLAC, OGG, WEBM, M4A o MP4 - max 200 MB"
             buttonLabel="Seleccionar archivo"
           />
         </div>
@@ -703,7 +740,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
       setGenre('');
       setAudioFile(null);
       setCoverFile(null);
-      onTrackCreated(createdTrack);
+      onTrackCreated?.(createdTrack);
       toast('Cancion agregada al album');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -741,10 +778,10 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
       <div className="form-group-mb">
         <div className="form-label">Audio file</div>
         <FilePicker
-          accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
+          accept={AUDIO_ACCEPT}
           file={audioFile}
           onChange={handleAudioChange}
-          helperText="MP3, WAV, FLAC, OGG o WEBM - max 200 MB"
+          helperText="MP3, WAV, FLAC, OGG, WEBM, M4A o MP4 - max 200 MB"
           buttonLabel="Seleccionar archivo"
         />
       </div>

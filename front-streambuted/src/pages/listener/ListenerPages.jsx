@@ -133,6 +133,8 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
     let isActive = true;
 
     const timeoutId = window.setTimeout(async () => {
+      if (!isActive) return;
+
       setIsLoading(true);
       setError('');
       setHasSearched(true);

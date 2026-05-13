@@ -143,11 +143,21 @@ export function SettingsPage({ user, toast }) {
       });
 
       if (user.role === 'artist') {
-        await catalogService.updateArtist(user.id, {
-          displayName: payload.username,
-          biography: payload.bio,
-          profileImageAssetId,
-        });
+        try {
+          await catalogService.updateArtist(user.id, {
+            displayName: payload.username,
+            biography: payload.bio,
+            profileImageAssetId,
+          });
+        } catch (catalogError) {
+          console.error('Failed to sync artist profile after Identity update.', catalogError);
+          const syncMessage = 'Perfil actualizado en Identity, pero no se pudo sincronizar el perfil publico de artista. Intenta guardar de nuevo.';
+          setProfileImageFile(null);
+          setShowSaveConfirmation(false);
+          setError(syncMessage);
+          toast(syncMessage);
+          return;
+        }
       }
 
       setProfileImageFile(null);

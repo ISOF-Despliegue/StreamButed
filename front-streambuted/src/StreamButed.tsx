@@ -46,6 +46,7 @@ import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
 import type { CurrentUser } from "./types/user.types";
 import type { Track } from "./types/catalog.types";
+import type { PlaybackProgressRequest } from "./types/playback.types";
 
 type AuthPage = "login" | "register";
 
@@ -236,7 +237,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       }
     }, [volume]);
 
-    const saveCurrentProgress = useCallback(async (isPlayingOverride: boolean | null = null) => {
+    const saveCurrentProgress = useCallback(async (isPlayingOverride?: boolean | null) => {
       const track = currentTrackRef.current;
       const audio = audioRef.current;
       const trackId = getTrackIdentifier(track);
@@ -249,11 +250,16 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       const durationSeconds = Number.isFinite(audio.duration) ? audio.duration : null;
 
       try {
-        await playbackService.updatePlaybackProgress(trackId, {
+        const progressPayload: PlaybackProgressRequest = {
           positionSeconds,
           durationSeconds,
-          isPlaying: isPlayingOverride,
-        });
+        };
+
+        if (typeof isPlayingOverride === "boolean") {
+          progressPayload.isPlaying = isPlayingOverride;
+        }
+
+        await playbackService.updatePlaybackProgress(trackId, progressPayload);
       } catch (error) {
         console.error("Failed to persist playback progress.", error);
       }
@@ -292,12 +298,6 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
             return;
           }
 
-          await playbackService.updatePlaybackProgress(trackId, {
-            positionSeconds: progress.positionSeconds ?? 0,
-            durationSeconds: progress.durationSeconds ?? null,
-            isPlaying: true,
-          });
-
           const audio = audioRef.current;
           if (!audio) {
             return;
@@ -310,11 +310,21 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           audio.src = session.streamUrl;
           audio.volume = volume / 100;
           audio.load();
+          lastProgressSyncAtRef.current = Date.now();
 
           try {
             await audio.play();
             if (playbackRequestIdRef.current === requestId) {
               setIsPlaying(true);
+              await playbackService.updatePlaybackProgress(trackId, {
+                positionSeconds: Number.isFinite(audio.currentTime)
+                  ? audio.currentTime
+                  : (progress.positionSeconds ?? 0),
+                durationSeconds: Number.isFinite(audio.duration)
+                  ? audio.duration
+                  : (progress.durationSeconds ?? null),
+                isPlaying: true,
+              });
             }
           } catch (playError) {
             console.error("Audio playback failed to start.", playError);
@@ -485,7 +495,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       [isPlaying, saveCurrentProgress]
     );
 
-    const handleLoadedMetadata = useCallback(() => {
+    const refreshAudioDuration = useCallback(() => {
       const audio = audioRef.current;
       if (!audio) {
         return;
@@ -501,6 +511,14 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         pendingSeekSecondsRef.current = null;
       }
     }, []);
+
+    const handleLoadedMetadata = useCallback(() => {
+      refreshAudioDuration();
+    }, [refreshAudioDuration]);
+
+    const handleDurationChange = useCallback(() => {
+      refreshAudioDuration();
+    }, [refreshAudioDuration]);
 
     const handleTimeUpdate = useCallback(() => {
       const audio = audioRef.current;
@@ -672,6 +690,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           ref={audioRef}
           preload="metadata"
           onLoadedMetadata={handleLoadedMetadata}
+          onDurationChange={handleDurationChange}
           onTimeUpdate={handleTimeUpdate}
           onPause={handleAudioPause}
           onEnded={handleAudioEnded}
