@@ -4,6 +4,7 @@ import { catalogService } from '../services/catalogService';
 import { getAssetUrl, mediaService } from '../services/mediaService';
 import { FilePicker } from '../components/ui/FilePicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { reloadCurrentPage } from '../utils/navigation';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
@@ -28,7 +29,7 @@ async function waitForArtistProfile(artistId) {
   return null;
 }
 
-export function SettingsPage({ user, toast }) {
+export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
   const { updateProfile, promoteToArtist } = useAuth();
   const [username, setUsername] = useState(user.username);
   const [bio, setBio] = useState(user.bio ?? '');
@@ -183,13 +184,14 @@ export function SettingsPage({ user, toast }) {
       if (artist) {
         setPromotionMessage('Perfil de artista listo.');
         toast('Modo artista activado');
+        setShowPromotionModal(false);
+        setTermsAccepted(false);
+        reloadPage();
       } else {
         setPromotionMessage('Catalog aun esta preparando tu perfil. Reintenta desde el dashboard en unos segundos.');
+        setShowPromotionModal(false);
+        setTermsAccepted(false);
       }
-
-      setShowPromotionModal(false);
-      setTermsAccepted(false);
-      window.location.reload();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

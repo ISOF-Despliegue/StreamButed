@@ -193,6 +193,7 @@ describe("artist upload forms", () => {
     expect(screen.queryByRole("button", { name: /Crear otro/ })).not.toBeInTheDocument();
 
     await user.hover(plusButton);
+    await user.click(plusButton);
 
     const createAnother = await screen.findByRole("button", { name: /Crear otro/ });
     expect(createAnother).toBeInTheDocument();

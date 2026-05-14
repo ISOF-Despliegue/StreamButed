@@ -909,7 +909,8 @@ export function CreateAlbumPage({ toast }) {
               className="btn-icon create-another-album-plus"
               type="button"
               aria-label="Mostrar crear otro album"
-              onClick={() => setIsCreateAnotherOpen((current) => !current)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setIsCreateAnotherOpen(true)}
             >
               +
             </button>
@@ -917,6 +918,7 @@ export function CreateAlbumPage({ toast }) {
               <button
                 className="btn-ghost create-another-album-label"
                 type="button"
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={resetForAnotherAlbum}
               >
                 Crear otro album

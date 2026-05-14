@@ -31,9 +31,10 @@ This full-flow collection predates the email verification registration change an
 
 ## Run in Postman UI
 
-1. Import both JSON files.
+1. Import both collections plus the environment file.
 2. Select environment: `StreamButed Local`.
-3. Run the full collection in order.
+3. Run `StreamButed-Current-Auth-Smoke.postman_collection.json` for the current registration/auth smoke flow.
+4. Run `StreamButed-Identity-Catalog.postman_collection.json` only if you are validating the legacy flow that still needs adaptation to the email-verification registration.
 
 ## Run with Newman (CLI)
 
@@ -46,4 +47,5 @@ newman run tests/postman/StreamButed-Identity-Catalog.postman_collection.json -e
 
 ## Notes
 
-- The test suite includes a polling mechanism when checking if a promoted user is replicated to the catalog service. Since the replication happens asynchronously via RabbitMQ, the test retries up to 5 times (with 500ms delays) to account for network and processing latency.
+- The current auth smoke collection proves replacement and cancellation invalidation by asserting the backend returns the specific invalidated-attempt message, not only a generic `400`.
+- The legacy full-flow collection includes a polling mechanism when checking if a promoted user is replicated to the catalog service. Since the replication happens asynchronously via RabbitMQ, the test retries up to 5 times (with 500ms delays) to account for network and processing latency.

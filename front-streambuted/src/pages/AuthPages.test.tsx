@@ -113,6 +113,9 @@ describe("RegisterPage", () => {
       password: "SecurePass1!",
     });
     expect(await screen.findByLabelText("Codigo de verificacion")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Codigo enviado a new@example.com. Expira en 15 minutos."
+    );
   });
 
   it("verifies the code before completing registration", async () => {
@@ -190,6 +193,9 @@ describe("RegisterPage", () => {
       attemptId: "attempt-1",
       email: "new@example.com",
     });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Nuevo codigo enviado a new@example.com. Expira en 15 minutos."
+    );
 
     await user.click(screen.getByRole("button", { name: "Cancelar verificacion" }));
 
@@ -198,6 +204,49 @@ describe("RegisterPage", () => {
       email: "new@example.com",
     });
     expect(await screen.findByText("Verificacion cancelada.")).toBeInTheDocument();
+  });
+
+  it("derives the displayed expiration from the backend ttl", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <RegisterPage
+        onStartRegistration={jest.fn().mockResolvedValue({
+          attemptId: "attempt-1",
+          email: "new@example.com",
+          status: "pending",
+          expiresInSeconds: 120,
+          message: "Verification code sent.",
+        })}
+        onVerifyRegistration={jest.fn()}
+        onResendCode={jest.fn().mockResolvedValue({
+          attemptId: "attempt-2",
+          email: "new@example.com",
+          status: "pending",
+          expiresInSeconds: 60,
+          message: "Verification code sent.",
+        })}
+        onCancelVerification={jest.fn()}
+        onGoogleRegister={jest.fn()}
+        onBack={jest.fn()}
+      />
+    );
+
+    await user.type(screen.getByPlaceholderText("Enter your email"), "new@example.com");
+    await user.type(screen.getByPlaceholderText("Choose a username"), "newuser");
+    await user.type(screen.getByPlaceholderText("Create a password"), "SecurePass1!");
+    await user.type(screen.getByPlaceholderText("Confirm your password"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Create Account" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Codigo enviado a new@example.com. Expira en 2 minutos."
+    );
+
+    await user.click(screen.getByRole("button", { name: "Solicitar nuevo codigo" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Nuevo codigo enviado a new@example.com. Expira en 1 minuto."
+    );
   });
 
   it("validates password complexity before requesting the code", async () => {
