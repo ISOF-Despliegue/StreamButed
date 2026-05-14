@@ -143,11 +143,16 @@ describe("artist upload forms", () => {
       expect(catalogService.createTrackInAlbum).not.toHaveBeenCalled();
     });
 
-    await screen.findByText('Album "Album con canciones" creado. Ahora puedes agregar canciones con portada propia.');
+    await screen.findByText(
+      'Album "Album con canciones" creado. Ahora puedes agregar canciones con portada propia.'
+    );
+    expect(screen.getByText("Agregar cancion a Album con canciones")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Album Title")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Mostrar crear otro/ })).toHaveTextContent("+");
 
     const fileInputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
-    const trackAudioInput = fileInputs[1];
-    const trackCoverInput = fileInputs[2];
+    const trackAudioInput = fileInputs[0];
+    const trackCoverInput = fileInputs[1];
 
     await user.type(screen.getByPlaceholderText("Titulo de la cancion"), "Cancion 1");
     await user.type(screen.getByPlaceholderText("Rock, Pop, Electronica..."), "Rock");
@@ -166,6 +171,36 @@ describe("artist upload forms", () => {
         durationSeconds: 180,
       });
     });
+  });
+
+  it("expands create another album action and returns to fresh album form", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CreateAlbumPage toast={jest.fn()} />);
+    const albumCoverInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    await user.type(screen.getByPlaceholderText("Enter album title"), "Album");
+    await user.upload(
+      albumCoverInput,
+      new File(["cover"], "album-cover.png", { type: "image/png" })
+    );
+    await user.click(screen.getByRole("button", { name: "Publicar Album" }));
+
+    await screen.findByText(
+      'Album "Album" creado. Ahora puedes agregar canciones con portada propia.'
+    );
+    const plusButton = screen.getByRole("button", { name: /Mostrar crear otro/ });
+
+    expect(screen.queryByRole("button", { name: /Crear otro/ })).not.toBeInTheDocument();
+
+    await user.hover(plusButton);
+
+    const createAnother = await screen.findByRole("button", { name: /Crear otro/ });
+    expect(createAnother).toBeInTheDocument();
+
+    await user.click(createAnother);
+
+    expect(await screen.findByLabelText("Album Title")).toBeInTheDocument();
+    expect(screen.queryByText("Agregar cancion a Album")).not.toBeInTheDocument();
   });
 
   it("sends null albumId when editing a track back to single", async () => {

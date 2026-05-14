@@ -10,6 +10,10 @@ jest.mock("../services/authService", () => ({
   authService: {
     login: jest.fn(),
     register: jest.fn(),
+    verifyRegistration: jest.fn(),
+    resendRegistrationCode: jest.fn(),
+    cancelRegistration: jest.fn(),
+    setupPassword: jest.fn(),
     refresh: jest.fn(),
     logout: jest.fn(),
   },
@@ -31,11 +35,12 @@ const currentUser = {
   profileImageAssetId: null,
   role: "listener" as const,
   isActive: true,
+  passwordSetupRequired: false,
   createdAt: "2026-05-06T00:00:00Z",
 };
 
 function LoginHarness() {
-  const { user, login, isLoadingSession } = useAuth();
+  const { user, login, promoteToArtist, isLoadingSession } = useAuth();
 
   if (isLoadingSession) return <div>loading</div>;
 
@@ -45,6 +50,7 @@ function LoginHarness() {
       <button onClick={() => login({ email: "listener@example.com", password: "SecurePass1!" })}>
         login
       </button>
+      <button onClick={() => promoteToArtist()}>promote</button>
     </div>
   );
 }
@@ -70,5 +76,33 @@ describe("AuthContext", () => {
 
     await waitFor(() => expect(screen.getByText("listener")).toBeInTheDocument());
     expect(authTokenStore.getAccessToken()).toBe("access-token");
+  });
+
+  it("refreshes the access token after promoting to artist", async () => {
+    const user = userEvent.setup();
+    jest.mocked(authService.refresh)
+      .mockRejectedValueOnce(new Error("No refresh"))
+      .mockResolvedValueOnce({
+        accessToken: "artist-token",
+        role: "artist",
+        expiresIn: 900,
+      });
+    jest.mocked(userService.getCurrentUser)
+      .mockResolvedValueOnce(currentUser)
+      .mockResolvedValueOnce({
+        ...currentUser,
+        role: "artist",
+      });
+
+    render(<AuthProvider><LoginHarness /></AuthProvider>);
+
+    await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "promote" }));
+
+    await waitFor(() => expect(authTokenStore.getAccessToken()).toBe("artist-token"));
+    expect(screen.getByText("listener")).toBeInTheDocument();
+    expect(userService.promoteToArtist).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(authService.refresh).mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(jest.mocked(userService.getCurrentUser).mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });
