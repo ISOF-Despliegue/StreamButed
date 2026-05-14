@@ -1,0 +1,84 @@
+name: SonarQube Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install frontend dependencies
+        working-directory: front-streambuted
+        run: npm ci
+
+      - name: Test frontend with coverage
+        working-directory: front-streambuted
+        run: npm test -- --coverage --runInBand
+
+      - name: Install catalog service dependencies
+        working-directory: services/catalog-service
+        run: npm ci
+
+      - name: Test catalog service with coverage
+        working-directory: services/catalog-service
+        run: npm test -- --coverage
+
+      - name: Test identity service with coverage
+        working-directory: services/identity-service
+        run: mvn -B test
+
+      - name: Test media service with coverage
+        working-directory: services/media-service
+        run: |
+          python -m pip install -r requirements.txt coverage
+          python -m coverage run -m pytest
+          python -m coverage xml -o coverage.xml
+
+      - name: Test streaming service with coverage
+        working-directory: services/streaming-service
+        run: |
+          python -m pip install -r requirements.txt coverage
+          python -m coverage run -m pytest
+          python -m coverage xml -o coverage.xml
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
