@@ -203,7 +203,6 @@ describe("AuthContext", () => {
         expiresIn: 900,
       });
     jest.mocked(userService.getCurrentUser)
-      .mockResolvedValueOnce(currentUser)
       .mockResolvedValueOnce({
         ...currentUser,
         role: "artist",
@@ -215,6 +214,7 @@ describe("AuthContext", () => {
     await user.click(screen.getByRole("button", { name: "promote" }));
 
     await waitFor(() => expect(authTokenStore.getAccessToken()).toBe("artist-token"));
+    expect(await screen.findByText("artist")).toBeInTheDocument();
     expect(screen.getByText("artist-token")).toBeInTheDocument();
     expect(userService.promoteToArtist).toHaveBeenCalledTimes(1);
     expect(jest.mocked(authService.refresh).mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -230,9 +230,9 @@ describe("AuthContext", () => {
 
     render(<AuthProvider><LoginHarness /></AuthProvider>);
 
-    expect(await screen.findByText("listener")).toBeInTheDocument();
-    expect(screen.getByText("refreshed-token")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("refreshed-token")).toBeInTheDocument());
     expect(screen.getByText("authenticated")).toBeInTheDocument();
+    expect(screen.getAllByText("listener").length).toBeGreaterThan(0);
   });
 
   it("delegates registration verification actions to the auth service", async () => {

@@ -38,6 +38,16 @@ function validatePasswordRules(password) {
   return '';
 }
 
+function formatVerificationTtl(expiresInSeconds) {
+  const seconds = Number(expiresInSeconds);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return 'unos momentos';
+  }
+
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  return minutes === 1 ? '1 minuto' : `${minutes} minutos`;
+}
+
 export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = '' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -206,7 +216,7 @@ export function RegisterPage({
       });
       setVerification(response);
       setVerificationCode('');
-      setNotice(`Codigo enviado a ${response.email}. Expira en 15 minutos.`);
+      setNotice(`Codigo enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -252,7 +262,7 @@ export function RegisterPage({
       });
       setVerification(response);
       setVerificationCode('');
-      setNotice(`Nuevo codigo enviado a ${response.email}. Expira en 15 minutos.`);
+      setNotice(`Nuevo codigo enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

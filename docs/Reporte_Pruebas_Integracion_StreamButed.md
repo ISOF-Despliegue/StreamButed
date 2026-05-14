@@ -20,9 +20,9 @@ Flujos cubiertos:
 - Inicio de registro por correo con estado `pending`.
 - Rechazo de login antes de verificar el codigo de correo.
 - Reenvio de codigo, validando que el intento anterior quede reemplazado.
-- Rechazo de verificacion con intento reemplazado.
+- Rechazo de verificacion con intento reemplazado, validando el mensaje especifico de intento invalidado.
 - Cancelacion del intento activo.
-- Rechazo de verificacion con intento cancelado.
+- Rechazo de verificacion con intento cancelado, validando el mensaje especifico de intento invalidado.
 - Redirect inicial de Google OAuth con scopes `email` y `profile`.
 - Busqueda publica de catalogo.
 - Rechazo de creacion de album sin JWT.

@@ -67,6 +67,8 @@ jobs:
         run: |
           sed -i 's#\\#/#g' services/catalog-service/coverage/lcov.info
           sed -i 's#^SF:src/#SF:services/catalog-service/src/#' services/catalog-service/coverage/lcov.info
+          sed -i "s#^SF:front-streambuted/src/#SF:${GITHUB_WORKSPACE}/front-streambuted/src/#" front-streambuted/coverage/lcov.info
+          sed -i "s#^SF:services/catalog-service/src/#SF:${GITHUB_WORKSPACE}/services/catalog-service/src/#" services/catalog-service/coverage/lcov.info
 
       - name: Test identity service with coverage
         working-directory: services/identity-service
