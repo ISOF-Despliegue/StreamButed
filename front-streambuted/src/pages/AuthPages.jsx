@@ -6,6 +6,9 @@ const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 50;
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
+const PASSWORD_UPPERCASE = /[A-Z]/;
+const PASSWORD_DIGIT = /\d/;
+const PASSWORD_SPECIAL = /[^A-Za-z0-9]/;
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
@@ -15,7 +18,37 @@ function getErrorMessage(error) {
   return 'No se pudo completar la solicitud.';
 }
 
-export function LoginPage({ onLogin, onRegister }) {
+function validatePasswordRules(password) {
+  if (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
+    return 'El password debe tener entre 8 y 128 caracteres.';
+  }
+
+  if (!PASSWORD_UPPERCASE.test(password)) {
+    return 'El password debe incluir al menos una mayuscula.';
+  }
+
+  if (!PASSWORD_DIGIT.test(password)) {
+    return 'El password debe incluir al menos un numero.';
+  }
+
+  if (!PASSWORD_SPECIAL.test(password)) {
+    return 'El password debe incluir al menos un simbolo especial.';
+  }
+
+  return '';
+}
+
+function formatVerificationTtl(expiresInSeconds) {
+  const seconds = Number(expiresInSeconds);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return 'unos momentos';
+  }
+
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  return minutes === 1 ? '1 minuto' : `${minutes} minutos`;
+}
+
+export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = '' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -80,9 +113,9 @@ export function LoginPage({ onLogin, onRegister }) {
           />
         </div>
 
-        {error && (
+        {(error || externalError) && (
           <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {error}
+            {error || externalError}
           </div>
         )}
 
@@ -97,10 +130,9 @@ export function LoginPage({ onLogin, onRegister }) {
 
         <button
           className="btn-ghost"
-          style={{ width: '100%', marginBottom: 16, opacity: 0.55, cursor: 'not-allowed' }}
+          style={{ width: '100%', marginBottom: 16 }}
           type="button"
-          disabled
-          title="Proveedor OAuth no configurado"
+          onClick={onGoogleLogin}
         >
           Continue with Google
         </button>
@@ -116,15 +148,28 @@ export function LoginPage({ onLogin, onRegister }) {
   );
 }
 
-export function RegisterPage({ onRegister, onBack }) {
+export function RegisterPage({
+  onStartRegistration,
+  onVerifyRegistration,
+  onResendCode,
+  onCancelVerification,
+  onGoogleRegister,
+  onBack,
+  externalError = '',
+}) {
   const [form, setForm] = useState({
     email: '',
     username: '',
     password: '',
     confirm: '',
   });
+  const [verification, setVerification] = useState(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
@@ -144,12 +189,16 @@ export function RegisterPage({ onRegister, onBack }) {
       return setError('Email invalido.');
     }
 
-    if (normalizedUsername.length < USERNAME_MIN_LENGTH || normalizedUsername.length > USERNAME_MAX_LENGTH) {
+    if (
+      normalizedUsername.length < USERNAME_MIN_LENGTH ||
+      normalizedUsername.length > USERNAME_MAX_LENGTH
+    ) {
       return setError('El username debe tener entre 3 y 50 caracteres.');
     }
 
-    if (form.password.length < PASSWORD_MIN_LENGTH || form.password.length > PASSWORD_MAX_LENGTH) {
-      return setError('El password debe tener entre 8 y 128 caracteres.');
+    const passwordError = validatePasswordRules(form.password);
+    if (passwordError) {
+      return setError(passwordError);
     }
 
     if (form.password !== form.confirm) {
@@ -160,15 +209,85 @@ export function RegisterPage({ onRegister, onBack }) {
     setIsSubmitting(true);
 
     try {
-      await onRegister({
+      const response = await onStartRegistration({
         email: normalizedEmail,
         username: normalizedUsername,
         password: form.password,
+      });
+      setVerification(response);
+      setVerificationCode('');
+      setNotice(`Codigo enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!verification) return;
+
+    const normalizedCode = verificationCode.trim();
+    if (!/^\d{6}$/.test(normalizedCode)) {
+      return setError('Ingresa el codigo de 6 digitos.');
+    }
+
+    setError('');
+    setNotice('');
+    setIsSubmitting(true);
+
+    try {
+      await onVerifyRegistration({
+        attemptId: verification.attemptId,
+        email: verification.email,
+        code: normalizedCode,
       });
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!verification) return;
+
+    setError('');
+    setIsResending(true);
+
+    try {
+      const response = await onResendCode({
+        attemptId: verification.attemptId,
+        email: verification.email,
+      });
+      setVerification(response);
+      setVerificationCode('');
+      setNotice(`Nuevo codigo enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!verification) return;
+
+    setError('');
+    setIsCancelling(true);
+
+    try {
+      await onCancelVerification({
+        attemptId: verification.attemptId,
+        email: verification.email,
+      });
+      setVerification(null);
+      setVerificationCode('');
+      setNotice('Verificacion cancelada.');
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -180,9 +299,11 @@ export function RegisterPage({ onRegister, onBack }) {
           <div className="auth-logo-mark">S</div>
         </div>
         <div className="auth-title">Create your account</div>
-        <div className="auth-sub">New accounts start as listeners</div>
+        <div className="auth-sub">
+          {verification ? 'Enter the code sent to your email' : 'New accounts start as listeners'}
+        </div>
 
-        {(['email', 'username', 'password', 'confirm']).map((key, index) => {
+        {!verification && (['email', 'username', 'password', 'confirm']).map((key, index) => {
           const inputId = `register-${key}`;
           const isPasswordField = key === 'password' || key === 'confirm';
           let inputType = 'text';
@@ -224,27 +345,86 @@ export function RegisterPage({ onRegister, onBack }) {
           );
         })}
 
-        {error && (
-          <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {error}
+        {verification && (
+          <>
+            <div className="form-group">
+              <label className="form-label" htmlFor="register-code">Codigo de verificacion</label>
+              <input
+                id="register-code"
+                value={verificationCode}
+                onChange={(event) => {
+                  setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6));
+                }}
+                onKeyDown={(event) => event.key === 'Enter' && handleVerify()}
+                placeholder="123456"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+              />
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 14 }}>
+              Correo: {verification.email}
+            </div>
+          </>
+        )}
+
+        {notice && (
+          <div role="status" style={{ fontSize: 13, color: 'var(--success)', marginBottom: 12 }}>
+            {notice}
           </div>
         )}
 
-        <button
-          className="btn-primary"
-          style={{ width: '100%', marginBottom: 16 }}
-          onClick={handleCreate}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Creating...' : 'Create Account'}
-        </button>
+        {(error || externalError) && (
+          <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
+            {error || externalError}
+          </div>
+        )}
+
+        {!verification ? (
+          <button
+            className="btn-primary"
+            style={{ width: '100%', marginBottom: 16 }}
+            onClick={handleCreate}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Sending code...' : 'Create Account'}
+          </button>
+        ) : (
+          <>
+            <button
+              className="btn-primary"
+              style={{ width: '100%', marginBottom: 10 }}
+              onClick={handleVerify}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Verificando...' : 'Verificar codigo'}
+            </button>
+            <button
+              className="btn-ghost"
+              style={{ width: '100%', marginBottom: 10 }}
+              type="button"
+              onClick={handleResend}
+              disabled={isResending || isSubmitting}
+            >
+              {isResending ? 'Enviando...' : 'Solicitar nuevo codigo'}
+            </button>
+            <button
+              className="btn-ghost"
+              style={{ width: '100%', marginBottom: 16 }}
+              type="button"
+              onClick={handleCancel}
+              disabled={isCancelling || isSubmitting}
+            >
+              {isCancelling ? 'Cancelando...' : 'Cancelar verificacion'}
+            </button>
+          </>
+        )}
 
         <button
           className="btn-ghost"
-          style={{ width: '100%', marginBottom: 16, opacity: 0.55, cursor: 'not-allowed' }}
+          style={{ width: '100%', marginBottom: 16 }}
           type="button"
-          disabled
-          title="Proveedor OAuth no configurado"
+          onClick={onGoogleRegister}
         >
           Sign up with Google
         </button>
@@ -255,6 +435,110 @@ export function RegisterPage({ onRegister, onBack }) {
             Sign in
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' }) {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!password || !confirmPassword) {
+      return setError('Completa ambos campos de password.');
+    }
+
+    const passwordError = validatePasswordRules(password);
+    if (passwordError) {
+      return setError(passwordError);
+    }
+
+    if (password !== confirmPassword) {
+      return setError('Los passwords no coinciden.');
+    }
+
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      await onSubmit({ password, confirmPassword });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <div className="auth-logo-mark">S</div>
+        </div>
+        <div className="auth-title">Completa tu registro</div>
+        <div className="auth-sub">
+          Define un password para poder entrar tambien con email y password.
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="google-setup-email">Email</label>
+          <input
+            id="google-setup-email"
+            type="email"
+            value={email}
+            disabled
+            maxLength={EMAIL_MAX_LENGTH}
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="google-setup-password">Password</label>
+          <input
+            id="google-setup-password"
+            type="password"
+            placeholder="Crea tu password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="new-password"
+            maxLength={PASSWORD_MAX_LENGTH}
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="google-setup-confirm">Confirmar password</label>
+          <input
+            id="google-setup-confirm"
+            type="password"
+            placeholder="Confirma tu password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            onKeyDown={(event) => event.key === 'Enter' && handleSubmit()}
+            autoComplete="new-password"
+            maxLength={PASSWORD_MAX_LENGTH}
+          />
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 14 }}>
+          Debe incluir una mayuscula, un numero y un simbolo especial.
+        </div>
+
+        {(error || externalError) && (
+          <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
+            {error || externalError}
+          </div>
+        )}
+
+        <button
+          className="btn-primary"
+          style={{ width: '100%' }}
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Guardando...' : 'Guardar password'}
+        </button>
       </div>
     </div>
   );

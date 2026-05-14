@@ -12,8 +12,12 @@ import { userService } from "../services/userService";
 import type {
   AuthContextValue,
   LoginRequest,
+  RegistrationVerificationActionRequest,
+  RegistrationVerificationResponse,
   RegisterRequest,
+  SetupPasswordRequest,
   UpdateProfileRequest,
+  VerifyRegistrationRequest,
 } from "../types/auth.types";
 import type { CurrentUser } from "../types/user.types";
 
@@ -67,16 +71,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [commitSession]
   );
 
-  const register = useCallback(
-    async (request: RegisterRequest): Promise<CurrentUser> => {
-      await authService.register(request);
-
-      return login({
-        email: request.email,
-        password: request.password,
-      });
+  const startRegistration = useCallback(
+    async (request: RegisterRequest): Promise<RegistrationVerificationResponse> => {
+      return authService.register(request);
     },
-    [login]
+    []
+  );
+
+  const verifyRegistration = useCallback(
+    async (request: VerifyRegistrationRequest): Promise<CurrentUser> => {
+      const response = await authService.verifyRegistration(request);
+      return commitSession(response.accessToken);
+    },
+    [commitSession]
+  );
+
+  const resendRegistrationCode = useCallback(
+    async (
+      request: RegistrationVerificationActionRequest
+    ): Promise<RegistrationVerificationResponse> => {
+      return authService.resendRegistrationCode(request);
+    },
+    []
+  );
+
+  const cancelRegistration = useCallback(
+    async (request: RegistrationVerificationActionRequest): Promise<void> => {
+      await authService.cancelRegistration(request);
+    },
+    []
+  );
+
+  const completeGooglePasswordSetup = useCallback(
+    async (request: SetupPasswordRequest): Promise<CurrentUser> => {
+      await authService.setupPassword(request);
+      const refreshed = await userService.getCurrentUser();
+      setUser(refreshed);
+      return refreshed;
+    },
+    []
   );
 
   const logout = useCallback(async (): Promise<void> => {
@@ -98,10 +131,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const promoteToArtist = useCallback(async (): Promise<CurrentUser> => {
     await userService.promoteToArtist();
-    const refreshed = await userService.getCurrentUser();
-    setUser(refreshed);
-    return refreshed;
-  }, []);
+
+    const refreshedSession = await refreshSession();
+    if (!refreshedSession) {
+      throw new Error("Session refresh failed after enabling artist mode.");
+    }
+
+    return refreshedSession;
+  }, [refreshSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -110,7 +147,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isAuthenticated: Boolean(user && accessToken),
       isLoadingSession,
       login,
-      register,
+      startRegistration,
+      verifyRegistration,
+      resendRegistrationCode,
+      cancelRegistration,
+      completeGooglePasswordSetup,
       refreshSession,
       logout,
       updateProfile,
@@ -123,7 +164,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logout,
       promoteToArtist,
       refreshSession,
-      register,
+      startRegistration,
+      verifyRegistration,
+      resendRegistrationCode,
+      cancelRegistration,
+      completeGooglePasswordSetup,
       updateProfile,
       user,
     ]

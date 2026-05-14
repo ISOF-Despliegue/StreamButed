@@ -8,5 +8,6 @@ export interface CurrentUser {
   profileImageAssetId: string | null;
   role: UserRole;
   isActive: boolean;
+  passwordSetupRequired: boolean;
   createdAt: string;
 }

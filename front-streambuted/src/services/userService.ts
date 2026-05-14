@@ -16,6 +16,7 @@ function normalizeUser(user: CurrentUser & { role: string }): CurrentUser {
     ...user,
     bio: user.bio ?? null,
     profileImageAssetId: user.profileImageAssetId ?? null,
+    passwordSetupRequired: Boolean(user.passwordSetupRequired),
     role: normalizeRole(user.role),
   };
 }

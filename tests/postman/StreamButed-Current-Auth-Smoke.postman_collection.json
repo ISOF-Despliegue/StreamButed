@@ -1,0 +1,508 @@
+{
+  "info": {
+    "_postman_id": "958a4d37-6b3d-4c77-a4de-e9d9c26c7cb1",
+    "name": "StreamButed - Current Auth Smoke Integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Smoke integration checks aligned with the current email verification registration flow."
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const now = Date.now();",
+          "if (!pm.collectionVariables.get('runSuffix')) {",
+          "  pm.collectionVariables.set('runSuffix', String(now));",
+          "}",
+          "if (!pm.collectionVariables.get('testEmail')) {",
+          "  pm.collectionVariables.set('testEmail', `integration+${now}@example.com`);",
+          "}",
+          "if (!pm.collectionVariables.get('testUsername')) {",
+          "  pm.collectionVariables.set('testUsername', `integration${now}`);",
+          "}",
+          "if (!pm.collectionVariables.get('testPassword')) {",
+          "  pm.collectionVariables.set('testPassword', `T3st!${now}Aa`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "Identity - Actuator Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{identityBaseUrl}}/actuator/health",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('identity health UP', function () { pm.expect(json.status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/health",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('catalog status ok', function () { pm.expect(json.status).to.eql('ok'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Playback - Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{playbackBaseUrl}}/health",
+              "host": [
+                "{{playbackBaseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('playback reports healthy status', function () { pm.expect(json.status).to.be.oneOf(['UP', 'healthy']); });",
+                  "pm.test('streaming service name', function () { pm.expect(json.service).to.eql('streaming-service'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Email Verification Registration",
+      "item": [
+        {
+          "name": "Auth - Start Registration Verification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"username\": \"{{testUsername}}\",\n  \"password\": \"{{testPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/register",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "register"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', function () { pm.response.to.have.status(202); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('initialAttemptId', json.attemptId);",
+                  "pm.collectionVariables.set('activeAttemptId', json.attemptId);",
+                  "pm.test('attempt id exists', function () { pm.expect(json.attemptId).to.match(/^[0-9a-fA-F-]{36}$/); });",
+                  "pm.test('registration remains pending until code verification', function () { pm.expect(json.status).to.eql('pending'); });",
+                  "pm.test('response does not issue access token', function () { pm.expect(json.accessToken).to.be.undefined; });",
+                  "pm.test('verification ttl is positive', function () { pm.expect(json.expiresInSeconds).to.be.above(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Login Before Verification Is Rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/login",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Resend Registration Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attemptId\": \"{{activeAttemptId}}\",\n  \"email\": \"{{testEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/register/resend",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "register",
+                "resend"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const previousAttemptId = pm.collectionVariables.get('activeAttemptId');",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('replacedAttemptId', previousAttemptId);",
+                  "pm.collectionVariables.set('activeAttemptId', json.attemptId);",
+                  "pm.test('new pending attempt is returned', function () { pm.expect(json.status).to.eql('pending'); });",
+                  "pm.test('new code uses a different attempt id', function () { pm.expect(json.attemptId).to.not.eql(previousAttemptId); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Replaced Attempt Is Rejected As Invalidated",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attemptId\": \"{{replacedAttemptId}}\",\n  \"email\": \"{{testEmail}}\",\n  \"code\": \"000000\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/register/verify",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "register",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test('replaced attempt reports invalidated status', function () {",
+                  "  pm.expect(json.message).to.eql('Verification code is no longer valid. Request a new code.');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Cancel Active Verification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attemptId\": \"{{activeAttemptId}}\",\n  \"email\": \"{{testEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/register/cancel",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "register",
+                "cancel"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Cancelled Attempt Is Rejected As Invalidated",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attemptId\": \"{{activeAttemptId}}\",\n  \"email\": \"{{testEmail}}\",\n  \"code\": \"000000\"\n}"
+            },
+            "url": {
+              "raw": "{{identityBaseUrl}}/register/verify",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "register",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test('cancelled attempt reports invalidated status', function () {",
+                  "  pm.expect(json.message).to.eql('Verification code is no longer valid. Request a new code.');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Google OAuth",
+      "item": [
+        {
+          "name": "Google - Login Redirect Uses Google OAuth",
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{identityBaseUrl}}/google?mode=login",
+              "host": [
+                "{{identityBaseUrl}}"
+              ],
+              "path": [
+                "google"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "login"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('redirect status', function () { pm.expect(pm.response.code).to.be.oneOf([302, 303]); });",
+                  "const location = pm.response.headers.get('Location') || '';",
+                  "const decodedLocation = decodeURIComponent(location.replace(/\\+/g, ' '));",
+                  "pm.test('redirects to Google authorization endpoint', function () { pm.expect(location).to.include('accounts.google.com'); });",
+                  "pm.test('uses email and profile OAuth scopes', function () {",
+                  "  pm.expect(decodedLocation).to.include('email');",
+                  "  pm.expect(decodedLocation).to.include('profile');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Catalog Access Boundaries",
+      "item": [
+        {
+          "name": "Catalog - Public Search Works",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogBaseUrl}}/search?q=integration&limit=5&offset=0",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "integration"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('search returns album and track arrays', function () {",
+                  "  pm.expect(json.albums).to.be.an('array');",
+                  "  pm.expect(json.tracks).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Create Album Without Token Is Rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Unauthorized Album\",\n  \"releaseDate\": \"2026-05-14\",\n  \"coverAssetId\": \"11111111-1111-4111-8111-111111111111\"\n}"
+            },
+            "url": {
+              "raw": "{{catalogBaseUrl}}/albums",
+              "host": [
+                "{{catalogBaseUrl}}"
+              ],
+              "path": [
+                "albums"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

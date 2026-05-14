@@ -18,7 +18,7 @@ import { BottomPlayer } from "./components/layout/BottomPlayer";
 import { ExpandedPlayer } from "./components/layout/ExpandedPlayer";
 import { MainSidebar, AdminSidebar } from "./components/layout/Sidebars";
 import LogoutButton from "./components/layout/LogoutButton";
-import { LoginPage, RegisterPage } from "./pages/AuthPages";
+import { GooglePasswordSetupPage, LoginPage, RegisterPage } from "./pages/AuthPages";
 import { SettingsPage } from "./pages/SettingsPage";
 import {
   HomePage,
@@ -47,6 +47,8 @@ import { RoleRoute } from "./routes/RoleRoute";
 import { useAuth } from "./hooks/useAuth";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
+import { authService } from "./services/authService";
+import { getSecureRandomInt } from "./utils/secureRandom";
 import type { CurrentUser } from "./types/user.types";
 import type { Track } from "./types/catalog.types";
 import type { PlaybackProgressRequest } from "./types/playback.types";
@@ -137,7 +139,7 @@ function shuffleRemainingTrackIds(tracks: AppTrack[], currentTrackId: string): s
     .filter((trackId) => trackId && trackId !== currentTrackId);
 
   for (let index = remaining.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = getSecureRandomInt(index + 1);
     [remaining[index], remaining[swapIndex]] = [remaining[swapIndex], remaining[index]];
   }
 
@@ -705,7 +707,17 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 );
 
 export default function StreamButed() {
-  const { user, isLoadingSession, login, register, logout } = useAuth();
+  const {
+    user,
+    isLoadingSession,
+    login,
+    startRegistration,
+    verifyRegistration,
+    resendRegistrationCode,
+    cancelRegistration,
+    completeGooglePasswordSetup,
+    logout,
+  } = useAuth();
 
   const [authPage, setAuthPage] = useState<AuthPage>("login");
   const [page, setPage] = useState<string>("home");
@@ -719,6 +731,8 @@ export default function StreamButed() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [oauthError, setOauthError] = useState("");
+  const [oauthStatus, setOauthStatus] = useState("");
 
   const playbackControllerRef = useRef<PlaybackControllerHandle | null>(null);
 
@@ -756,9 +770,56 @@ export default function StreamButed() {
   };
 
   const handleRegister = async (request: { email: string; username: string; password: string }) => {
-    const registeredUser = await register(request);
+    return startRegistration(request);
+  };
+
+  const handleVerifyRegistration = async (request: {
+    attemptId: string;
+    email: string;
+    code: string;
+  }) => {
+    const registeredUser = await verifyRegistration(request);
     resetNavigation(registeredUser);
   };
+
+  const handleGoogleAuth = (mode: "login" | "register") => {
+    window.location.assign(authService.getGoogleAuthUrl(mode));
+  };
+
+  const handleCompleteGooglePasswordSetup = async (request: {
+    password: string;
+    confirmPassword: string;
+  }) => {
+    const updatedUser = await completeGooglePasswordSetup(request);
+    setOauthStatus("");
+    setOauthError("");
+    resetNavigation(updatedUser);
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthStatus = params.get("oauth");
+    if (!oauthStatus) return;
+
+    setOauthStatus(oauthStatus);
+    if (oauthStatus === "google-error") {
+      setOauthError(params.get("message") || "No se pudo completar Google OAuth.");
+    } else if (oauthStatus === "google-password-setup") {
+      setOauthError("Completa tu password para terminar el registro con Google.");
+    } else {
+      setOauthError("");
+    }
+
+    params.delete("oauth");
+    params.delete("message");
+    const nextSearch = params.toString();
+    const nextUrl = [
+      window.location.pathname,
+      nextSearch ? `?${nextSearch}` : "",
+      window.location.hash,
+    ].join("");
+    window.history.replaceState(null, "", nextUrl);
+  }, []);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -793,14 +854,31 @@ export default function StreamButed() {
         <LoginPage
           onLogin={handleLogin}
           onRegister={() => setAuthPage("register")}
+          onGoogleLogin={() => handleGoogleAuth("login")}
+          externalError={oauthError}
         />
       );
     }
 
     return (
       <RegisterPage
-        onRegister={handleRegister}
+        onStartRegistration={handleRegister}
+        onVerifyRegistration={handleVerifyRegistration}
+        onResendCode={resendRegistrationCode}
+        onCancelVerification={cancelRegistration}
+        onGoogleRegister={() => handleGoogleAuth("register")}
         onBack={() => setAuthPage("login")}
+        externalError={oauthError}
+      />
+    );
+  }
+
+  if (user.passwordSetupRequired) {
+    return (
+      <GooglePasswordSetupPage
+        email={user.email}
+        onSubmit={handleCompleteGooglePasswordSetup}
+        externalError={oauthStatus === "google-password-setup" ? oauthError : ""}
       />
     );
   }
