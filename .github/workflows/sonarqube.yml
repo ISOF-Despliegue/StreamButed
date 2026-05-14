@@ -52,6 +52,9 @@ jobs:
         working-directory: front-streambuted
         run: npm test -- --coverage --runInBand
 
+      - name: Normalize frontend LCOV paths
+        run: sed -i 's#^SF:src/#SF:front-streambuted/src/#' front-streambuted/coverage/lcov.info
+
       - name: Install catalog service dependencies
         working-directory: services/catalog-service
         run: npm ci
@@ -59,6 +62,11 @@ jobs:
       - name: Test catalog service with coverage
         working-directory: services/catalog-service
         run: npm test -- --coverage
+
+      - name: Normalize catalog LCOV paths
+        run: |
+          sed -i 's#\\#/#g' services/catalog-service/coverage/lcov.info
+          sed -i 's#^SF:src/#SF:services/catalog-service/src/#' services/catalog-service/coverage/lcov.info
 
       - name: Test identity service with coverage
         working-directory: services/identity-service

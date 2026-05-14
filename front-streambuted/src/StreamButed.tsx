@@ -48,6 +48,7 @@ import { useAuth } from "./hooks/useAuth";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
 import { authService } from "./services/authService";
+import { getSecureRandomInt } from "./utils/secureRandom";
 import type { CurrentUser } from "./types/user.types";
 import type { Track } from "./types/catalog.types";
 import type { PlaybackProgressRequest } from "./types/playback.types";
@@ -138,7 +139,7 @@ function shuffleRemainingTrackIds(tracks: AppTrack[], currentTrackId: string): s
     .filter((trackId) => trackId && trackId !== currentTrackId);
 
   for (let index = remaining.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = getSecureRandomInt(index + 1);
     [remaining[index], remaining[swapIndex]] = [remaining[swapIndex], remaining[index]];
   }
 
