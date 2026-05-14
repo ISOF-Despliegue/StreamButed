@@ -32,6 +32,43 @@ describe("route guards", () => {
     expect(screen.getByText("login")).toBeInTheDocument();
   });
 
+  it("shows a loading state while the session is being restored", () => {
+    render(
+      <AuthContext.Provider value={{ ...baseContext, isLoadingSession: true }}>
+        <ProtectedRoute fallback={<div>login</div>}><div>private</div></ProtectedRoute>
+      </AuthContext.Provider>
+    );
+
+    expect(screen.getByText("Cargando sesion...")).toBeInTheDocument();
+  });
+
+  it("renders protected content when the session is active", () => {
+    render(
+      <AuthContext.Provider
+        value={{
+          ...baseContext,
+          isAuthenticated: true,
+          accessToken: "token",
+          user: {
+            id: "user-1",
+            email: "listener@example.com",
+            username: "listener",
+            bio: null,
+            profileImageAssetId: null,
+            role: "listener",
+            isActive: true,
+            passwordSetupRequired: false,
+            createdAt: "2026-05-06T00:00:00Z",
+          },
+        }}
+      >
+        <ProtectedRoute fallback={<div>login</div>}><div>private</div></ProtectedRoute>
+      </AuthContext.Provider>
+    );
+
+    expect(screen.getByText("private")).toBeInTheDocument();
+  });
+
   it("blocks roles that are not allowed", () => {
     render(
       <AuthContext.Provider
@@ -57,5 +94,42 @@ describe("route guards", () => {
     );
 
     expect(screen.getByText("No tienes permisos para esta vista.")).toBeInTheDocument();
+  });
+
+  it("shows a loading state while role-protected content waits for the session", () => {
+    render(
+      <AuthContext.Provider value={{ ...baseContext, isLoadingSession: true }}>
+        <RoleRoute allowedRoles={["artist"]}><div>artist</div></RoleRoute>
+      </AuthContext.Provider>
+    );
+
+    expect(screen.getByText("Cargando sesion...")).toBeInTheDocument();
+  });
+
+  it("renders role-protected content for an allowed role", () => {
+    render(
+      <AuthContext.Provider
+        value={{
+          ...baseContext,
+          isAuthenticated: true,
+          accessToken: "token",
+          user: {
+            id: "user-1",
+            email: "artist@example.com",
+            username: "artist",
+            bio: null,
+            profileImageAssetId: null,
+            role: "artist",
+            isActive: true,
+            passwordSetupRequired: false,
+            createdAt: "2026-05-06T00:00:00Z",
+          },
+        }}
+      >
+        <RoleRoute allowedRoles={["artist"]}><div>artist-dashboard</div></RoleRoute>
+      </AuthContext.Provider>
+    );
+
+    expect(screen.getByText("artist-dashboard")).toBeInTheDocument();
   });
 });
