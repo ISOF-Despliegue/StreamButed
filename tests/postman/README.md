@@ -3,9 +3,22 @@
 ## Files
 
 - `StreamButed-Identity-Catalog.postman_collection.json`
+- `StreamButed-Current-Auth-Smoke.postman_collection.json`
 - `StreamButed.local.postman_environment.json`
 
 ## What this collection covers
+
+### Current Auth Smoke
+
+`StreamButed-Current-Auth-Smoke.postman_collection.json` is aligned with the current email-verification registration flow. It covers service health, pending registration, login rejection before verification, resend invalidating the previous attempt, cancel invalidating the active attempt, Google OAuth redirect configuration, public catalog search, and protected catalog write rejection without a JWT.
+
+Run it with:
+
+```powershell
+npx --yes newman run tests/postman/StreamButed-Current-Auth-Smoke.postman_collection.json -e tests/postman/StreamButed.local.postman_environment.json
+```
+
+### Legacy Full Flow
 
 1. Health checks for both services.
 2. Identity auth lifecycle: register, login, refresh, promote.
@@ -13,6 +26,8 @@
 4. Catalog protected CRUD flow with JWT from Identity.
 5. Playback health check through Gateway.
 6. Negative cases (auth failures and unauthorized catalog writes).
+
+This full-flow collection predates the email verification registration change and must be updated with a deterministic verification-code strategy before it can complete the protected album/track flow again.
 
 ## Run in Postman UI
 

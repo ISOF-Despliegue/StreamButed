@@ -818,6 +818,7 @@ export function CreateAlbumPage({ toast }) {
   const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
   const [createdAlbum, setCreatedAlbum] = useState(null);
   const [createdTracks, setCreatedTracks] = useState([]);
+  const [isCreateAnotherOpen, setIsCreateAnotherOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -877,16 +878,131 @@ export function CreateAlbumPage({ toast }) {
     }
   };
 
+  const resetForAnotherAlbum = () => {
+    setTitle('');
+    setCoverFile(null);
+    setCreatedAlbum(null);
+    setCreatedTracks([]);
+    setError('');
+    setIsCreateAnotherOpen(false);
+  };
+
+  if (createdAlbum) {
+    return (
+      <div className="page-inner">
+        <div className="page-header album-created-header">
+          <div>
+            <div className="page-title">Agregar canciones</div>
+            <div className="page-subtitle">Album: {createdAlbum.title}</div>
+          </div>
+          <div
+            className="create-another-album-action"
+            onMouseEnter={() => setIsCreateAnotherOpen(true)}
+            onFocus={() => setIsCreateAnotherOpen(true)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setIsCreateAnotherOpen(false);
+              }
+            }}
+          >
+            <button
+              className="btn-icon create-another-album-plus"
+              type="button"
+              aria-label="Mostrar crear otro album"
+              onClick={() => setIsCreateAnotherOpen((current) => !current)}
+            >
+              +
+            </button>
+            {isCreateAnotherOpen && (
+              <button
+                className="btn-ghost create-another-album-label"
+                type="button"
+                onClick={resetForAnotherAlbum}
+              >
+                Crear otro album
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div
+          className="confirm-dialog-warning"
+          style={{
+            color: 'var(--success)',
+            borderColor: 'rgba(34,197,94,0.35)',
+            background: 'rgba(34,197,94,0.08)',
+            marginBottom: 18,
+            maxWidth: 760,
+          }}
+        >
+          Album "{createdAlbum.title}" creado. Ahora puedes agregar canciones con portada propia.
+        </div>
+
+        <AddTrackToAlbumForm
+          album={createdAlbum}
+          toast={toast}
+          onTrackCreated={(track) => {
+            setCreatedTracks((currentTracks) => [track, ...currentTracks]);
+          }}
+        />
+        <div className="settings-card" style={{ maxWidth: 760 }}>
+          <div className="settings-card-title">Canciones agregadas</div>
+          {createdTracks.length === 0 ? (
+            <div style={{ fontSize: 14, color: 'var(--t2)' }}>
+              Aun no has agregado canciones a este album.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {createdTracks.map(track => (
+                <div
+                  key={track.trackId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    color: 'var(--t2)',
+                    fontSize: 13,
+                  }}
+                >
+                  <div className="track-thumb">
+                    {track.coverAssetId ? (
+                      <img
+                        src={getAssetUrl(track.coverAssetId)}
+                        alt={`Portada de ${track.title}`}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--t3)',
+                        }}
+                      >
+                        <IcMusic />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--t1)', fontWeight: 600 }}>{track.title}</div>
+                    <div>{track.genre}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-inner">
       <div className="page-header"><div className="page-title">Create Album</div></div>
       <div className="settings-card" style={{ maxWidth: 760 }}>
         <div className="settings-card-title">Album Info</div>
-        {createdAlbum && (
-          <div className="confirm-dialog-warning" style={{ color: 'var(--success)', borderColor: 'rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.08)', marginBottom: 18 }}>
-            Album "{createdAlbum.title}" creado. Ahora puedes agregar canciones con portada propia.
-          </div>
-        )}
         <div className="form-group-mb">
           <label className="form-label" htmlFor="create-album-title">Album Title</label>
           <input
@@ -922,39 +1038,6 @@ export function CreateAlbumPage({ toast }) {
         </button>
       </div>
 
-      {createdAlbum && (
-        <>
-          <AddTrackToAlbumForm
-            album={createdAlbum}
-            toast={toast}
-            onTrackCreated={(track) => setCreatedTracks((currentTracks) => [track, ...currentTracks])}
-          />
-          <div className="settings-card" style={{ maxWidth: 760 }}>
-            <div className="settings-card-title">Canciones agregadas</div>
-            {createdTracks.length === 0 ? (
-              <div style={{ fontSize: 14, color: 'var(--t2)' }}>Aun no has agregado canciones a este album.</div>
-            ) : (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {createdTracks.map(track => (
-                  <div key={track.trackId} style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--t2)', fontSize: 13 }}>
-                    <div className="track-thumb">
-                      {track.coverAssetId ? (
-                        <img src={getAssetUrl(track.coverAssetId)} alt={`Portada de ${track.title}`} />
-                      ) : (
-                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
-                      )}
-                    </div>
-                    <div>
-                      <div style={{ color: 'var(--t1)', fontWeight: 600 }}>{track.title}</div>
-                      <div>{track.genre}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }

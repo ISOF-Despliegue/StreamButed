@@ -189,6 +189,7 @@ export function SettingsPage({ user, toast }) {
 
       setShowPromotionModal(false);
       setTermsAccepted(false);
+      window.location.reload();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
