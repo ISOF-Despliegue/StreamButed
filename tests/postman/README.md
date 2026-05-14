@@ -1,4 +1,4 @@
-# Postman Integration Tests (Identity + Catalog)
+# Postman Integration Tests (Identity + Catalog + Playback)
 
 ## Files
 
@@ -11,7 +11,8 @@
 2. Identity auth lifecycle: register, login, refresh, promote.
 3. Cross-service communication: `identity-service` promotion event consumed by `catalog-service`.
 4. Catalog protected CRUD flow with JWT from Identity.
-5. Negative cases (auth failures and unauthorized catalog writes).
+5. Playback health check through Gateway.
+6. Negative cases (auth failures and unauthorized catalog writes).
 
 ## Run in Postman UI
 

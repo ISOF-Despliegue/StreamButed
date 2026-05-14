@@ -18,4 +18,20 @@ describe("catalogService", () => {
       expect.any(Object)
     );
   });
+
+  it("gets album tracks through gateway", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      new Response(JSON.stringify({ albumId: "album-1", tracks: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await catalogService.listAlbumTracks("album-1");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost/api/v1/catalog/albums/album-1/tracks",
+      expect.any(Object)
+    );
+  });
 });

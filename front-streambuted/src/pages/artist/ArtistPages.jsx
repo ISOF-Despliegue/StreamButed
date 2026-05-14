@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { IcMusic } from '../../components/icons/Icons';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { FilePicker } from '../../components/ui/FilePicker';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { catalogService } from '../../services/catalogService';
-import { mediaService } from '../../services/mediaService';
+import { getAssetUrl, mediaService } from '../../services/mediaService';
 import { formatDate } from '../../utils/formatters';
 
 function getErrorMessage(error) {
@@ -33,6 +34,7 @@ const GENRE_MAX_LENGTH = 80;
 
 const MAX_AUDIO_SIZE_BYTES = 200 * 1024 * 1024;
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const AUDIO_ACCEPT = 'audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,video/mp4,.mp3,.wav,.flac,.ogg,.webm,.m4a,.mp4';
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const ALLOWED_AUDIO_TYPES = new Set([
@@ -44,6 +46,9 @@ const ALLOWED_AUDIO_TYPES = new Set([
   'audio/x-flac',
   'audio/ogg',
   'audio/webm',
+  'audio/mp4',
+  'audio/x-m4a',
+  'video/mp4',
 ]);
 
 function normalizeText(value) {
@@ -70,6 +75,8 @@ function validateAudio(file) {
       'flac': 'audio/flac',
       'ogg': 'audio/ogg',
       'webm': 'audio/webm',
+      'm4a': 'audio/mp4',
+      'mp4': 'audio/mp4',
     };
     fileType = extToMime[ext] || '';
   }
@@ -79,64 +86,6 @@ function validateAudio(file) {
   }
   if (file.size > MAX_AUDIO_SIZE_BYTES) return 'El audio supera el maximo de 200 MB.';
   return '';
-}
-
-function createEmptyAlbumTrackDraft(id) {
-  return {
-    id,
-    title: '',
-    audioFile: null,
-  };
-}
-
-function collectAlbumTracksToPublish(albumTracks) {
-  const hasAnyTrackData = albumTracks.some((track) =>
-    normalizeText(track.title).length > 0 || track.audioFile
-  );
-
-  if (!hasAnyTrackData) {
-    return { tracksToPublish: [], errorMessage: '' };
-  }
-
-  const tracksToPublish = [];
-  for (const track of albumTracks) {
-    const normalizedTrackTitle = normalizeText(track.title);
-    const hasTitle = normalizedTrackTitle.length > 0;
-    const hasAudio = Boolean(track.audioFile);
-
-    if (!hasTitle && !hasAudio) {
-      continue;
-    }
-
-    if (!hasTitle || !hasAudio) {
-      return {
-        tracksToPublish: [],
-        errorMessage: 'Cada cancion debe incluir titulo y archivo de audio, o dejarse vacia.'
-      };
-    }
-
-    if (normalizedTrackTitle.length > TRACK_TITLE_MAX_LENGTH) {
-      return {
-        tracksToPublish: [],
-        errorMessage: 'El titulo de cada cancion no puede superar 220 caracteres.'
-      };
-    }
-
-    const audioError = validateAudio(track.audioFile);
-    if (audioError) {
-      return {
-        tracksToPublish: [],
-        errorMessage: audioError
-      };
-    }
-
-    tracksToPublish.push({
-      title: normalizedTrackTitle,
-      audioFile: track.audioFile,
-    });
-  }
-
-  return { tracksToPublish, errorMessage: '' };
 }
 
 function buildFileChangeHandler({ validate, setFile, setError }) {
@@ -152,10 +101,6 @@ function buildFileChangeHandler({ validate, setFile, setError }) {
     setError('');
     setFile(selectedFile);
   };
-}
-
-function shortId(value) {
-  return value ? `${value.slice(0, 8)}...` : 'Sin album';
 }
 
 function InlineState({ title, message, onRetry }) {
@@ -230,7 +175,7 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack, setPage }
               <InlineState title="Aun no tienes pistas" message="Sube audio y portada para crear tu primera pista real." />
             ) : (
               <table className="track-list">
-                <thead><tr><th style={{ width: 40 }}>#</th><th>Titulo</th><th>Genero</th><th style={{ textAlign: 'right' }}>Duracion</th></tr></thead>
+                <thead><tr><th style={{ width: 40 }}>#</th><th>Titulo</th><th>Genero</th><th className="track-duration-col">Duracion</th></tr></thead>
                 <tbody>
                   {tracks.slice(0, 6).map((track, index) => (
                     <TrackRow
@@ -255,7 +200,9 @@ export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
   const [tracks, setTracks] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRetiringTrack, setIsRetiringTrack] = useState(false);
   const [error, setError] = useState('');
+  const [trackToRetire, setTrackToRetire] = useState(null);
 
   const loadTracks = useCallback(async () => {
     setIsLoading(true);
@@ -281,13 +228,19 @@ export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
     void loadTracks();
   }, [loadTracks]);
 
-  const retire = async (trackId) => {
+  const retire = async () => {
+    if (!trackToRetire?.trackId || isRetiringTrack) return;
+
     try {
-      await catalogService.retireTrack(trackId);
+      setIsRetiringTrack(true);
+      await catalogService.retireTrack(trackToRetire.trackId);
       toast('Pista retirada');
+      setTrackToRetire(null);
       await loadTracks();
     } catch (err) {
       toast(getErrorMessage(err));
+    } finally {
+      setIsRetiringTrack(false);
     }
   };
 
@@ -317,18 +270,24 @@ export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
                   <tr key={track.trackId}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div className="track-thumb"><div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div></div>
-                        <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{track.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>{shortId(track.trackId)}</div></div>
+                        <div className="track-thumb">
+                          {track.coverAssetId ? (
+                            <img src={getAssetUrl(track.coverAssetId)} alt={`Portada de ${track.title}`} />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+                          )}
+                        </div>
+                        <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{track.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Pista publicada</div></div>
                       </div>
                     </td>
                     <td style={{ color: 'var(--t2)' }}>{track.genre || 'Sin genero'}</td>
-                    <td style={{ color: 'var(--t2)' }}>{track.albumId ? albumTitleById.get(track.albumId) ?? shortId(track.albumId) : 'Single'}</td>
+                    <td style={{ color: 'var(--t2)' }}>{track.albumId && albumTitleById.has(track.albumId) ? albumTitleById.get(track.albumId) : 'Single'}</td>
                     <td style={{ color: 'var(--t2)' }}>{track.status}</td>
                     <td style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }} onClick={() => { setEditTrack(track); setPage('artist-edit-track'); }}>Editar</button>
-                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => retire(track.trackId)}>Retirar</button>
+                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setTrackToRetire(track)}>Retirar</button>
                       </div>
                     </td>
                   </tr>
@@ -338,6 +297,15 @@ export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(trackToRetire)}
+        title="Retirar pista"
+        message={`Esta accion retirara "${trackToRetire?.title ?? 'esta pista'}" del catalogo. Los oyentes ya no podran reproducirla desde la app.`}
+        confirmLabel="Retirar pista"
+        isLoading={isRetiringTrack}
+        onConfirm={retire}
+        onCancel={() => setTrackToRetire(null)}
+      />
     </div>
   );
 }
@@ -346,7 +314,9 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
   const [albums, setAlbums] = useState([]);
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRetiringAlbum, setIsRetiringAlbum] = useState(false);
   const [error, setError] = useState('');
+  const [albumToRetire, setAlbumToRetire] = useState(null);
 
   const loadAlbums = useCallback(async () => {
     setIsLoading(true);
@@ -370,13 +340,19 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
     void loadAlbums();
   }, [loadAlbums]);
 
-  const retire = async (albumId) => {
+  const retire = async () => {
+    if (!albumToRetire?.albumId || isRetiringAlbum) return;
+
     try {
-      await catalogService.retireAlbum(albumId);
+      setIsRetiringAlbum(true);
+      await catalogService.retireAlbum(albumToRetire.albumId);
       toast('Album retirado');
+      setAlbumToRetire(null);
       await loadAlbums();
     } catch (err) {
       toast(getErrorMessage(err));
+    } finally {
+      setIsRetiringAlbum(false);
     }
   };
 
@@ -412,8 +388,14 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
                   <tr key={album.albumId}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div className="track-thumb"><div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div></div>
-                        <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>{shortId(album.albumId)}</div></div>
+                        <div className="track-thumb">
+                          {album.coverAssetId ? (
+                            <img src={getAssetUrl(album.coverAssetId)} alt={`Portada de ${album.title}`} />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+                          )}
+                        </div>
+                        <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Album publicado</div></div>
                       </div>
                     </td>
                     <td style={{ color: 'var(--t2)' }}>{countTracks(album.albumId)}</td>
@@ -422,7 +404,7 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }} onClick={() => addTrackToAlbum(album.albumId)}>Agregar cancion</button>
-                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => retire(album.albumId)}>Retirar</button>
+                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setAlbumToRetire(album)}>Retirar</button>
                       </div>
                     </td>
                   </tr>
@@ -432,17 +414,28 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(albumToRetire)}
+        title="Retirar album"
+        message={`Esta accion retirara "${albumToRetire?.title ?? 'este album'}" del catalogo y afectara su disponibilidad para los oyentes.`}
+        confirmLabel="Retirar album"
+        isLoading={isRetiringAlbum}
+        onConfirm={retire}
+        onCancel={() => setAlbumToRetire(null)}
+      />
     </div>
   );
 }
 
 export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadAlbumConsumed = undefined }) {
+  const isAlbumLocked = Boolean(initialAlbumId);
   const [audioFile, setAudioFile] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
   const [albumId, setAlbumId] = useState(initialAlbumId ?? '');
+  const [lockedAlbum, setLockedAlbum] = useState(null);
   const [albums, setAlbums] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -450,6 +443,33 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
   useEffect(() => {
     setAlbumId(initialAlbumId ?? '');
   }, [initialAlbumId]);
+
+  useEffect(() => {
+    if (!initialAlbumId) {
+      setLockedAlbum(null);
+      return undefined;
+    }
+
+    const albumFromList = albums.find(album => album.albumId === initialAlbumId);
+    if (albumFromList) {
+      setLockedAlbum(albumFromList);
+      return undefined;
+    }
+
+    let isMounted = true;
+    catalogService
+      .getAlbum(initialAlbumId)
+      .then(album => {
+        if (isMounted) setLockedAlbum(album);
+      })
+      .catch(() => {
+        if (isMounted) setLockedAlbum(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [albums, initialAlbumId]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -521,12 +541,13 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
 
     try {
       const audio = await mediaService.uploadAudio(audioFile);
-      const cover = await mediaService.uploadCatalogImage(coverFile, 'TRACK_COVER');
+      const trackCover = await mediaService.uploadCatalogImage(coverFile, 'TRACK_COVER');
       const payload = {
         title: normalizedTitle,
         genre: normalizedGenre,
         audioAssetId: audio.assetId,
-        coverAssetId: cover.assetId,
+        coverAssetId: trackCover.assetId,
+        durationSeconds: audio.durationSeconds ?? null,
       };
 
       if (albumId) {
@@ -543,7 +564,9 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
       setAudioFile(null);
       setCoverFile(null);
       toast(albumId ? 'Cancion agregada al album' : 'Pista publicada');
-      onUploadAlbumConsumed?.();
+      if (!isAlbumLocked) {
+        onUploadAlbumConsumed?.();
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -553,7 +576,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
 
   return (
     <div className="page-inner">
-      <div className="page-header"><div className="page-title">Upload Single</div></div>
+      <div className="page-header"><div className="page-title">{isAlbumLocked ? 'Agregar cancion al album' : 'Upload Single'}</div></div>
 
       <div className="settings-card" style={{ maxWidth: 760 }}>
         <div className="settings-card-title">Audio</div>
@@ -581,25 +604,37 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
             {TRACK_GENRES.map(option => <option key={option} value={option} />)}
           </datalist>
         </div>
-        <div className="form-group-mb">
-          <label className="form-label" htmlFor="upload-track-album">Album destino</label>
-          <select id="upload-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
-            <option value="">Publicar como single</option>
-            {albums.map(album => (
-              <option key={album.albumId} value={album.albumId}>{album.title}</option>
-            ))}
-          </select>
-          <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-            {albums.length ? 'Puedes publicarla como single o agregarla a un album existente.' : 'Crea un album para poder asociar canciones desde aqui.'}
+        {isAlbumLocked ? (
+          <div className="form-group-mb">
+            <div className="form-label">Album destino</div>
+            <div style={{ fontSize: 14, color: 'var(--t1)' }}>
+              {lockedAlbum?.title ?? 'Cargando album...'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
+              Esta cancion se agregara directamente a este album.
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="form-group-mb">
+            <label className="form-label" htmlFor="upload-track-album">Album destino</label>
+            <select id="upload-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
+              <option value="">Publicar como single</option>
+              {albums.map(album => (
+                <option key={album.albumId} value={album.albumId}>{album.title}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
+              {albums.length ? 'Puedes publicarla como single o agregarla a un album existente.' : 'Crea un album para poder asociar canciones desde aqui.'}
+            </div>
+          </div>
+        )}
         <div className="form-group-mb">
           <div className="form-label">Audio file</div>
           <FilePicker
-            accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
+            accept={AUDIO_ACCEPT}
             file={audioFile}
             onChange={handleAudioChange}
-            helperText="MP3, WAV, FLAC, OGG o WEBM - max 200 MB"
+            helperText="MP3, WAV, FLAC, OGG, WEBM, M4A o MP4 - max 200 MB"
             buttonLabel="Seleccionar archivo"
           />
         </div>
@@ -631,12 +666,158 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
   );
 }
 
+function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
+  const [title, setTitle] = useState('');
+  const [genre, setGenre] = useState('');
+  const [audioFile, setAudioFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    if (typeof URL.createObjectURL !== 'function') {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(coverFile);
+    setCoverPreviewUrl(previewUrl);
+
+    return () => {
+      if (typeof URL.revokeObjectURL === 'function') {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [coverFile]);
+
+  const handleAudioChange = buildFileChangeHandler({
+    validate: validateAudio,
+    setFile: setAudioFile,
+    setError,
+  });
+
+  const handleCoverChange = buildFileChangeHandler({
+    validate: validateCoverImage,
+    setFile: setCoverFile,
+    setError,
+  });
+
+  const handleCreateTrack = async () => {
+    const normalizedTitle = normalizeText(title);
+    const normalizedGenre = normalizeText(genre);
+
+    if (!normalizedTitle) return setError('Titulo de la cancion requerido.');
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El titulo de la cancion no puede superar 220 caracteres.');
+    if (!normalizedGenre) return setError('Genero requerido.');
+    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El genero no puede superar 80 caracteres.');
+
+    const audioError = validateAudio(audioFile);
+    if (audioError) return setError(audioError);
+    const coverError = validateCoverImage(coverFile);
+    if (coverError) return setError(coverError);
+
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const audio = await mediaService.uploadAudio(audioFile);
+      const trackCover = await mediaService.uploadCatalogImage(coverFile, 'TRACK_COVER');
+      const createdTrack = await catalogService.createTrackInAlbum(album.albumId, {
+        title: normalizedTitle,
+        genre: normalizedGenre,
+        audioAssetId: audio.assetId,
+        coverAssetId: trackCover.assetId,
+        durationSeconds: audio.durationSeconds ?? null,
+      });
+
+      setTitle('');
+      setGenre('');
+      setAudioFile(null);
+      setCoverFile(null);
+      onTrackCreated?.(createdTrack);
+      toast('Cancion agregada al album');
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="settings-card" style={{ maxWidth: 760 }}>
+      <div className="settings-card-title">Agregar cancion a {album.title}</div>
+      <div className="form-group-mb">
+        <label className="form-label" htmlFor="album-created-track-title">Titulo de la cancion</label>
+        <input
+          id="album-created-track-title"
+          value={title}
+          onChange={event => setTitle(event.target.value)}
+          placeholder="Titulo de la cancion"
+          maxLength={TRACK_TITLE_MAX_LENGTH}
+          disabled={isSubmitting}
+        />
+      </div>
+      <div className="form-group-mb">
+        <label className="form-label" htmlFor="album-created-track-genre">Genero</label>
+        <input
+          id="album-created-track-genre"
+          list="track-genres"
+          value={genre}
+          onChange={event => setGenre(event.target.value)}
+          placeholder="Rock, Pop, Electronica..."
+          maxLength={GENRE_MAX_LENGTH}
+          disabled={isSubmitting}
+        />
+      </div>
+      <div className="form-group-mb">
+        <div className="form-label">Audio file</div>
+        <FilePicker
+          accept={AUDIO_ACCEPT}
+          file={audioFile}
+          onChange={handleAudioChange}
+          helperText="MP3, WAV, FLAC, OGG, WEBM, M4A o MP4 - max 200 MB"
+          buttonLabel="Seleccionar archivo"
+        />
+      </div>
+      <div className="form-group-mb">
+        <div className="form-label">Portada de la cancion</div>
+        <FilePicker
+          accept="image/png,image/jpeg,image/webp"
+          file={coverFile}
+          onChange={handleCoverChange}
+          helperText="JPG, PNG o WEBP - max 5 MB"
+          buttonLabel="Seleccionar archivo"
+        />
+        {coverPreviewUrl && (
+          <div style={{ marginTop: 10 }}>
+            <img
+              src={coverPreviewUrl}
+              alt="Previsualizacion de portada de la cancion"
+              style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+            />
+          </div>
+        )}
+      </div>
+      {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
+      <button className="btn-primary" onClick={handleCreateTrack} disabled={isSubmitting}>
+        {isSubmitting ? 'Agregando...' : 'Agregar cancion'}
+      </button>
+    </div>
+  );
+}
+
 export function CreateAlbumPage({ toast }) {
   const [title, setTitle] = useState('');
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
-  const nextTrackIdRef = useRef(2);
-  const [albumTracks, setAlbumTracks] = useState([createEmptyAlbumTrackDraft(1)]);
+  const [createdAlbum, setCreatedAlbum] = useState(null);
+  const [createdTracks, setCreatedTracks] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -674,40 +855,21 @@ export function CreateAlbumPage({ toast }) {
     const coverError = validateCoverImage(coverFile);
     if (coverError) return setError(coverError);
 
-    const { tracksToPublish, errorMessage } = collectAlbumTracksToPublish(albumTracks);
-    if (errorMessage) {
-      return setError(errorMessage);
-    }
-
     setError('');
     setIsSubmitting(true);
 
     try {
-      const cover = await mediaService.uploadCatalogImage(coverFile, 'ALBUM_COVER');
+      const albumCover = await mediaService.uploadCatalogImage(coverFile, 'ALBUM_COVER');
       const album = await catalogService.createAlbum({
         title: normalizedTitle,
-        coverAssetId: cover.assetId,
+        coverAssetId: albumCover.assetId,
       });
-
-      for (const track of tracksToPublish) {
-        const audio = await mediaService.uploadAudio(track.audioFile);
-        await catalogService.createTrackInAlbum(album.albumId, {
-          title: track.title,
-          genre: 'Otro',
-          audioAssetId: audio.assetId,
-          coverAssetId: cover.assetId,
-        });
-      }
 
       setTitle('');
       setCoverFile(null);
-      setAlbumTracks([createEmptyAlbumTrackDraft(1)]);
-      nextTrackIdRef.current = 2;
-      toast(
-        tracksToPublish.length
-          ? `Album creado con ${tracksToPublish.length} canciones.`
-          : 'Album creado'
-      );
+      setCreatedAlbum(album);
+      setCreatedTracks([]);
+      toast('Album creado');
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -715,58 +877,16 @@ export function CreateAlbumPage({ toast }) {
     }
   };
 
-  const addAlbumTrackRow = () => {
-    const id = nextTrackIdRef.current;
-    nextTrackIdRef.current += 1;
-    setAlbumTracks((currentTracks) => [...currentTracks, createEmptyAlbumTrackDraft(id)]);
-  };
-
-  const removeAlbumTrackRow = (trackId) => {
-    setAlbumTracks((currentTracks) => {
-      if (currentTracks.length === 1) {
-        return [createEmptyAlbumTrackDraft(1)];
-      }
-
-      return currentTracks.filter((track) => track.id !== trackId);
-    });
-  };
-
-  const updateAlbumTrackTitle = (trackId, value) => {
-    setAlbumTracks((currentTracks) =>
-      currentTracks.map((track) =>
-        track.id === trackId ? { ...track, title: value } : track
-      )
-    );
-  };
-
-  const handleAlbumTrackAudioChange = (trackId, event) => {
-    const selectedFile = event.target.files?.[0] ?? null;
-    const audioError = selectedFile ? validateAudio(selectedFile) : '';
-
-    if (audioError) {
-      event.target.value = '';
-      setAlbumTracks((currentTracks) =>
-        currentTracks.map((track) =>
-          track.id === trackId ? { ...track, audioFile: null } : track
-        )
-      );
-      setError(audioError);
-      return;
-    }
-
-    setError('');
-    setAlbumTracks((currentTracks) =>
-      currentTracks.map((track) =>
-        track.id === trackId ? { ...track, audioFile: selectedFile } : track
-      )
-    );
-  };
-
   return (
     <div className="page-inner">
       <div className="page-header"><div className="page-title">Create Album</div></div>
       <div className="settings-card" style={{ maxWidth: 760 }}>
         <div className="settings-card-title">Album Info</div>
+        {createdAlbum && (
+          <div className="confirm-dialog-warning" style={{ color: 'var(--success)', borderColor: 'rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.08)', marginBottom: 18 }}>
+            Album "{createdAlbum.title}" creado. Ahora puedes agregar canciones con portada propia.
+          </div>
+        )}
         <div className="form-group-mb">
           <label className="form-label" htmlFor="create-album-title">Album Title</label>
           <input
@@ -796,74 +916,45 @@ export function CreateAlbumPage({ toast }) {
             </div>
           )}
         </div>
-        <div className="form-group-mb">
-          <div className="form-label">Canciones del album (opcional)</div>
-          <div style={{ display: 'grid', gap: 12 }}>
-            {albumTracks.map((track, index) => (
-              <div
-                key={track.id}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  padding: 12,
-                  background: 'var(--surface-2)'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={{ fontSize: 13, color: 'var(--t2)' }}>Cancion #{index + 1}</div>
-                  <button
-                    className="btn-ghost"
-                    style={{ padding: '4px 10px', fontSize: 12 }}
-                    onClick={() => removeAlbumTrackRow(track.id)}
-                    type="button"
-                    disabled={isSubmitting}
-                  >
-                    Quitar
-                  </button>
-                </div>
-
-                <div className="form-group-mb" style={{ marginBottom: 10 }}>
-                  <label className="form-label" htmlFor={`album-track-title-${track.id}`}>Nombre de la cancion</label>
-                  <input
-                    id={`album-track-title-${track.id}`}
-                    value={track.title}
-                    onChange={(event) => updateAlbumTrackTitle(track.id, event.target.value)}
-                    placeholder="Titulo de la cancion"
-                    maxLength={TRACK_TITLE_MAX_LENGTH}
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <div>
-                  <FilePicker
-                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac,audio/ogg,audio/webm"
-                    file={track.audioFile}
-                    onChange={(event) => handleAlbumTrackAudioChange(track.id, event)}
-                    helperText="MP3, WAV, FLAC, OGG o WEBM - max 200 MB"
-                    buttonLabel="Seleccionar archivo"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            className="btn-ghost"
-            style={{ marginTop: 12 }}
-            onClick={addAlbumTrackRow}
-            type="button"
-            disabled={isSubmitting}
-          >
-            + Agregar otra cancion
-          </button>
-          <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-            Solo se requiere nombre y audio. El genero se establece como "Otro" automaticamente.
-          </div>
-        </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={handleCreate} disabled={isSubmitting}>
           {isSubmitting ? 'Creando...' : 'Publicar Album'}
         </button>
       </div>
+
+      {createdAlbum && (
+        <>
+          <AddTrackToAlbumForm
+            album={createdAlbum}
+            toast={toast}
+            onTrackCreated={(track) => setCreatedTracks((currentTracks) => [track, ...currentTracks])}
+          />
+          <div className="settings-card" style={{ maxWidth: 760 }}>
+            <div className="settings-card-title">Canciones agregadas</div>
+            {createdTracks.length === 0 ? (
+              <div style={{ fontSize: 14, color: 'var(--t2)' }}>Aun no has agregado canciones a este album.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {createdTracks.map(track => (
+                  <div key={track.trackId} style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--t2)', fontSize: 13 }}>
+                    <div className="track-thumb">
+                      {track.coverAssetId ? (
+                        <img src={getAssetUrl(track.coverAssetId)} alt={`Portada de ${track.title}`} />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--t1)', fontWeight: 600 }}>{track.title}</div>
+                      <div>{track.genre}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -875,6 +966,7 @@ export function EditTrackPage({ track, user, setPage, toast }) {
   const [albums, setAlbums] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [pendingAction, setPendingAction] = useState(null);
 
   useEffect(() => {
     setTitle(track?.title ?? '');
@@ -908,7 +1000,7 @@ export function EditTrackPage({ track, user, setPage, toast }) {
     );
   }
 
-  const save = async () => {
+  const validateTrackChanges = () => {
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
 
@@ -917,16 +1009,32 @@ export function EditTrackPage({ track, user, setPage, toast }) {
     if (!normalizedGenre) return setError('Genero requerido.');
     if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El genero no puede superar 80 caracteres.');
 
+    return {
+      title: normalizedTitle,
+      genre: normalizedGenre,
+      albumId: albumId || null,
+    };
+  };
+
+  const requestSave = () => {
+    const payload = validateTrackChanges();
+    if (!payload) return;
+
+    setError('');
+    setPendingAction({ type: 'save', payload });
+  };
+
+  const save = async () => {
+    const payload = pendingAction?.payload ?? validateTrackChanges();
+    if (!payload) return;
+
     setError('');
     setIsSubmitting(true);
 
     try {
-      await catalogService.updateTrack(track.trackId, {
-        title: normalizedTitle,
-        genre: normalizedGenre,
-        albumId: albumId || null,
-      });
+      await catalogService.updateTrack(track.trackId, payload);
       toast('Cambios guardados');
+      setPendingAction(null);
       setPage('artist-tracks');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -942,6 +1050,7 @@ export function EditTrackPage({ track, user, setPage, toast }) {
     try {
       await catalogService.retireTrack(track.trackId);
       toast('Pista retirada');
+      setPendingAction(null);
       setPage('artist-tracks');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -983,13 +1092,32 @@ export function EditTrackPage({ track, user, setPage, toast }) {
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-          <button className="btn-danger" onClick={retire} disabled={isSubmitting}>Retirar Track</button>
+          <button className="btn-danger" onClick={() => setPendingAction({ type: 'retire' })} disabled={isSubmitting}>Retirar Track</button>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn-ghost" onClick={() => setPage('artist-tracks')}>Cancel</button>
-            <button className="btn-primary" onClick={save} disabled={isSubmitting}>Save Changes</button>
+            <button className="btn-primary" onClick={requestSave} disabled={isSubmitting}>Save Changes</button>
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingAction?.type === 'save'}
+        title="Guardar cambios"
+        message={`Confirma que deseas actualizar la informacion de "${track.title}". Los cambios se veran reflejados en el catalogo.`}
+        confirmLabel="Guardar cambios"
+        tone="primary"
+        isLoading={isSubmitting}
+        onConfirm={save}
+        onCancel={() => setPendingAction(null)}
+      />
+      <ConfirmDialog
+        open={pendingAction?.type === 'retire'}
+        title="Retirar pista"
+        message={`Esta accion retirara "${track.title}" del catalogo. Los oyentes ya no podran reproducirla desde la app.`}
+        confirmLabel="Retirar pista"
+        isLoading={isSubmitting}
+        onConfirm={retire}
+        onCancel={() => setPendingAction(null)}
+      />
     </div>
   );
 }

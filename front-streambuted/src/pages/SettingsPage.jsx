@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { catalogService } from '../services/catalogService';
 import { getAssetUrl, mediaService } from '../services/mediaService';
 import { FilePicker } from '../components/ui/FilePicker';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
@@ -34,6 +35,7 @@ export function SettingsPage({ user, toast }) {
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [profilePreviewUrl, setProfilePreviewUrl] = useState('');
   const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPromoting, setIsPromoting] = useState(false);
@@ -93,7 +95,7 @@ export function SettingsPage({ user, toast }) {
     setProfileImageFile(selectedFile);
   };
 
-  const handleSave = async () => {
+  const validateProfileChanges = () => {
     const normalizedUsername = username.trim();
     const normalizedBio = bio.trim();
 
@@ -105,6 +107,24 @@ export function SettingsPage({ user, toast }) {
     if (normalizedBio.length > 1000) {
       return setError('Bio no puede superar 1000 caracteres.');
     }
+
+    return {
+      username: normalizedUsername,
+      bio: normalizedBio || null,
+    };
+  };
+
+  const requestSave = () => {
+    const payload = validateProfileChanges();
+    if (!payload) return;
+
+    setError('');
+    setShowSaveConfirmation(true);
+  };
+
+  const handleSave = async () => {
+    const payload = validateProfileChanges();
+    if (!payload) return;
 
     setIsSaving(true);
     setError('');
@@ -118,12 +138,30 @@ export function SettingsPage({ user, toast }) {
       }
 
       await updateProfile({
-        username: normalizedUsername,
-        bio: normalizedBio || null,
+        ...payload,
         profileImageAssetId,
       });
 
+      if (user.role === 'artist') {
+        try {
+          await catalogService.updateArtist(user.id, {
+            displayName: payload.username,
+            biography: payload.bio,
+            profileImageAssetId,
+          });
+        } catch (catalogError) {
+          console.error('Failed to sync artist profile after Identity update.', catalogError);
+          const syncMessage = 'Perfil actualizado en Identity, pero no se pudo sincronizar el perfil publico de artista. Intenta guardar de nuevo.';
+          setProfileImageFile(null);
+          setShowSaveConfirmation(false);
+          setError(syncMessage);
+          toast(syncMessage);
+          return;
+        }
+      }
+
       setProfileImageFile(null);
+      setShowSaveConfirmation(false);
       toast('Perfil actualizado');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -217,7 +255,7 @@ export function SettingsPage({ user, toast }) {
           <div className="char-count">{bio.length} / 1000</div>
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
-        <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
+        <button className="btn-primary" onClick={requestSave} disabled={isSaving}>
           {isSaving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
@@ -241,101 +279,40 @@ export function SettingsPage({ user, toast }) {
         </div>
       )}
 
-      {showPromotionModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowPromotionModal(false);
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: 32,
-              maxWidth: 480,
-              width: '90%',
-            }}
-          >
-            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-              Activate Artist Mode
-            </div>
+      <ConfirmDialog
+        open={showSaveConfirmation}
+        title="Actualizar perfil"
+        message="Confirma que deseas guardar estos cambios en tu perfil. El nuevo nombre, biografia o imagen se usaran en la app."
+        confirmLabel="Guardar cambios"
+        tone="primary"
+        isLoading={isSaving}
+        onConfirm={handleSave}
+        onCancel={() => setShowSaveConfirmation(false)}
+      />
 
-            <p style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 16, lineHeight: 1.7 }}>
-              Identity Service promotes your account immediately. Catalog creates the artist profile
-              asynchronously from the RabbitMQ event, so it can take a few seconds to appear.
-            </p>
-
-            <div
-              style={{
-                background: 'rgba(239,68,68,0.08)',
-                border: '1px solid rgba(239,68,68,0.3)',
-                borderRadius: 8,
-                padding: '10px 14px',
-                fontSize: 13,
-                color: '#ef4444',
-                marginBottom: 20,
-              }}
-            >
-              This action is irreversible.
-            </div>
-
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
-                fontSize: 13,
-                color: 'var(--t2)',
-                marginBottom: 24,
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
-                style={{ marginTop: 2, accentColor: '#E8960A' }}
-              />
-              I understand that activating artist mode is permanent.
-            </label>
-
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button
-                className="btn-ghost"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  setShowPromotionModal(false);
-                  setTermsAccepted(false);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-primary"
-                style={{
-                  flex: 1,
-                  opacity: termsAccepted && !isPromoting ? 1 : 0.45,
-                  cursor: termsAccepted && !isPromoting ? 'pointer' : 'not-allowed',
-                }}
-                disabled={!termsAccepted || isPromoting}
-                onClick={handleConfirmPromotion}
-              >
-                {isPromoting ? 'Activating...' : 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showPromotionModal}
+        title="Activar modo artista"
+        message="Identity Service promovera tu cuenta inmediatamente. Catalog creara el perfil de artista desde el evento de RabbitMQ, por lo que puede tardar unos segundos."
+        confirmLabel="Activar modo"
+        isLoading={isPromoting}
+        disabled={!termsAccepted}
+        onConfirm={handleConfirmPromotion}
+        onCancel={() => {
+          setShowPromotionModal(false);
+          setTermsAccepted(false);
+        }}
+      >
+        <div className="confirm-dialog-warning">Esta accion es permanente.</div>
+        <label className="confirm-dialog-check">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(event) => setTermsAccepted(event.target.checked)}
+          />
+          Entiendo que activar el modo artista es permanente.
+        </label>
+      </ConfirmDialog>
     </div>
   );
 }

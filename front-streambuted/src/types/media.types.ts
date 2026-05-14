@@ -11,4 +11,5 @@ export interface AssetUploadResponse {
   assetType: MediaAssetType;
   contentType: string;
   sizeBytes: number;
+  durationSeconds?: number | null;
 }

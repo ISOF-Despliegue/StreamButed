@@ -16,7 +16,24 @@ const AUDIO_TYPES = new Set([
   "audio/x-flac",
   "audio/ogg",
   "audio/webm",
+  "audio/mp4",
+  "audio/x-m4a",
+  "video/mp4",
 ]);
+
+const EXTENSION_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  flac: "audio/flac",
+  ogg: "audio/ogg",
+  webm: "audio/webm",
+  m4a: "audio/mp4",
+  mp4: "audio/mp4",
+};
 
 function assertFile(file: File | null | undefined, message: string): asserts file is File {
   if (!file) {
@@ -24,8 +41,17 @@ function assertFile(file: File | null | undefined, message: string): asserts fil
   }
 }
 
+function getAcceptedType(file: File): string {
+  if (file.type) {
+    return file.type.toLowerCase();
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return EXTENSION_TYPES[extension] ?? "";
+}
+
 function assertAcceptedFile(file: File, allowedTypes: Set<string>, maxBytes: number, label: string): void {
-  if (!allowedTypes.has(file.type)) {
+  if (!allowedTypes.has(getAcceptedType(file))) {
     throw new Error(`${label} tiene un tipo de archivo no permitido.`);
   }
 

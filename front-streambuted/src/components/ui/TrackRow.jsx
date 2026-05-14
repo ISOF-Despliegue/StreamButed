@@ -2,9 +2,9 @@ import { IcMusic } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import { formatDuration, formatNumber } from '../../utils/formatters';
 
-export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaText }) {
+export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaText, contextText }) {
   const trackId = track.trackId || track.id;
-  const artistName = track.artist || track.artistName || track.artistId || 'Artista';
+  const artistName = track.artist || track.artistName || 'Artista';
   const duration = track.durationSeconds ?? track.duration;
   const meta = metaText !== undefined
     ? metaText
@@ -29,7 +29,8 @@ export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaT
         </div>
       </td>
       <td style={{ color: 'var(--t3)', fontSize: 13 }}>{meta}</td>
-      <td><span className="track-duration">{trackId ? formatDuration(duration) : '--:--'}</span></td>
+      {contextText !== undefined && <td style={{ color: 'var(--t3)', fontSize: 13 }}>{contextText}</td>}
+      <td className="track-duration-cell"><span className="track-duration">{trackId ? formatDuration(duration) : '--:--'}</span></td>
     </tr>
   );
 }

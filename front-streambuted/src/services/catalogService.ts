@@ -1,6 +1,7 @@
 import { apiRequest } from "./apiClient";
 import type {
   Album,
+  AlbumTracksResponse,
   Artist,
   CatalogSearchParams,
   CatalogSearchResponse,
@@ -57,6 +58,10 @@ export const catalogService = {
 
   getAlbum(albumId: string): Promise<Album> {
     return apiRequest<Album>(`/catalog/albums/${albumId}`);
+  },
+
+  listAlbumTracks(albumId: string): Promise<AlbumTracksResponse> {
+    return apiRequest<AlbumTracksResponse>(`/catalog/albums/${albumId}/tracks`);
   },
 
   createAlbum(request: CreateAlbumRequest): Promise<Album> {

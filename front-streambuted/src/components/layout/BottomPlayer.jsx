@@ -1,8 +1,20 @@
-import { IcMusic, IcHeart, IcShuffle, IcSkipBack, IcPlay, IcSkipFwd, IcRepeat, IcVolume } from '../icons/Icons';
+import { IcMusic, IcHeart, IcShuffle, IcSkipBack, IcPlay, IcPause, IcSkipFwd, IcRepeat, IcVolume } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import { ProgressBar } from '../ui/ProgressBar';
+import { formatDuration } from '../../utils/formatters';
 
-export function BottomPlayer({ track, onExpand, volume, setVolume }) {
+export function BottomPlayer({
+  track,
+  onExpand,
+  volume,
+  setVolume,
+  playback,
+  onTogglePlay,
+  onSeek,
+  onNext,
+  onPrevious,
+  onToggleShuffle
+}) {
   if (!track) return (
     <div className="bottom-player">
       <div className="player-track" style={{ color: 'var(--t3)', fontSize: 13 }}>
@@ -12,7 +24,9 @@ export function BottomPlayer({ track, onExpand, volume, setVolume }) {
     </div>
   );
 
-  const artistName = track.artist || track.artistName || track.artistId || 'Artista';
+  const artistName = track.artist || track.artistName || 'Artista';
+  const progressMax = playback.durationSeconds > 0 ? playback.durationSeconds : 1;
+  const playTitle = playback.isPlaying ? 'Pausar' : 'Reproducir';
 
   return (
     <div className="bottom-player">
@@ -33,16 +47,42 @@ export function BottomPlayer({ track, onExpand, volume, setVolume }) {
 
       <div className="player-center">
         <div className="player-controls">
-          <button className="btn-icon" disabled title="Streaming pendiente"><IcShuffle /></button>
-          <button className="btn-icon" disabled title="Streaming pendiente"><IcSkipBack /></button>
-          <button className="play-btn" disabled title="Streaming Service pendiente"><IcPlay /></button>
-          <button className="btn-icon" disabled title="Streaming pendiente"><IcSkipFwd /></button>
-          <button className="btn-icon" disabled title="Streaming pendiente"><IcRepeat /></button>
+          <button
+            className="btn-icon"
+            disabled={!playback.canUseAlbumControls}
+            title="Aleatorio del album"
+            aria-pressed={playback.shuffleEnabled}
+            onClick={onToggleShuffle}
+          >
+            <IcShuffle />
+          </button>
+          <button
+            className="btn-icon"
+            disabled={!playback.canUseAlbumControls}
+            title="Pista anterior"
+            onClick={onPrevious}
+          >
+            <IcSkipBack />
+          </button>
+          <button className="play-btn" disabled={playback.isLoading} title={playTitle} onClick={onTogglePlay}>
+            {playback.isPlaying ? <IcPause /> : <IcPlay />}
+          </button>
+          <button
+            className="btn-icon"
+            disabled={!playback.canUseAlbumControls}
+            title="Siguiente pista"
+            onClick={onNext}
+          >
+            <IcSkipFwd />
+          </button>
+          <button className="btn-icon" disabled title="Repetir"><IcRepeat /></button>
         </div>
         <div className="player-progress">
-          <span className="progress-time">--:--</span>
-          <ProgressBar value={0} max={1} onChange={() => {}} />
-          <span className="progress-time right">Servicio pendiente</span>
+          <span className="progress-time">{formatDuration(playback.positionSeconds)}</span>
+          <ProgressBar value={playback.positionSeconds} max={progressMax} onChange={onSeek} />
+          <span className="progress-time right">
+            {playback.error ? 'Error' : formatDuration(playback.durationSeconds || null)}
+          </span>
         </div>
       </div>
 

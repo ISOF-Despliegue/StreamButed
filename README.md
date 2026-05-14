@@ -7,8 +7,12 @@ Monorepo de microservicios de StreamButed con orquestacion centralizada en la ra
 - `identity-postgres` (PostgreSQL 16.2-alpine)
 - `catalog-postgres` (PostgreSQL 16.2-alpine)
 - `rabbitmq` (RabbitMQ 3.12-management-alpine)
+- `minio` (almacenamiento de assets)
+- `streaming-mongo` (MongoDB 7.0 para progreso de reproduccion)
 - `identity-service`
 - `catalog-service`
+- `media-service`
+- `streaming-service`
 - `gateway` (nginx)
 
 ## Bases de datos
@@ -20,6 +24,9 @@ Cada microservicio usa su propia instancia PostgreSQL y su propio volumen de per
 
 Los servicios se conectan por la red interna de Docker usando el puerto `5432` de cada contenedor.
 Los puertos publicados en el host son configurables con `POSTGRES_IDENTITY_PORT` y `POSTGRES_CATALOG_PORT`.
+
+`streaming-service` usa MongoDB propio (`streaming-mongo`) para `playback_progress`. Mongo no publica
+`27017` al host por defecto y persiste en `streaming_mongo_data`.
 
 ## Requisitos
 
@@ -41,6 +48,7 @@ docker compose up -d --build
 docker compose ps
 docker compose logs -f identity-service
 docker compose logs -f catalog-service
+docker compose logs -f streaming-service
 ```
 
 ## Detener y limpiar
@@ -80,3 +88,20 @@ Estos puertos solo se exponen dentro de la red Docker; el trafico HTTP externo d
 - Identity HTTP: `8081`
 - Identity gRPC: `9091`
 - Catalog HTTP: `8082`
+- Media HTTP: `8083`
+- Streaming HTTP: `8084`
+
+## Playback bajo demanda
+
+El flujo de reproduccion real entra por Gateway en `/api/v1/playback`.
+
+- `POST /api/v1/playback/tracks/{trackId}/stream-session` valida JWT y devuelve un `streamUrl`.
+- `GET /api/v1/playback/tracks/{trackId}/stream?playbackToken=...` sirve audio real desde MinIO con soporte de `Range`.
+- `GET/PUT /api/v1/playback/progress/{trackId}` recupera y persiste progreso por usuario y pista.
+- `GET /api/v1/catalog/albums/{albumId}/tracks` alimenta la cola real de albumes para `next`, `previous` y `shuffle`.
+
+Health por gateway:
+
+```bash
+curl http://localhost/api/v1/playback/health
+```
