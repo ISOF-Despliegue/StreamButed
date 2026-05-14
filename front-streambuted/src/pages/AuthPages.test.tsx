@@ -39,6 +39,34 @@ describe("LoginPage", () => {
     });
   });
 
+  it("validates login email and password fields before submitting", async () => {
+    const user = userEvent.setup();
+    const onLogin = jest.fn();
+
+    render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Email requerido.");
+
+    await user.type(screen.getByPlaceholderText("Enter your email"), "invalid-email");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Email invalido.");
+    expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  it("shows backend login errors", async () => {
+    const user = userEvent.setup();
+    const onLogin = jest.fn().mockRejectedValue(new Error("Credenciales invalidas."));
+
+    render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Enter your email"), "listener@example.com");
+    await user.type(screen.getByPlaceholderText("Enter your password"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Credenciales invalidas.");
+  });
+
   it("starts Google login", async () => {
     const user = userEvent.setup();
     const onGoogleLogin = jest.fn();
@@ -198,6 +226,79 @@ describe("RegisterPage", () => {
     );
     expect(onStartRegistration).not.toHaveBeenCalled();
   });
+
+  it("validates required fields, username length and code format", async () => {
+    const user = userEvent.setup();
+    const onStartRegistration = jest.fn();
+    const onVerifyRegistration = jest.fn();
+
+    render(
+      <RegisterPage
+        onStartRegistration={onStartRegistration}
+        onVerifyRegistration={onVerifyRegistration}
+        onResendCode={jest.fn()}
+        onCancelVerification={jest.fn()}
+        onGoogleRegister={jest.fn()}
+        onBack={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Create Account" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son requeridos.");
+
+    await user.type(screen.getByPlaceholderText("Enter your email"), "new@example.com");
+    await user.type(screen.getByPlaceholderText("Choose a username"), "ab");
+    await user.type(screen.getByPlaceholderText("Create a password"), "SecurePass1!");
+    await user.type(screen.getByPlaceholderText("Confirm your password"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Create Account" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "El username debe tener entre 3 y 50 caracteres."
+    );
+
+    onStartRegistration.mockResolvedValueOnce({
+      attemptId: "attempt-1",
+      email: "new@example.com",
+      status: "pending",
+      expiresInSeconds: 900,
+      message: "Verification code sent.",
+    });
+
+    await user.clear(screen.getByPlaceholderText("Choose a username"));
+    await user.type(screen.getByPlaceholderText("Choose a username"), "newuser");
+    await user.click(screen.getByRole("button", { name: "Create Account" }));
+
+    await user.type(await screen.findByLabelText("Codigo de verificacion"), "123");
+    await user.click(screen.getByRole("button", { name: "Verificar codigo" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ingresa el codigo de 6 digitos.");
+    expect(onVerifyRegistration).not.toHaveBeenCalled();
+  });
+
+  it("shows registration action errors from the backend", async () => {
+    const user = userEvent.setup();
+    const onStartRegistration = jest.fn().mockRejectedValue("Fallo inesperado.");
+
+    render(
+      <RegisterPage
+        onStartRegistration={onStartRegistration}
+        onVerifyRegistration={jest.fn()}
+        onResendCode={jest.fn()}
+        onCancelVerification={jest.fn()}
+        onGoogleRegister={jest.fn()}
+        onBack={jest.fn()}
+      />
+    );
+
+    await user.type(screen.getByPlaceholderText("Enter your email"), "new@example.com");
+    await user.type(screen.getByPlaceholderText("Choose a username"), "newuser");
+    await user.type(screen.getByPlaceholderText("Create a password"), "SecurePass1!");
+    await user.type(screen.getByPlaceholderText("Confirm your password"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Create Account" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo completar la solicitud."
+    );
+  });
 });
 
 describe("GooglePasswordSetupPage", () => {
@@ -239,5 +340,25 @@ describe("GooglePasswordSetupPage", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Los passwords no coinciden.");
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("validates required fields and surfaces backend setup errors", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn().mockRejectedValue(new Error("No se pudo guardar el password."));
+
+    render(<GooglePasswordSetupPage email="google@example.com" onSubmit={onSubmit} />);
+
+    await user.click(screen.getByRole("button", { name: "Guardar password" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Completa ambos campos de password."
+    );
+
+    await user.type(screen.getByPlaceholderText("Crea tu password"), "SecurePass1!");
+    await user.type(screen.getByPlaceholderText("Confirma tu password"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Guardar password" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo guardar el password."
+    );
   });
 });
