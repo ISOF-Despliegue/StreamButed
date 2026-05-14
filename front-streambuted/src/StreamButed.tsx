@@ -40,6 +40,9 @@ import {
   AdminUsersPage,
   AdminModerationPage,
 } from "./pages/admin/AdminPages";
+import { ArtistLiveRoom } from "./pages/live/ArtistLiveRoom";
+import { LiveConcertsPage, type LiveRoom } from "./pages/live/LiveConcertsPage";
+import { ListenerLiveRoom } from "./pages/live/ListenerLiveRoom";
 import { RoleRoute } from "./routes/RoleRoute";
 import { useAuth } from "./hooks/useAuth";
 import { playbackService } from "./services/playbackService";
@@ -710,6 +713,7 @@ export default function StreamButed() {
   const [viewArtist, setViewArtist] = useState<string | null>(null);
   const [editTrack, setEditTrack] = useState<AppTrack | null>(null);
   const [uploadAlbumId, setUploadAlbumId] = useState<string | null>(null);
+  const [selectedLiveRoom, setSelectedLiveRoom] = useState<LiveRoom | null>(null);
   const [currentTrack, setCurrentTrack] = useState<AppTrack | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<PlaybackQueueState>(EMPTY_QUEUE);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -741,6 +745,7 @@ export default function StreamButed() {
     setViewArtist(null);
     setEditTrack(null);
     setUploadAlbumId(null);
+    setSelectedLiveRoom(null);
     setCurrentTrack(null);
     setPlaybackQueue(EMPTY_QUEUE);
   }, []);
@@ -829,9 +834,38 @@ export default function StreamButed() {
       />
     ),
     lives: (
-      <NotAvailableState
-        title="Lives"
-        message="El modulo de transmisiones en vivo aun no esta disponible. No se solicitan camara ni microfono hasta que Live Service tenga una API operativa."
+      <LiveConcertsPage
+        userRole={user.role}
+        onJoinRoom={(room) => {
+          setSelectedLiveRoom(room);
+          setPage("listener-live");
+        }}
+        onStartBroadcast={() => setPage("artist-live")}
+      />
+    ),
+    "artist-live": (
+      <RoleRoute allowedRoles={["artist"]}>
+        <ArtistLiveRoom />
+      </RoleRoute>
+    ),
+    "listener-live": selectedLiveRoom ? (
+      <ListenerLiveRoom
+        roomId={selectedLiveRoom.id}
+        concertTitle={selectedLiveRoom.title}
+        artistName={selectedLiveRoom.artistName || selectedLiveRoom.artistId}
+        onLeave={() => {
+          setSelectedLiveRoom(null);
+          setPage("lives");
+        }}
+      />
+    ) : (
+      <LiveConcertsPage
+        userRole={user.role}
+        onJoinRoom={(room) => {
+          setSelectedLiveRoom(room);
+          setPage("listener-live");
+        }}
+        onStartBroadcast={() => setPage("artist-live")}
       />
     ),
     "album-detail": (

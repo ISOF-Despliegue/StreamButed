@@ -259,6 +259,40 @@ services:
       retries: 10
       start_period: 20s
 
+  live-service:
+    build:
+      context: .
+      dockerfile: services/live-service/Dockerfile
+    container_name: streambuted-live-service
+    restart: unless-stopped
+    depends_on:
+      identity-service:
+        condition: service_healthy
+        restart: true
+    environment:
+      PORT: ${LIVE_PORT:-3003}
+      NODE_ENV: ${NODE_ENV:-production}
+      JWT_ISSUER: ${JWT_ISSUER:-http://identity-service:8081}
+      JWT_JWKS_URL: ${JWT_JWKS_URL:-http://identity-service:8081/api/v1/auth/.well-known/jwks.json}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost}
+      SOCKET_IO_PATH: /socket.io
+      MEDIASOUP_LISTEN_IP: ${MEDIASOUP_LISTEN_IP:-0.0.0.0}
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:-127.0.0.1}
+      RTC_MIN_PORT: ${RTC_MIN_PORT:-10000}
+      RTC_MAX_PORT: ${RTC_MAX_PORT:-10100}
+    expose:
+      - "${LIVE_PORT:-3003}"
+    ports:
+      - "${RTC_MIN_PORT:-10000}-${RTC_MAX_PORT:-10100}:${RTC_MIN_PORT:-10000}-${RTC_MAX_PORT:-10100}/udp"
+      - "${RTC_MIN_PORT:-10000}-${RTC_MAX_PORT:-10100}:${RTC_MIN_PORT:-10000}-${RTC_MAX_PORT:-10100}/tcp"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const http=require('http');const port=process.env.PORT||3003;const req=http.get({host:'127.0.0.1',port,path:'/health',timeout:2000},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.on('timeout',()=>{req.destroy();process.exit(1);});\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   gateway:
     image: nginx:stable-alpine
     container_name: streambuted-gateway
@@ -274,6 +308,9 @@ services:
         condition: service_healthy
         restart: true
       streaming-service:
+        condition: service_healthy
+        restart: true
+      live-service:
         condition: service_healthy
         restart: true
     ports:
