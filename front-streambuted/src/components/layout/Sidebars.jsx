@@ -47,9 +47,9 @@ function MainSidebarComponent({ page, setPage, user }) {
           { id: 'artist-albums', label: 'Albums', icon: <IcMusic /> },
           { id: 'artist-analytics', label: 'Analytics', icon: <IcChart /> },
           { id: 'artist-upload', label: 'Upload +', icon: <IcUpload /> },
-          { id: 'lives', label: 'Do Live', icon: <span style={{ fontSize: 14 }}>Live</span> },
+          { id: 'artist-live', label: 'Do Live', icon: <span style={{ fontSize: 14 }}>Live</span> },
         ]
-      : [];
+      : []; 
 
   const roleLabel = user.role === 'artist' ? 'Artist' : 'Listener';
 
