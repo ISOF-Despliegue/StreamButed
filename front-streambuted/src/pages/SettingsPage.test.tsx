@@ -129,7 +129,6 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(reloadSpy).toHaveBeenCalledTimes(1));
     expect(toast).toHaveBeenCalledWith("Modo artista activado");
   });
-
   it("validates the profile form before opening the confirmation dialog", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
