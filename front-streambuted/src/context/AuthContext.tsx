@@ -9,6 +9,7 @@ import { AuthContext } from "./authContextValue";
 import { authService } from "../services/authService";
 import { authTokenStore } from "../services/authTokenStore";
 import { userService } from "../services/userService";
+import { browserLogger } from "../utils/browserLogger";
 import type {
   AuthContextValue,
   LoginRequest,
@@ -51,7 +52,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await authService.refresh();
       return await commitSession(response.accessToken);
-    } catch {
+    } catch (error) {
+      browserLogger.warn("Session refresh failed. Clearing local session state.", error);
       clearSession();
       return null;
     } finally {

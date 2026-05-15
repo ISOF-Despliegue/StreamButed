@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Device } from "mediasoup-client";
 import type { Consumer, ConsumerOptions, Transport, TransportOptions } from "mediasoup-client/types";
 import type { Socket } from "socket.io-client";
+import { browserLogger } from "../utils/browserLogger";
 
 export type ListenerLiveState = "idle" | "joining" | "watching" | "ended" | "error";
 
@@ -104,7 +105,7 @@ export function useListenerLive(socket: Socket | null): UseListenerLiveReturn {
           refreshRemoteStream();
         });
       } catch (consumeError) {
-        console.warn(`Failed to consume producer ${producerId}:`, consumeError);
+        browserLogger.warn(`Failed to consume producer ${producerId}.`, consumeError);
       }
     },
     [socket, refreshRemoteStream]
@@ -212,7 +213,7 @@ export function useListenerLive(socket: Socket | null): UseListenerLiveReturn {
     };
 
     const handleEnded = ({ reason }: { reason: string }) => {
-      console.info(`Live concert ended: ${reason}`);
+      browserLogger.info(`Live concert ended: ${reason}`);
       cleanupResources();
       setState("ended");
     };

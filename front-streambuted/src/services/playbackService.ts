@@ -5,6 +5,7 @@ import type {
   PlaybackProgressResponse,
   StreamSessionResponse,
 } from "../types/playback.types";
+import { browserLogger } from "../utils/browserLogger";
 
 export const playbackService = {
   async createStreamSession(trackId: string): Promise<StreamSessionResponse> {
@@ -18,7 +19,7 @@ export const playbackService = {
         streamUrl: buildApiUrl(response.streamUrl),
       };
     } catch (error) {
-      console.error("Failed to create playback stream session.", error);
+      browserLogger.error("Failed to create playback stream session.", error);
       throw error;
     }
   },
@@ -27,7 +28,7 @@ export const playbackService = {
     try {
       return await apiRequest<PlaybackProgressResponse>(`/playback/progress/${trackId}`);
     } catch (error) {
-      console.error("Failed to load playback progress.", error);
+      browserLogger.error("Failed to load playback progress.", error);
       throw error;
     }
   },
@@ -36,7 +37,7 @@ export const playbackService = {
     try {
       return await apiRequest<LatestPlaybackProgressResponse>("/playback/progress/latest");
     } catch (error) {
-      console.error("Failed to load latest playback progress.", error);
+      browserLogger.error("Failed to load latest playback progress.", error);
       throw error;
     }
   },
@@ -51,7 +52,7 @@ export const playbackService = {
         body: payload,
       });
     } catch (error) {
-      console.error("Failed to save playback progress.", error);
+      browserLogger.error("Failed to save playback progress.", error);
       throw error;
     }
   },

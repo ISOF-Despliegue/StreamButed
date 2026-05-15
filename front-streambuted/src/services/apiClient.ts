@@ -1,5 +1,6 @@
 import { authTokenStore } from "./authTokenStore";
 import type { ApiErrorPayload, ApiRequestOptions } from "../types/api.types";
+import { browserLogger } from "../utils/browserLogger";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost";
@@ -40,7 +41,8 @@ async function parseErrorBody(response: Response): Promise<unknown> {
   if (contentType.includes("application/json")) {
     try {
       return await response.json();
-    } catch {
+    } catch (error) {
+      browserLogger.warn("Failed to parse JSON error body from API response.", error);
       return null;
     }
   }
@@ -48,7 +50,8 @@ async function parseErrorBody(response: Response): Promise<unknown> {
   try {
     const text = await response.text();
     return text ? { message: text } : null;
-  } catch {
+  } catch (error) {
+    browserLogger.warn("Failed to read text error body from API response.", error);
     return null;
   }
 }

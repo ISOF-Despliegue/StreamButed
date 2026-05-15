@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Device } from "mediasoup-client";
 import type { Producer, Transport, TransportOptions } from "mediasoup-client/types";
 import type { Socket } from "socket.io-client";
+import { browserLogger } from "../utils/browserLogger";
 
 export type ArtistLiveState =
   | "idle"
@@ -75,7 +76,7 @@ async function requestStrictCameraAndMicrophone(): Promise<MediaStream> {
       },
     });
   } catch (firstError) {
-    console.error("getUserMedia audio+video failed:", firstError);
+    browserLogger.error("getUserMedia audio+video failed.", firstError);
 
     let cameraWorks = false;
     let micWorks = false;
@@ -85,7 +86,7 @@ async function requestStrictCameraAndMicrophone(): Promise<MediaStream> {
       videoTest.getTracks().forEach((track) => track.stop());
       cameraWorks = true;
     } catch (videoError) {
-      console.error("Camera test failed:", videoError);
+      browserLogger.error("Camera test failed.", videoError);
     }
 
     try {
@@ -93,24 +94,24 @@ async function requestStrictCameraAndMicrophone(): Promise<MediaStream> {
       audioTest.getTracks().forEach((track) => track.stop());
       micWorks = true;
     } catch (audioError) {
-      console.error("Microphone test failed:", audioError);
+      browserLogger.error("Microphone test failed.", audioError);
     }
 
     if (!cameraWorks && !micWorks) {
       throw new Error(
-        "No se pudo acceder a cámara ni micrófono. Revisa permisos de Windows y del navegador."
+        "No se pudo acceder a camara ni microfono. Revisa permisos de Windows y del navegador."
       );
     }
 
     if (!cameraWorks) {
       throw new Error(
-        "No se pudo acceder a la cámara. Revisa que esté activa y permitida para el navegador."
+        "No se pudo acceder a la camara. Revisa que este activa y permitida para el navegador."
       );
     }
 
     if (!micWorks) {
       throw new Error(
-        "No se pudo acceder al micrófono. Revisa que esté activo y permitido para el navegador."
+        "No se pudo acceder al microfono. Revisa que este activo y permitido para el navegador."
       );
     }
 
@@ -153,7 +154,7 @@ export function useArtistLive(socket: Socket | null): UseArtistLiveReturn {
   const goLive = useCallback(
     async (newTitle: string) => {
       if (!socket) {
-        setError("No hay conexión con live-service.");
+        setError("No hay conexion con live-service.");
         return;
       }
 
@@ -240,7 +241,7 @@ export function useArtistLive(socket: Socket | null): UseArtistLiveReturn {
 
         const audioTrack = stream.getAudioTracks()[0];
         if (!audioTrack) {
-          throw new Error("No se obtuvo pista de audio del micrófono.");
+          throw new Error("No se obtuvo pista de audio del microfono.");
         }
 
         audioProducerRef.current = await sendTransport.produce({
@@ -250,7 +251,7 @@ export function useArtistLive(socket: Socket | null): UseArtistLiveReturn {
 
         const videoTrack = stream.getVideoTracks()[0];
         if (!videoTrack) {
-          throw new Error("No se obtuvo pista de video de la cámara.");
+          throw new Error("No se obtuvo pista de video de la camara.");
         }
 
         videoProducerRef.current = await sendTransport.produce({

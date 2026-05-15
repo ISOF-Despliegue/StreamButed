@@ -4,6 +4,7 @@ import { AlbumCard } from '../../components/ui/AlbumCard';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { catalogService } from '../../services/catalogService';
 import { getAssetUrl } from '../../services/mediaService';
+import { browserLogger } from '../../utils/browserLogger';
 import { formatDate } from '../../utils/formatters';
 
 function getErrorMessage(error) {
@@ -35,7 +36,8 @@ async function getArtistNamesById(items) {
       try {
         const artist = await catalogService.getArtist(artistId);
         return [artistId, artist.displayName];
-      } catch {
+      } catch (error) {
+        browserLogger.warn(`Failed to load artist ${artistId} while enriching listener data.`, error);
         return [artistId, null];
       }
     })
@@ -69,7 +71,8 @@ async function getAlbumTitlesById(tracks, knownAlbums = []) {
       try {
         const album = await catalogService.getAlbum(albumId);
         return [albumId, album.title];
-      } catch {
+      } catch (error) {
+        browserLogger.warn(`Failed to load album ${albumId} while enriching listener data.`, error);
         return [albumId, null];
       }
     })

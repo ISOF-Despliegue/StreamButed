@@ -23,7 +23,7 @@ function SidebarNavItem({ item, isActive, onSelect }) {
 }
 
 /**
- * MainSidebar — used by both listeners and artists.
+ * MainSidebar - used by both listeners and artists.
  *
  * Discover section is always visible.
  * Manage section is gated behind the artist role so that capability expansion
@@ -69,7 +69,7 @@ function MainSidebarComponent({ page, setPage, user }) {
         <div className="logo-text">StreamButed</div>
       </div>
 
-      {/* Discover section — always visible */}
+      {/* Discover section - always visible */}
       <div
         style={{
           padding: '10px 20px 4px',
@@ -88,7 +88,7 @@ function MainSidebarComponent({ page, setPage, user }) {
         ))}
       </div>
 
-      {/* Manage section — visible only for artists */}
+      {/* Manage section - visible only for artists */}
       {manageItems.length > 0 && (
         <>
           <div

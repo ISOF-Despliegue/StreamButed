@@ -278,7 +278,7 @@ describe("artist upload forms", () => {
       },
     ]);
 
-    const { rerender } = render(
+    const tracksPage = render(
       <MyTracksPage user={{ id: "artist-1" }} setPage={jest.fn()} setEditTrack={jest.fn()} toast={jest.fn()} />
     );
 
@@ -287,7 +287,9 @@ describe("artist upload forms", () => {
       "http://localhost/api/v1/media/assets/track-cover-1"
     );
 
-    rerender(
+    tracksPage.unmount();
+
+    render(
       <MyAlbumsPage user={{ id: "artist-1" }} setPage={jest.fn()} setUploadAlbumId={jest.fn()} toast={jest.fn()} />
     );
 
