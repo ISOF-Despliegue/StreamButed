@@ -2,7 +2,7 @@ import { mediaService } from "./mediaService";
 
 describe("mediaService", () => {
   beforeEach(() => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       new Response(JSON.stringify({
         assetId: "asset-1",
         assetType: "AUDIO",
@@ -20,7 +20,7 @@ describe("mediaService", () => {
 
     await mediaService.uploadAudio(file);
 
-    const options = (global.fetch as jest.Mock).mock.calls[0][1];
+    const options = (globalThis.fetch as jest.Mock).mock.calls[0][1];
     expect(options.body).toBeInstanceOf(FormData);
     expect((options.headers as Headers).get("Content-Type")).toBeNull();
   });
@@ -30,6 +30,6 @@ describe("mediaService", () => {
 
     await mediaService.uploadAudio(file);
 
-    expect(global.fetch).toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalled();
   });
 });

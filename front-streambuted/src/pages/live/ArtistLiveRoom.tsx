@@ -27,6 +27,7 @@ export function ArtistLiveRoom() {
   const isLive = state === "live";
   const canStart =
     Boolean(title.trim()) && connectionState === "connected" && ["idle", "ended", "error"].includes(state);
+  const isTransitioning = ["requesting-media", "connecting", "ending"].includes(state);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0A0A0D", color: "#F2EDE6" }}>
@@ -68,8 +69,9 @@ export function ArtistLiveRoom() {
           {!isLive ? (
             <>
               <div>
-                <label style={{ fontSize: 13, color: "#9994A0", display: "block", marginBottom: 6 }}>Título del concierto</label>
+                <label htmlFor="artist-live-title" style={{ fontSize: 13, color: "#9994A0", display: "block", marginBottom: 6 }}>Título del concierto</label>
                 <input
+                  id="artist-live-title"
                   type="text"
                   placeholder="Ej: Sesión acústica en vivo"
                   value={title}
@@ -126,7 +128,7 @@ export function ArtistLiveRoom() {
             </>
           )}
 
-          {!["idle", "ended", "error", "live"].includes(state) && (
+          {isTransitioning && (
             <div style={{ color: "#9994A0", fontSize: 14 }}>
               {state === "requesting-media" && "Solicitando acceso a cámara y micrófono..."}
               {state === "connecting" && "Estableciendo conexión WebRTC..."}

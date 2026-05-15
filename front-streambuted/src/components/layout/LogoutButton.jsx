@@ -1,4 +1,6 @@
-export default function LogoutButton({ onLogout }) {
+import PropTypes from 'prop-types';
+
+function LogoutButton({ onLogout }) {
   return (
     <button
       type="button"
@@ -11,3 +13,9 @@ export default function LogoutButton({ onLogout }) {
     </button>
   );
 }
+
+LogoutButton.propTypes = {
+  onLogout: PropTypes.func.isRequired,
+};
+
+export default LogoutButton;

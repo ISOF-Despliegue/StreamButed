@@ -4,7 +4,7 @@ import { authTokenStore } from "./authTokenStore";
 describe("playbackService", () => {
   beforeEach(() => {
     authTokenStore.clear();
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       new Response(JSON.stringify({}), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -14,7 +14,7 @@ describe("playbackService", () => {
 
   it("creates stream sessions and resolves gateway stream URLs", async () => {
     authTokenStore.setAccessToken("access-token");
-    (global.fetch as jest.Mock).mockResolvedValue(
+    (globalThis.fetch as jest.Mock).mockResolvedValue(
       new Response(
         JSON.stringify({
           streamUrl: "/api/v1/playback/tracks/track-1/stream?playbackToken=token",
@@ -30,7 +30,7 @@ describe("playbackService", () => {
 
     const response = await playbackService.createStreamSession("track-1");
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(globalThis.fetch).toHaveBeenCalledWith(
       "http://localhost/api/v1/playback/tracks/track-1/stream-session",
       expect.objectContaining({ method: "POST" })
     );

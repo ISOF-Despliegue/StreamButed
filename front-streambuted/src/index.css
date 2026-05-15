@@ -54,6 +54,7 @@ select option { background: var(--bg3); }
 textarea { resize: vertical; min-height: 90px; }
 
 button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: none; outline: none; }
+button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
 
 .file-picker-row {
   display: flex;
@@ -244,14 +245,15 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
   width: 48px; height: 48px; border-radius: var(--r8);
   background: var(--bg4); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden; cursor: pointer;
+  overflow: hidden; cursor: pointer; padding: 0;
 }
 .player-cover img { width: 100%; height: 100%; object-fit: cover; }
 .player-track-info { overflow: hidden; }
 .player-track-name {
+  background: transparent; border: 0; display: block; padding: 0;
   font-size: 13px; font-weight: 600; color: var(--t1);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  cursor: pointer;
+  cursor: pointer; max-width: 100%; text-align: left;
 }
 .player-track-name:hover { color: var(--accent); }
 .player-track-artist { font-size: 12px; color: var(--t2); }
@@ -267,7 +269,10 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .player-progress { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 500px; }
 .progress-time { font-size: 11px; color: var(--t3); white-space: nowrap; width: 34px; text-align: right; }
 .progress-time.right { text-align: left; }
-.progress-bar { flex: 1; height: 3px; background: var(--bg4); border-radius: 99px; cursor: pointer; position: relative; }
+.progress-bar {
+  flex: 1; height: 3px; background: var(--bg4); border-radius: 99px;
+  cursor: pointer; display: block; min-width: 0; padding: 0; position: relative;
+}
 .progress-fill { height: 100%; background: var(--t1); border-radius: 99px; transition: width .3s linear; position: relative; }
 .progress-fill::after {
   content: ''; position: absolute; right: -4px; top: 50%;
@@ -278,7 +283,10 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .progress-bar:hover .progress-fill::after { opacity: 1; }
 .progress-bar:hover .progress-fill { background: var(--accent); }
 .player-right { display: flex; align-items: center; gap: 8px; width: 200px; flex-shrink: 0; justify-content: flex-end; }
-.volume-bar { width: 80px; height: 3px; background: var(--bg4); border-radius: 99px; cursor: pointer; }
+.volume-bar {
+  width: 80px; height: 3px; background: var(--bg4); border-radius: 99px;
+  cursor: pointer; display: block; padding: 0;
+}
 .volume-fill { height: 100%; background: var(--t2); border-radius: 99px; }
 
 /* Auth pages */
@@ -317,6 +325,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .form-divider span { font-size: 12px; color: var(--t3); white-space: nowrap; }
 .form-divider::before, .form-divider::after { content: ''; flex: 1; height: 1px; background: var(--border2); }
 .auth-link { color: var(--accent); text-decoration: none; font-weight: 500; }
+.auth-link { background: transparent; padding: 0; }
 .auth-link:hover { text-decoration: underline; }
 .auth-footer { text-align: center; font-size: 13px; color: var(--t2); margin-top: 20px; }
 .forgot-row { display: flex; justify-content: flex-end; margin-top: 4px; margin-bottom: 16px; }
@@ -332,6 +341,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 /* Cards */
 .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
 .album-card {
+  color: inherit; display: block; font: inherit; text-align: left; width: 100%;
   cursor: pointer; border-radius: var(--r12);
   padding: 12px; background: var(--bg2);
   border: 1px solid transparent;
@@ -383,7 +393,10 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .track-title-cell { display: flex; align-items: center; gap: 10px; }
 .track-name { font-weight: 500; color: var(--t1); }
 .track-row.playing .track-name { color: var(--accent); }
-.track-artist-link { color: var(--t2); font-size: 13px; cursor: pointer; }
+.track-artist-link {
+  background: transparent; color: var(--t2); font-size: 13px;
+  padding: 0; text-align: left;
+}
 .track-artist-link:hover { color: var(--accent); text-decoration: underline; }
 .track-duration { color: var(--t3); font-size: 13px; display: inline-block; min-width: 44px; text-align: right; }
 
@@ -412,6 +425,10 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .album-hero-type { font-size: 12px; color: var(--t2); margin-bottom: 8px; }
 .album-hero-title { font-size: 32px; font-weight: 800; color: var(--t1); margin-bottom: 10px; }
 .album-hero-meta { font-size: 13px; color: var(--t2); display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+.inline-link-button {
+  background: transparent; color: var(--accent); font: inherit; padding: 0;
+}
+.inline-link-button:hover { text-decoration: underline; }
 .dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--t3); }
 .album-actions { display: flex; align-items: center; gap: 12px; }
 
@@ -491,6 +508,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 }
 .ep-sidebar-title { font-size: 14px; font-weight: 700; color: var(--t1); margin-bottom: 16px; }
 .queue-item {
+  background: transparent; color: inherit; font: inherit; text-align: left; width: 100%;
   display: flex; align-items: center; gap: 10px;
   padding: 8px; border-radius: var(--r8); cursor: pointer;
   transition: background .12s; margin-bottom: 4px;
@@ -565,9 +583,9 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
   display: inline-flex; padding: 3px 10px; border-radius: 99px;
   font-size: 11px; font-weight: 600;
 }
-.badge-listener { background: rgba(56,189,248,0.15); color: #38BDF8; }
+.badge-listener { background: rgba(56,189,248,0.22); color: #BAE6FD; }
 .badge-artist { background: var(--accent-dim); color: var(--accent); }
-.badge-admin { background: rgba(124,58,237,0.15); color: #A78BFA; }
+.badge-admin { background: rgba(124,58,237,0.25); color: #DDD6FE; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 .status-active { background: var(--success); }
 .status-suspended { background: var(--danger); }
@@ -609,8 +627,13 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 
 /* Misc */
 .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--t3); margin-bottom: 20px; }
-.breadcrumb a { color: var(--t3); cursor: pointer; transition: color .12s; }
-.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb a,
+.breadcrumb-link {
+  background: transparent; color: var(--t3); cursor: pointer; padding: 0;
+  transition: color .12s;
+}
+.breadcrumb a:hover,
+.breadcrumb-link:hover { color: var(--accent); }
 .breadcrumb span { color: var(--t1); }
 .track-table-wrap { padding: 0 32px 40px; }
 .chart-legend { display: flex; flex-direction: column; gap: 8px; }
@@ -689,6 +712,8 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
   background: var(--bg2);
   border: 1px solid var(--border2);
   border-radius: var(--r12);
+  color: inherit;
+  margin: 0;
   box-shadow: var(--shadow);
   padding: 24px;
   position: relative;

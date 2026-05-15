@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import { IcMusic } from '../../components/icons/Icons';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { FilePicker } from '../../components/ui/FilePicker';
@@ -103,6 +104,38 @@ function buildFileChangeHandler({ validate, setFile, setError }) {
   };
 }
 
+const artistUserPropType = PropTypes.shape({
+  id: PropTypes.string,
+  username: PropTypes.string,
+});
+
+const artistTrackPropType = PropTypes.shape({
+  albumId: PropTypes.string,
+  artist: PropTypes.string,
+  artistId: PropTypes.string,
+  artistName: PropTypes.string,
+  audioAssetId: PropTypes.string,
+  coverAssetId: PropTypes.string,
+  createdAt: PropTypes.string,
+  duration: PropTypes.number,
+  durationSeconds: PropTypes.number,
+  genre: PropTypes.string,
+  id: PropTypes.string,
+  status: PropTypes.string,
+  title: PropTypes.string,
+  trackId: PropTypes.string,
+});
+
+const artistAlbumPropType = PropTypes.shape({
+  albumId: PropTypes.string,
+  artist: PropTypes.string,
+  artistId: PropTypes.string,
+  coverAssetId: PropTypes.string,
+  createdAt: PropTypes.string,
+  status: PropTypes.string,
+  title: PropTypes.string,
+});
+
 function InlineState({ title, message, onRetry }) {
   return (
     <div className="empty-state">
@@ -112,6 +145,12 @@ function InlineState({ title, message, onRetry }) {
     </div>
   );
 }
+
+InlineState.propTypes = {
+  message: PropTypes.string,
+  onRetry: PropTypes.func,
+  title: PropTypes.string.isRequired,
+};
 
 export function ArtistDashboardPage({ user, onPlayTrack, currentTrack, setPage }) {
   const [tracks, setTracks] = useState([]);
@@ -195,6 +234,13 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack, setPage }
     </div>
   );
 }
+
+ArtistDashboardPage.propTypes = {
+  currentTrack: artistTrackPropType,
+  onPlayTrack: PropTypes.func.isRequired,
+  setPage: PropTypes.func.isRequired,
+  user: artistUserPropType.isRequired,
+};
 
 export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
   const [tracks, setTracks] = useState([]);
@@ -309,6 +355,13 @@ export function MyTracksPage({ user, setPage, setEditTrack, toast }) {
     </div>
   );
 }
+
+MyTracksPage.propTypes = {
+  setEditTrack: PropTypes.func.isRequired,
+  setPage: PropTypes.func.isRequired,
+  toast: PropTypes.func.isRequired,
+  user: artistUserPropType.isRequired,
+};
 
 export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
   const [albums, setAlbums] = useState([]);
@@ -426,6 +479,13 @@ export function MyAlbumsPage({ user, setPage, setUploadAlbumId, toast }) {
     </div>
   );
 }
+
+MyAlbumsPage.propTypes = {
+  setPage: PropTypes.func.isRequired,
+  setUploadAlbumId: PropTypes.func.isRequired,
+  toast: PropTypes.func.isRequired,
+  user: artistUserPropType.isRequired,
+};
 
 export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadAlbumConsumed = undefined }) {
   const isAlbumLocked = Boolean(initialAlbumId);
@@ -666,6 +726,13 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
   );
 }
 
+UploadSinglePage.propTypes = {
+  initialAlbumId: PropTypes.string,
+  onUploadAlbumConsumed: PropTypes.func,
+  toast: PropTypes.func.isRequired,
+  user: artistUserPropType.isRequired,
+};
+
 function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
@@ -812,6 +879,12 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
   );
 }
 
+AddTrackToAlbumForm.propTypes = {
+  album: artistAlbumPropType.isRequired,
+  onTrackCreated: PropTypes.func.isRequired,
+  toast: PropTypes.func.isRequired,
+};
+
 export function CreateAlbumPage({ toast }) {
   const [title, setTitle] = useState('');
   const [coverFile, setCoverFile] = useState(null);
@@ -887,6 +960,15 @@ export function CreateAlbumPage({ toast }) {
     setIsCreateAnotherOpen(false);
   };
 
+  const closeCreateAnotherIfFocusLeaves = (event) => {
+    const action = event.currentTarget.parentElement;
+    const nextFocusTarget = event.relatedTarget;
+
+    if (!action || !nextFocusTarget || !action.contains(nextFocusTarget)) {
+      setIsCreateAnotherOpen(false);
+    }
+  };
+
   if (createdAlbum) {
     return (
       <div className="page-inner">
@@ -896,20 +978,18 @@ export function CreateAlbumPage({ toast }) {
             <div className="page-subtitle">Album: {createdAlbum.title}</div>
           </div>
           <div
-            className="create-another-album-action"
-            onMouseEnter={() => setIsCreateAnotherOpen(true)}
-            onFocus={() => setIsCreateAnotherOpen(true)}
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) {
-                setIsCreateAnotherOpen(false);
-              }
-            }}
+            aria-label="Crear otro album"
+            className={`create-another-album-action${isCreateAnotherOpen ? ' is-open' : ''}`}
+            role="group"
           >
             <button
               className="btn-icon create-another-album-plus"
               type="button"
               aria-label="Mostrar crear otro album"
               onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setIsCreateAnotherOpen(true)}
+              onFocus={() => setIsCreateAnotherOpen(true)}
+              onBlur={closeCreateAnotherIfFocusLeaves}
               onClick={() => setIsCreateAnotherOpen(true)}
             >
               +
@@ -919,6 +999,7 @@ export function CreateAlbumPage({ toast }) {
                 className="btn-ghost create-another-album-label"
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
+                onBlur={closeCreateAnotherIfFocusLeaves}
                 onClick={resetForAnotherAlbum}
               >
                 Crear otro album
@@ -1044,6 +1125,10 @@ export function CreateAlbumPage({ toast }) {
   );
 }
 
+CreateAlbumPage.propTypes = {
+  toast: PropTypes.func.isRequired,
+};
+
 export function EditTrackPage({ track, user, setPage, toast }) {
   const [title, setTitle] = useState(track?.title ?? '');
   const [genre, setGenre] = useState(track?.genre ?? '');
@@ -1145,9 +1230,11 @@ export function EditTrackPage({ track, user, setPage, toast }) {
   };
 
   return (
-    <div className="page-inner">
-      <div className="breadcrumb">
-        <a onClick={() => setPage('artist-tracks')}>Mis Pistas</a>
+      <div className="page-inner">
+        <div className="breadcrumb">
+        <button className="breadcrumb-link" onClick={() => setPage('artist-tracks')} type="button">
+          Mis Pistas
+        </button>
         <span>/</span><span>Editar Pista</span>
       </div>
       <div className="page-header"><div className="page-title">Edit Track</div></div>
@@ -1206,6 +1293,13 @@ export function EditTrackPage({ track, user, setPage, toast }) {
     </div>
   );
 }
+
+EditTrackPage.propTypes = {
+  setPage: PropTypes.func.isRequired,
+  toast: PropTypes.func.isRequired,
+  track: artistTrackPropType.isRequired,
+  user: artistUserPropType.isRequired,
+};
 
 export function ArtistAnalyticsPage() {
   return (

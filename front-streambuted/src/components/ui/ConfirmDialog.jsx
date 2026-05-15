@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
+import PropTypes from 'prop-types';
 
 export function ConfirmDialog({
   open,
@@ -45,20 +46,17 @@ export function ConfirmDialog({
   return (
     <div
       className="confirm-dialog-backdrop"
-      role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !isLoading) {
           onCancel();
         }
       }}
     >
-      <section
+      <dialog
         className="confirm-dialog"
-        role="dialog"
-        aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={message ? messageId : undefined}
-        tabIndex={-1}
+        open
         ref={dialogRef}
       >
         <div className={`confirm-dialog-marker ${tone}`} aria-hidden="true" />
@@ -78,7 +76,21 @@ export function ConfirmDialog({
             {isLoading ? 'Procesando...' : confirmLabel}
           </button>
         </div>
-      </section>
+      </dialog>
     </div>
   );
 }
+
+ConfirmDialog.propTypes = {
+  cancelLabel: PropTypes.string,
+  children: PropTypes.node,
+  confirmLabel: PropTypes.string,
+  disabled: PropTypes.bool,
+  isLoading: PropTypes.bool,
+  message: PropTypes.string,
+  onCancel: PropTypes.func.isRequired,
+  onConfirm: PropTypes.func.isRequired,
+  open: PropTypes.bool.isRequired,
+  title: PropTypes.string.isRequired,
+  tone: PropTypes.oneOf(['danger', 'primary']),
+};

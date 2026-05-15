@@ -38,7 +38,7 @@ export interface RegistrationVerificationActionRequest {
 export interface AuthResponse {
   accessToken: string;
   refreshToken?: string | null;
-  role: UserRole | string;
+  role: UserRole | Uppercase<UserRole>;
   expiresIn: number;
 }
 

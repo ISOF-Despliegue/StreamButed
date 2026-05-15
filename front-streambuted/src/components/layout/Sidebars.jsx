@@ -1,4 +1,5 @@
 import { memo, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import {
   IcHome, IcSearch, IcLib, IcSettings,
   IcDashboard, IcTracks, IcUpload, IcChart, IcMusic,
@@ -186,6 +187,36 @@ function AdminSidebarComponent({ page, setPage, user }) {
     </div>
   );
 }
+
+const sidebarItemPropType = PropTypes.shape({
+  icon: PropTypes.node.isRequired,
+  id: PropTypes.string.isRequired,
+  label: PropTypes.string.isRequired,
+});
+
+const sidebarUserPropType = PropTypes.shape({
+  profileImageAssetId: PropTypes.string,
+  role: PropTypes.string,
+  username: PropTypes.string,
+});
+
+SidebarNavItem.propTypes = {
+  isActive: PropTypes.bool.isRequired,
+  item: sidebarItemPropType.isRequired,
+  onSelect: PropTypes.func.isRequired,
+};
+
+MainSidebarComponent.propTypes = {
+  page: PropTypes.string.isRequired,
+  setPage: PropTypes.func.isRequired,
+  user: sidebarUserPropType.isRequired,
+};
+
+AdminSidebarComponent.propTypes = {
+  page: PropTypes.string.isRequired,
+  setPage: PropTypes.func.isRequired,
+  user: sidebarUserPropType.isRequired,
+};
 
 export const MainSidebar = memo(MainSidebarComponent);
 export const AdminSidebar = memo(AdminSidebarComponent);

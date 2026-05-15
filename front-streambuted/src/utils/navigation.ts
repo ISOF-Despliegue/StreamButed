@@ -1,6 +1,6 @@
 export const browserNavigation = {
   reloadImpl() {
-    window.location.reload();
+    globalThis.location.reload();
   },
   reload() {
     this.reloadImpl();

@@ -165,11 +165,22 @@ async function attachArtistName(track: AppTrack): Promise<AppTrack> {
   }
 }
 
-type SessionBarProps = {
+function getRoleLabel(role: CurrentUser["role"]): string {
+  switch (role) {
+    case "admin":
+      return "Administrador";
+    case "artist":
+      return "Artista";
+    default:
+      return "Oyente";
+  }
+}
+
+type SessionBarProps = Readonly<{
   user: CurrentUser;
   roleLabel: string;
   onLogout: () => void;
-};
+}>;
 
 function SessionBar({ user, roleLabel, onLogout }: SessionBarProps) {
   return (
@@ -182,7 +193,7 @@ function SessionBar({ user, roleLabel, onLogout }: SessionBarProps) {
   );
 }
 
-function NotAvailableState({ title, message }: { title: string; message: string }) {
+function NotAvailableState({ title, message }: Readonly<{ title: string; message: string }>) {
   return (
     <div className="page-inner">
       <div className="page-title">{title}</div>
@@ -201,14 +212,14 @@ type PlaybackControllerHandle = {
   reset: () => void;
 };
 
-type PlaybackControllerProps = {
+type PlaybackControllerProps = Readonly<{
   user: CurrentUser;
   currentTrack: AppTrack | null;
   playbackQueue: PlaybackQueueState;
   setCurrentTrack: (track: AppTrack | null) => void;
   setPlaybackQueue: Dispatch<SetStateAction<PlaybackQueueState>>;
   toast: (msg: string) => void;
-};
+}>;
 
 const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControllerProps>(
   function PlaybackController(
@@ -885,12 +896,7 @@ export default function StreamButed() {
     );
   }
 
-  const roleLabel =
-    user.role === "admin"
-      ? "Administrador"
-      : user.role === "artist"
-      ? "Artista"
-      : "Oyente";
+  const roleLabel = getRoleLabel(user.role);
 
   const allPages: Record<string, ReactNode> = {
     home: (
