@@ -77,7 +77,7 @@ export function useListenerLive(socket: Socket | null): UseListenerLiveReturn {
           {
             roomId,
             producerId,
-            rtpCapabilities: deviceRef.current.recvRtpCapabilities,
+            rtpCapabilities: deviceRef.current.rtpCapabilities,
           },
           "live:consumed",
           "live:consume:error"
