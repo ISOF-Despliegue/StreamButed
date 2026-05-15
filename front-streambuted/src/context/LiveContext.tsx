@@ -4,9 +4,9 @@ import { useArtistLive } from "../hooks/useArtistLive";
 import { useLiveSocket } from "../hooks/useLiveSocket";
 import { LiveContext, type LiveContextValue } from "./liveContextValue";
 
-interface LiveProviderProps {
+type LiveProviderProps = Readonly<{
   children: ReactNode;
-}
+}>;
 
 function readStoredToken(): string | null {
   return (

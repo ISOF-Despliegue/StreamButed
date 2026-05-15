@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import PropTypes from 'prop-types';
 import { IcMusic, IcSearch } from '../../components/icons/Icons';
 import { AlbumCard } from '../../components/ui/AlbumCard';
 import { TrackRow } from '../../components/ui/TrackRow';
@@ -135,7 +136,7 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
 
     let isActive = true;
 
-    const timeoutId = window.setTimeout(async () => {
+    const timeoutId = globalThis.setTimeout(async () => {
       if (!isActive) return;
 
       setIsLoading(true);
@@ -171,7 +172,7 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
 
     return () => {
       isActive = false;
-      window.clearTimeout(timeoutId);
+      globalThis.clearTimeout(timeoutId);
     };
   }, [query]);
 
@@ -212,10 +213,11 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
             </div>
             <div className="album-grid">
               {results.artists.map((artist) => (
-                <div
+                <button
                   key={artist.artistId}
                   className="album-card"
                   onClick={() => { setViewArtist(artist.artistId); setPage('artist-profile'); }}
+                  type="button"
                 >
                   <div className="album-thumb">
                     {artist.profileImageAssetId ? (
@@ -226,7 +228,7 @@ export function SearchPage({ onPlayTrack, currentTrack, setPage, setViewAlbum, s
                   </div>
                   <div className="album-card-title">{artist.displayName}</div>
                   <div className="album-card-artist">Artista</div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -354,9 +356,13 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack, setPage, s
           <div className="album-hero-type">Album</div>
           <div className="album-hero-title">{album.title}</div>
           <div className="album-hero-meta">
-            <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => { setViewArtist(album.artistId); setPage('artist-profile'); }}>
+            <button
+              className="inline-link-button"
+              onClick={() => { setViewArtist(album.artistId); setPage('artist-profile'); }}
+              type="button"
+            >
               {album.artist || 'Artista'}
-            </span>
+            </button>
             <span className="dot-sep" />
             <span>{album.status}</span>
             <span className="dot-sep" />
@@ -520,3 +526,54 @@ export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack, setPage
     </div>
   );
 }
+
+const listenerTrackPropType = PropTypes.shape({
+  albumId: PropTypes.string,
+  albumTitle: PropTypes.string,
+  artist: PropTypes.string,
+  artistId: PropTypes.string,
+  artistName: PropTypes.string,
+  audioAssetId: PropTypes.string,
+  coverAssetId: PropTypes.string,
+  duration: PropTypes.number,
+  durationSeconds: PropTypes.number,
+  genre: PropTypes.string,
+  id: PropTypes.string,
+  plays: PropTypes.number,
+  status: PropTypes.string,
+  title: PropTypes.string,
+  trackId: PropTypes.string,
+});
+
+InlineState.propTypes = {
+  message: PropTypes.string,
+  title: PropTypes.string.isRequired,
+};
+
+HomePage.propTypes = {
+  setPage: PropTypes.func.isRequired,
+};
+
+SearchPage.propTypes = {
+  currentTrack: listenerTrackPropType,
+  onPlayTrack: PropTypes.func.isRequired,
+  setPage: PropTypes.func.isRequired,
+  setViewAlbum: PropTypes.func.isRequired,
+  setViewArtist: PropTypes.func.isRequired,
+};
+
+AlbumDetailPage.propTypes = {
+  albumId: PropTypes.string,
+  currentTrack: listenerTrackPropType,
+  onPlayTrack: PropTypes.func.isRequired,
+  setPage: PropTypes.func.isRequired,
+  setViewArtist: PropTypes.func.isRequired,
+};
+
+ArtistProfilePage.propTypes = {
+  artistId: PropTypes.string,
+  currentTrack: listenerTrackPropType,
+  onPlayTrack: PropTypes.func.isRequired,
+  setPage: PropTypes.func.isRequired,
+  setViewAlbum: PropTypes.func.isRequired,
+};

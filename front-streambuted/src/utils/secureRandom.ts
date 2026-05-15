@@ -3,7 +3,7 @@ export function getSecureRandomInt(maxExclusive: number): number {
     throw new Error("maxExclusive must be a positive integer.");
   }
 
-  const maxUint32 = 0x1_0000_0000;
+  const maxUint32 = 2 ** 32;
   const limit = maxUint32 - (maxUint32 % maxExclusive);
   const buffer = new Uint32Array(1);
   let value = 0;

@@ -2,11 +2,11 @@ import type { ReactNode } from "react";
 import { useAuth } from "../hooks/useAuth";
 import type { UserRole } from "../types/user.types";
 
-interface RoleRouteProps {
+type RoleRouteProps = Readonly<{
   allowedRoles: UserRole[];
   children: ReactNode;
   fallback?: ReactNode;
-}
+}>;
 
 export function RoleRoute({ allowedRoles, children, fallback }: RoleRouteProps) {
   const { user, isAuthenticated, isLoadingSession } = useAuth();

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLive } from "../../hooks/useLive";
 import { apiRequest } from "../../services/apiClient";
+import type { UserRole } from "../../types/user.types";
 
 export interface LiveRoom {
   id: string;
@@ -13,11 +14,13 @@ export interface LiveRoom {
   createdAt?: string;
 }
 
-interface LiveConcertsPageProps {
-  userRole?: "listener" | "artist" | "admin" | "LISTENER" | "ARTIST" | "ADMIN" | string;
+type LiveUserRole = UserRole | Uppercase<UserRole>;
+
+type LiveConcertsPageProps = Readonly<{
+  userRole?: LiveUserRole;
   onJoinRoom?: (room: LiveRoom) => void;
   onStartBroadcast?: () => void;
-}
+}>;
 
 export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: LiveConcertsPageProps) {
   const { token, artist } = useLive();
@@ -54,9 +57,9 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
     }
 
     void fetchRooms();
-    const interval = window.setInterval(fetchRooms, 15_000);
+    const interval = globalThis.setInterval(fetchRooms, 15_000);
 
-    return () => window.clearInterval(interval);
+    return () => globalThis.clearInterval(interval);
   }, [token, fetchRooms]);
 
   const activeRooms = rooms.filter((room) => room.status === "LIVE" || !room.status);

@@ -33,20 +33,20 @@ function emitAsync<T>(
   errorEvent: string
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
+    const timeout = globalThis.setTimeout(() => {
       socket.off(resultEvent, handleResult);
       socket.off(errorEvent, handleError);
       reject(new Error(`Timeout esperando ${resultEvent}`));
     }, 15000);
 
     const handleResult = (payload: T) => {
-      window.clearTimeout(timeout);
+      globalThis.clearTimeout(timeout);
       socket.off(errorEvent, handleError);
       resolve(payload);
     };
 
     const handleError = ({ message }: { message: string }) => {
-      window.clearTimeout(timeout);
+      globalThis.clearTimeout(timeout);
       socket.off(resultEvent, handleResult);
       reject(new Error(message));
     };

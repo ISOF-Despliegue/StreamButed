@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useListenerLive } from "../../hooks/useListenerLive";
 import { useLive } from "../../hooks/useLive";
 
-interface ListenerLiveRoomProps {
+type ListenerLiveRoomProps = Readonly<{
   roomId: string;
   concertTitle?: string;
   artistName?: string;
   onLeave?: () => void;
-}
+}>;
 
 export function ListenerLiveRoom({ roomId, concertTitle, artistName, onLeave }: ListenerLiveRoomProps) {
   const { socket, connectionState } = useLive();

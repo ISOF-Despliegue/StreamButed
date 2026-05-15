@@ -6,6 +6,59 @@ export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost";
 
 const API_PREFIX = "/api/v1";
+const API_BASE = new URL(`${API_BASE_URL}/`);
+const API_BASE_PATH = API_BASE.pathname === "/" ? "" : API_BASE.pathname.replace(/\/$/, "");
+
+function hasUnsafePathSegment(pathname: string): boolean {
+  return pathname
+    .split("/")
+    .some((segment) => {
+      const lowerSegment = segment.toLowerCase();
+      return (
+        segment === "." ||
+        segment === ".." ||
+        lowerSegment === "%2e" ||
+        lowerSegment === "%2e%2e" ||
+        lowerSegment.includes("%2f") ||
+        lowerSegment.includes("%5c")
+      );
+    });
+}
+
+function hasControlCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const charCode = character.charCodeAt(0);
+    return charCode <= 31 || charCode === 127;
+  });
+}
+
+function normalizeApiPath(path: string): string {
+  const trimmedPath = path.trim();
+
+  if (!trimmedPath) {
+    throw new Error("API path is required.");
+  }
+
+  if (/^[a-z][a-z\d+\-.]*:/i.test(trimmedPath) || trimmedPath.startsWith("//")) {
+    throw new Error("API path must be relative to the configured gateway.");
+  }
+
+  if (trimmedPath.includes("\\") || hasControlCharacter(trimmedPath)) {
+    throw new Error("API path contains unsupported characters.");
+  }
+
+  const normalizedPath = trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+  const withoutPrefix = normalizedPath.startsWith(API_PREFIX)
+    ? normalizedPath.slice(API_PREFIX.length)
+    : normalizedPath;
+  const pathname = withoutPrefix.split(/[?#]/)[0];
+
+  if (!withoutPrefix.startsWith("/") || hasUnsafePathSegment(pathname)) {
+    throw new Error("API path contains unsafe path traversal segments.");
+  }
+
+  return withoutPrefix;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -19,16 +72,14 @@ export class ApiError extends Error {
 }
 
 export function buildApiUrl(path: string): string {
-  if (/^https?:\/\//i.test(path)) {
-    return path;
+  const safePath = normalizeApiPath(path);
+  const url = new URL(`${API_BASE_PATH}${API_PREFIX}${safePath}`, API_BASE.origin);
+
+  if (url.origin !== API_BASE.origin) {
+    throw new Error("API URL must target the configured gateway origin.");
   }
 
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const withoutPrefix = normalizedPath.startsWith(API_PREFIX)
-    ? normalizedPath.slice(API_PREFIX.length)
-    : normalizedPath;
-
-  return `${API_BASE_URL}${API_PREFIX}${withoutPrefix}`;
+  return url.toString();
 }
 
 function isObjectBody(body: unknown): body is object {
@@ -97,12 +148,12 @@ export async function apiRequest<T>(
   }
 
   if (response.status === 204) {
-    return undefined as T;
+    return undefined;
   }
 
   const contentType = response.headers.get("Content-Type") ?? "";
   if (!contentType.includes("application/json")) {
-    return undefined as T;
+    return undefined;
   }
 
   return response.json() as Promise<T>;

@@ -1,15 +1,35 @@
 import { useRef } from 'react';
+import PropTypes from 'prop-types';
 
 export function ProgressBar({ value, max, onChange, style }) {
-  const ref = useRef();
+  const ref = useRef(null);
+  const safeMax = max > 0 ? max : 1;
+
   const handleClick = (e) => {
-    const rect = ref.current.getBoundingClientRect();
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+
     const pct = (e.clientX - rect.left) / rect.width;
-    onChange && onChange(Math.round(pct * max));
+    onChange?.(Math.round(pct * safeMax));
   };
+
   return (
-    <div className="progress-bar" ref={ref} onClick={handleClick} style={style}>
-      <div className="progress-fill" style={{ width: `${Math.min(100, (value / max) * 100)}%` }} />
-    </div>
+    <button
+      aria-label="Cambiar progreso"
+      className="progress-bar"
+      onClick={handleClick}
+      ref={ref}
+      style={style}
+      type="button"
+    >
+      <div className="progress-fill" style={{ width: `${Math.min(100, (value / safeMax) * 100)}%` }} />
+    </button>
   );
 }
+
+ProgressBar.propTypes = {
+  max: PropTypes.number.isRequired,
+  onChange: PropTypes.func,
+  style: PropTypes.object,
+  value: PropTypes.number.isRequired,
+};

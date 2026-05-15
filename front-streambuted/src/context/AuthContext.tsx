@@ -22,9 +22,9 @@ import type {
 } from "../types/auth.types";
 import type { CurrentUser } from "../types/user.types";
 
-interface AuthProviderProps {
+type AuthProviderProps = Readonly<{
   children: ReactNode;
-}
+}>;
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<CurrentUser | null>(null);
