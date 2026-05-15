@@ -48,6 +48,7 @@ import { useAuth } from "./hooks/useAuth";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
 import { authService } from "./services/authService";
+import { browserLogger } from "./utils/browserLogger";
 import { getSecureRandomInt } from "./utils/secureRandom";
 import type { CurrentUser } from "./types/user.types";
 import type { Track } from "./types/catalog.types";
@@ -158,7 +159,8 @@ async function attachArtistName(track: AppTrack): Promise<AppTrack> {
   try {
     const artist = await catalogService.getArtist(track.artistId);
     return { ...track, artist: artist.displayName };
-  } catch {
+  } catch (error) {
+    browserLogger.warn("Failed to load artist name for playback track. Using fallback value.", error);
     return { ...track, artist: track.artist ?? track.artistName ?? "Artista" };
   }
 }
@@ -266,7 +268,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 
         await playbackService.updatePlaybackProgress(trackId, progressPayload);
       } catch (error) {
-        console.error("Failed to persist playback progress.", error);
+        browserLogger.error("Failed to persist playback progress.", error);
       }
     }, []);
 
@@ -332,11 +334,11 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
               });
             }
           } catch (playError) {
-            console.error("Audio playback failed to start.", playError);
+            browserLogger.error("Audio playback failed to start.", playError);
             setPlaybackError("Presiona play para continuar la reproduccion.");
           }
         } catch (error) {
-          console.error("Failed to start playback.", error);
+          browserLogger.error("Failed to start playback.", error);
           if (playbackRequestIdRef.current === requestId) {
             setPlaybackError("No se pudo iniciar la reproduccion.");
             toast("No se pudo iniciar la reproduccion de esta pista.");
@@ -476,7 +478,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           await audio.play();
           setIsPlaying(true);
         } catch (error) {
-          console.error("Audio playback failed.", error);
+          browserLogger.error("Audio playback failed.", error);
           setPlaybackError("No se pudo continuar la reproduccion.");
           toast("No se pudo continuar la reproduccion.");
         }
@@ -627,7 +629,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           setIsPlaying(false);
           setIsPlaybackLoading(false);
         } catch (error) {
-          console.error("Failed to load latest playback into player.", error);
+          browserLogger.error("Failed to load latest playback into player.", error);
         }
       };
 

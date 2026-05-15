@@ -124,7 +124,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .btn-icon:hover { color: var(--t1); background: var(--bg3); }
 .btn-icon.active { color: var(--accent); }
 
-/* ─ App Shell ──────────────────────────────────────────────────────────────── */
+/* App Shell */
 .app-shell { display: flex; height: 100vh; flex-direction: column; }
 .app-body { display: flex; flex: 1; overflow: hidden; }
 .sidebar {
@@ -228,7 +228,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
   padding: 8px 14px;
 }
 
-/* ─ Bottom Player ──────────────────────────────────────────────────────────── */
+/* Bottom Player */
 .bottom-player {
   height: 76px; min-height: 76px;
   background: var(--bg1);
@@ -281,7 +281,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .volume-bar { width: 80px; height: 3px; background: var(--bg4); border-radius: 99px; cursor: pointer; }
 .volume-fill { height: 100%; background: var(--t2); border-radius: 99px; }
 
-/* ─ Auth pages ─────────────────────────────────────────────────────────────── */
+/* Auth pages */
 .auth-shell {
   min-height: 100vh; background: var(--bg0);
   display: flex; align-items: center; justify-content: center;
@@ -329,7 +329,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 }
 .role-tab.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
 
-/* ─ Cards ───────────────────────────────────────────────────────────────────── */
+/* Cards */
 .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
 .album-card {
   cursor: pointer; border-radius: var(--r12);
@@ -356,7 +356,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .album-card-title { font-size: 13px; font-weight: 600; color: var(--t1); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .album-card-artist { font-size: 12px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ─ Track list ──────────────────────────────────────────────────────────────── */
+/* Track list */
 .track-list { width: 100%; border-collapse: collapse; }
 .track-list thead th {
   text-align: left; font-size: 11px; font-weight: 600;
@@ -387,20 +387,20 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .track-artist-link:hover { color: var(--accent); text-decoration: underline; }
 .track-duration { color: var(--t3); font-size: 13px; display: inline-block; min-width: 44px; text-align: right; }
 
-/* ─ Sections ────────────────────────────────────────────────────────────────── */
+/* Sections */
 .section { margin-bottom: 36px; }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .section-title { font-size: 18px; font-weight: 700; color: var(--t1); }
 .see-all-btn { font-size: 13px; color: var(--t2); background: none; padding: 0; transition: color .12s; }
 .see-all-btn:hover { color: var(--accent); }
 
-/* ─ Search page ─────────────────────────────────────────────────────────────── */
+/* Search page */
 .search-header { padding: 24px 32px 0; }
 .search-input-wrap { position: relative; max-width: 560px; }
 .search-input-wrap input { padding-left: 42px; font-size: 15px; height: 44px; border-radius: 22px; }
 .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--t3); pointer-events: none; }
 
-/* ─ Album detail ────────────────────────────────────────────────────────────── */
+/* Album detail */
 .album-hero { display: flex; align-items: flex-end; gap: 24px; padding: 28px 32px 24px; }
 .album-hero-cover {
   width: 180px; height: 180px; border-radius: var(--r12);
@@ -415,7 +415,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--t3); }
 .album-actions { display: flex; align-items: center; gap: 12px; }
 
-/* ─ Artist profile ──────────────────────────────────────────────────────────── */
+/* Artist profile */
 .artist-banner {
   height: 200px; background: var(--bg2);
   position: relative; overflow: hidden;
@@ -448,7 +448,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .follow-btn:hover { background: var(--t1); color: var(--bg0); }
 .follow-btn.following { background: var(--accent); border-color: var(--accent); color: #000; }
 
-/* ─ Expanded Player ─────────────────────────────────────────────────────────── */
+/* Expanded Player */
 .expanded-player-overlay {
   position: fixed; inset: 0; z-index: 999;
   background: var(--bg0);
@@ -503,7 +503,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .queue-artist { font-size: 12px; color: var(--t2); }
 .queue-dur { font-size: 12px; color: var(--t3); margin-left: auto; flex-shrink: 0; }
 
-/* ─ Forms (artist/settings) ─────────────────────────────────────────────────── */
+/* Forms (artist/settings) */
 .settings-card {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: var(--r16); padding: 28px; margin-bottom: 16px;
@@ -532,7 +532,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 .form-group-mb { margin-bottom: 16px; }
 
-/* ─ Admin ────────────────────────────────────────────────────────────────────── */
+/* Admin */
 .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
 .stat-card {
   background: var(--bg2); border: 1px solid var(--border);
@@ -607,7 +607,7 @@ button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: 
 }
 .reject-btn:hover { background: rgba(239,68,68,0.25); }
 
-/* ─ Misc ─────────────────────────────────────────────────────────────────────── */
+/* Misc */
 .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--t3); margin-bottom: 20px; }
 .breadcrumb a { color: var(--t3); cursor: pointer; transition: color .12s; }
 .breadcrumb a:hover { color: var(--accent); }

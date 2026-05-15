@@ -4,6 +4,7 @@ import { catalogService } from '../services/catalogService';
 import { getAssetUrl, mediaService } from '../services/mediaService';
 import { FilePicker } from '../components/ui/FilePicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { browserLogger } from '../utils/browserLogger';
 import { reloadCurrentPage } from '../utils/navigation';
 
 function getErrorMessage(error) {
@@ -21,8 +22,8 @@ async function waitForArtistProfile(artistId) {
     await new Promise(resolve => window.setTimeout(resolve, delay));
     try {
       return await catalogService.getArtist(artistId);
-    } catch {
-      // Artist creation is eventually consistent through RabbitMQ.
+    } catch (error) {
+      browserLogger.warn('Artist profile is not ready in Catalog yet. Retrying.', error);
     }
   }
 
@@ -151,7 +152,7 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
             profileImageAssetId,
           });
         } catch (catalogError) {
-          console.error('Failed to sync artist profile after Identity update.', catalogError);
+          browserLogger.error('Failed to sync artist profile after Identity update.', catalogError);
           const syncMessage = 'Perfil actualizado en Identity, pero no se pudo sincronizar el perfil publico de artista. Intenta guardar de nuevo.';
           setProfileImageFile(null);
           setShowSaveConfirmation(false);

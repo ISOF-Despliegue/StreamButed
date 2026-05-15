@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
+import { browserLogger } from "../utils/browserLogger";
 
 const LIVE_WS_PATH = "/live/ws/socket.io";
 
@@ -44,7 +45,7 @@ export function useLiveSocket(token: string | null): UseLiveSocketReturn {
     const handleConnect = () => setConnectionState("connected");
     const handleDisconnect = () => setConnectionState("disconnected");
     const handleConnectError = (error: Error) => {
-      console.error("live socket connect_error:", error.message);
+      browserLogger.error("Live socket connect_error.", error.message);
       setConnectionState("error");
     };
 
