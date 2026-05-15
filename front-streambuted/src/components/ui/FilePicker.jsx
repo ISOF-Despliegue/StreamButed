@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import PropTypes from 'prop-types';
 
 export function FilePicker({
   accept,
@@ -29,3 +30,13 @@ export function FilePicker({
     </div>
   );
 }
+
+FilePicker.propTypes = {
+  accept: PropTypes.string.isRequired,
+  buttonLabel: PropTypes.string,
+  file: PropTypes.shape({
+    name: PropTypes.string,
+  }),
+  helperText: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+};

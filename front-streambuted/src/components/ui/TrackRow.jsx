@@ -1,14 +1,19 @@
 import { IcMusic } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import { formatDuration, formatNumber } from '../../utils/formatters';
+import PropTypes from 'prop-types';
 
 export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaText, contextText }) {
   const trackId = track.trackId || track.id;
   const artistName = track.artist || track.artistName || 'Artista';
   const duration = track.durationSeconds ?? track.duration;
-  const meta = metaText !== undefined
-    ? metaText
-    : (track.plays !== undefined ? formatNumber(track.plays) : (track.genre || track.status || 'Catalogo'));
+  let meta = metaText;
+
+  if (meta === undefined) {
+    meta = track.plays !== undefined
+      ? formatNumber(track.plays)
+      : track.genre || track.status || 'Catalogo';
+  }
 
   return (
     <tr className={`track-row${isPlaying ? ' playing' : ''}`} onClick={onPlay}>
@@ -24,7 +29,16 @@ export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaT
           </div>
           <div>
             <div className="track-name">{track.title}</div>
-            <div className="track-artist-link" onClick={e => { e.stopPropagation(); onArtistClick && onArtistClick(track.artistId); }}>{artistName}</div>
+            <button
+              className="track-artist-link"
+              onClick={e => {
+                e.stopPropagation();
+                onArtistClick?.(track.artistId);
+              }}
+              type="button"
+            >
+              {artistName}
+            </button>
           </div>
         </div>
       </td>
@@ -34,3 +48,28 @@ export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaT
     </tr>
   );
 }
+
+TrackRow.propTypes = {
+  contextText: PropTypes.string,
+  index: PropTypes.number.isRequired,
+  isPlaying: PropTypes.bool,
+  metaText: PropTypes.string,
+  onArtistClick: PropTypes.func,
+  onPlay: PropTypes.func.isRequired,
+  track: PropTypes.shape({
+    albumId: PropTypes.string,
+    artist: PropTypes.string,
+    artistId: PropTypes.string,
+    artistName: PropTypes.string,
+    audioAssetId: PropTypes.string,
+    coverAssetId: PropTypes.string,
+    duration: PropTypes.number,
+    durationSeconds: PropTypes.number,
+    genre: PropTypes.string,
+    id: PropTypes.string,
+    plays: PropTypes.number,
+    status: PropTypes.string,
+    title: PropTypes.string,
+    trackId: PropTypes.string,
+  }).isRequired,
+};

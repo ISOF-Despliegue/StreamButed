@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import PropTypes from 'prop-types';
 
 export function Toast({ msg, onDone }) {
   useEffect(() => { 
@@ -8,3 +9,8 @@ export function Toast({ msg, onDone }) {
   
   return <div className="toaster">{msg}</div>;
 }
+
+Toast.propTypes = {
+  msg: PropTypes.string.isRequired,
+  onDone: PropTypes.func.isRequired,
+};

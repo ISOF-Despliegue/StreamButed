@@ -1,3 +1,5 @@
+import PropTypes from 'prop-types';
+
 function Placeholder({ title, message }) {
   return (
     <div className="page-inner">
@@ -11,6 +13,11 @@ function Placeholder({ title, message }) {
     </div>
   );
 }
+
+Placeholder.propTypes = {
+  message: PropTypes.string.isRequired,
+  title: PropTypes.string.isRequired,
+};
 
 export function AdminOverviewPage() {
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import { useAuth } from '../hooks/useAuth';
 import { catalogService } from '../services/catalogService';
 import { getAssetUrl, mediaService } from '../services/mediaService';
@@ -19,7 +20,7 @@ async function waitForArtistProfile(artistId) {
   const delays = [600, 1000, 1600, 2400];
 
   for (const delay of delays) {
-    await new Promise(resolve => window.setTimeout(resolve, delay));
+    await new Promise(resolve => globalThis.setTimeout(resolve, delay));
     try {
       return await catalogService.getArtist(artistId);
     } catch (error) {
@@ -200,6 +201,12 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
     }
   };
 
+  const profileImageUrl = profilePreviewUrl ||
+    (user.profileImageAssetId ? getAssetUrl(user.profileImageAssetId) : '');
+  const profileImageAlt = profilePreviewUrl
+    ? `Previsualizacion de foto de perfil de ${user.username || 'usuario'}`
+    : `Foto de perfil de ${user.username || 'usuario'}`;
+
   return (
     <div className="page-inner">
       <div className="page-header">
@@ -210,16 +217,10 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
         <div className="settings-card-title">Profile</div>
         <div className="avatar-upload-row">
           <div className="avatar-upload-img">
-            {profilePreviewUrl ? (
+            {profileImageUrl ? (
               <img
-                src={profilePreviewUrl}
-                alt={`Previsualizacion de foto de perfil de ${user.username || 'usuario'}`}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-              />
-            ) : user.profileImageAssetId ? (
-              <img
-                src={getAssetUrl(user.profileImageAssetId)}
-                alt={`Foto de perfil de ${user.username || 'usuario'}`}
+                src={profileImageUrl}
+                alt={profileImageAlt}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
               />
             ) : (
@@ -314,9 +315,21 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
             checked={termsAccepted}
             onChange={(event) => setTermsAccepted(event.target.checked)}
           />
-          Entiendo que activar el modo artista es permanente.
+          <span>Entiendo que activar el modo artista es permanente.</span>
         </label>
       </ConfirmDialog>
     </div>
   );
 }
+
+SettingsPage.propTypes = {
+  reloadPage: PropTypes.func,
+  toast: PropTypes.func.isRequired,
+  user: PropTypes.shape({
+    bio: PropTypes.string,
+    id: PropTypes.string,
+    profileImageAssetId: PropTypes.string,
+    role: PropTypes.string,
+    username: PropTypes.string,
+  }).isRequired,
+};

@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 
 export const Icon = ({ d, size = 18, stroke = "currentColor", fill = "none" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -21,8 +22,15 @@ export const IcShuffle = () => <Icon d="M16 3h5v5 M4 20L21 3 M21 16v5h-5 M15 15l
 export const IcRepeat = () => <Icon d="M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3" fill="none" />;
 export const IcVolume = () => <Icon d="M11 5L6 9H2v6h4l5 4V5z M19.07 4.93a10 10 0 0 1 0 14.14 M15.54 8.46a5 5 0 0 1 0 7.07" fill="none" />;
 export const IcHeart = () => <Icon d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="none" />;
+const CHEVRON_PATHS = {
+  down: "M6 9l6 6 6-6",
+  up: "M18 15l-6-6-6 6",
+  left: "M15 18l-6-6 6-6",
+  right: "M9 18l6-6-6-6",
+};
+
 export const IcChevron = ({ dir = "down" }) => {
-  const d = dir === "down" ? "M6 9l6 6 6-6" : dir === "up" ? "M18 15l-6-6-6 6" : dir === "left" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6";
+  const d = CHEVRON_PATHS[dir] ?? CHEVRON_PATHS.right;
   return <Icon d={d} fill="none" />;
 };
 export const IcX = () => <Icon d="M18 6L6 18 M6 6l12 12" fill="none" />;
@@ -33,3 +41,14 @@ export const IcContent = () => <Icon d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h1
 export const IcReport = () => <Icon d="M12 9v4 M12 17h.01 M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" fill="none" />;
 export const IcDashboard = () => <Icon d="M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z" fill="currentColor" stroke="none" />;
 export const IcTracks = () => <Icon d="M9 18V5l12-2v13" fill="none" />;
+
+Icon.propTypes = {
+  d: PropTypes.string.isRequired,
+  fill: PropTypes.string,
+  size: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  stroke: PropTypes.string,
+};
+
+IcChevron.propTypes = {
+  dir: PropTypes.oneOf(['down', 'up', 'left', 'right']),
+};

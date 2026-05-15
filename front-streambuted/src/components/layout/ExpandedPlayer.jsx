@@ -2,6 +2,7 @@ import { IcChevron, IcMusic, IcShuffle, IcSkipBack, IcPlay, IcPause, IcSkipFwd, 
 import { getAssetUrl } from '../../services/mediaService';
 import { ProgressBar } from '../ui/ProgressBar';
 import { formatDuration } from '../../utils/formatters';
+import PropTypes from 'prop-types';
 
 export function ExpandedPlayer({
   track,
@@ -21,6 +22,12 @@ export function ExpandedPlayer({
 
   const artistName = track.artist || track.artistName || 'Artista';
   const progressMax = playback.durationSeconds > 0 ? playback.durationSeconds : 1;
+  const handleVolumeClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+
+    setVolume(Math.round(pct * 100));
+  };
 
   return (
     <div className="expanded-player-overlay">
@@ -83,12 +90,15 @@ export function ExpandedPlayer({
         </div>
         <div className="ep-vol">
           <button className="btn-icon"><IcVolume /></button>
-          <div className="volume-bar" style={{ flex: 1 }} onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            setVolume(Math.round(((e.clientX - rect.left) / rect.width) * 100));
-          }}>
+          <button
+            aria-label="Cambiar volumen"
+            className="volume-bar"
+            onClick={handleVolumeClick}
+            style={{ flex: 1 }}
+            type="button"
+          >
             <div className="volume-fill" style={{ width: `${volume}%` }} />
-          </div>
+          </button>
         </div>
       </div>
 
@@ -99,7 +109,12 @@ export function ExpandedPlayer({
           const activeId = track.trackId || track.id;
 
           return (
-            <div key={id} className={`queue-item${id === activeId ? ' active' : ''}`} onClick={() => onSelectTrack(t)}>
+            <button
+              className={`queue-item${id === activeId ? ' active' : ''}`}
+              key={id}
+              onClick={() => onSelectTrack(t)}
+              type="button"
+            >
               <div className="queue-thumb">
                 {t.coverAssetId ? (
                   <img src={getAssetUrl(t.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -112,10 +127,42 @@ export function ExpandedPlayer({
                 <div className="queue-artist">{t.artist || t.artistName || 'Artista'}</div>
               </div>
               <div className="queue-dur">--:--</div>
-            </div>
+            </button>
           );
         })}
       </div>
     </div>
   );
 }
+
+const playerTrackPropType = PropTypes.shape({
+  artist: PropTypes.string,
+  artistName: PropTypes.string,
+  coverAssetId: PropTypes.string,
+  id: PropTypes.string,
+  title: PropTypes.string,
+  trackId: PropTypes.string,
+});
+
+ExpandedPlayer.propTypes = {
+  onClose: PropTypes.func.isRequired,
+  onNext: PropTypes.func.isRequired,
+  onPrevious: PropTypes.func.isRequired,
+  onSeek: PropTypes.func.isRequired,
+  onSelectTrack: PropTypes.func.isRequired,
+  onTogglePlay: PropTypes.func.isRequired,
+  onToggleShuffle: PropTypes.func.isRequired,
+  playback: PropTypes.shape({
+    canUseAlbumControls: PropTypes.bool,
+    durationSeconds: PropTypes.number,
+    error: PropTypes.string,
+    isLoading: PropTypes.bool,
+    isPlaying: PropTypes.bool,
+    positionSeconds: PropTypes.number,
+    shuffleEnabled: PropTypes.bool,
+  }).isRequired,
+  queue: PropTypes.arrayOf(playerTrackPropType).isRequired,
+  setVolume: PropTypes.func.isRequired,
+  track: playerTrackPropType,
+  volume: PropTypes.number.isRequired,
+};

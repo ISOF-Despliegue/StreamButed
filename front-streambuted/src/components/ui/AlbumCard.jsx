@@ -1,11 +1,12 @@
 import { IcMusic } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
+import PropTypes from 'prop-types';
 
 export function AlbumCard({ album, onClick }) {
   const artistName = album.artist || album.artistName || 'Catalogo';
 
   return (
-    <div className="album-card" onClick={onClick}>
+    <button className="album-card" onClick={onClick} type="button">
       <div className="album-thumb">
         {album.coverAssetId ? (
           <img src={getAssetUrl(album.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -16,6 +17,17 @@ export function AlbumCard({ album, onClick }) {
       </div>
       <div className="album-card-title">{album.title}</div>
       <div className="album-card-artist">{artistName}</div>
-    </div>
+    </button>
   );
 }
+
+AlbumCard.propTypes = {
+  album: PropTypes.shape({
+    albumId: PropTypes.string,
+    artist: PropTypes.string,
+    artistName: PropTypes.string,
+    coverAssetId: PropTypes.string,
+    title: PropTypes.string,
+  }).isRequired,
+  onClick: PropTypes.func.isRequired,
+};

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_MAX_LENGTH = 320;
@@ -139,9 +140,9 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
 
         <div className="auth-footer">
           Don&apos;t have an account?{' '}
-          <span className="auth-link" onClick={onRegister}>
+          <button className="auth-link" onClick={onRegister} type="button">
             Sign up
-          </span>
+          </button>
         </div>
       </div>
     </div>
@@ -170,6 +171,7 @@ export function RegisterPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const isVerifyingRegistration = Boolean(verification);
 
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
@@ -300,10 +302,12 @@ export function RegisterPage({
         </div>
         <div className="auth-title">Create your account</div>
         <div className="auth-sub">
-          {verification ? 'Enter the code sent to your email' : 'New accounts start as listeners'}
+          {isVerifyingRegistration
+            ? 'Enter the code sent to your email'
+            : 'New accounts start as listeners'}
         </div>
 
-        {!verification && (['email', 'username', 'password', 'confirm']).map((key, index) => {
+        {!isVerifyingRegistration && (['email', 'username', 'password', 'confirm']).map((key, index) => {
           const inputId = `register-${key}`;
           const isPasswordField = key === 'password' || key === 'confirm';
           let inputType = 'text';
@@ -345,7 +349,7 @@ export function RegisterPage({
           );
         })}
 
-        {verification && (
+        {isVerifyingRegistration && (
           <>
             <div className="form-group">
               <label className="form-label" htmlFor="register-code">Codigo de verificacion</label>
@@ -369,9 +373,9 @@ export function RegisterPage({
         )}
 
         {notice && (
-          <div role="status" style={{ fontSize: 13, color: 'var(--success)', marginBottom: 12 }}>
+          <output style={{ fontSize: 13, color: 'var(--success)', marginBottom: 12 }}>
             {notice}
-          </div>
+          </output>
         )}
 
         {(error || externalError) && (
@@ -380,16 +384,7 @@ export function RegisterPage({
           </div>
         )}
 
-        {!verification ? (
-          <button
-            className="btn-primary"
-            style={{ width: '100%', marginBottom: 16 }}
-            onClick={handleCreate}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Sending code...' : 'Create Account'}
-          </button>
-        ) : (
+        {isVerifyingRegistration ? (
           <>
             <button
               className="btn-primary"
@@ -418,6 +413,15 @@ export function RegisterPage({
               {isCancelling ? 'Cancelando...' : 'Cancelar verificacion'}
             </button>
           </>
+        ) : (
+          <button
+            className="btn-primary"
+            style={{ width: '100%', marginBottom: 16 }}
+            onClick={handleCreate}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Sending code...' : 'Create Account'}
+          </button>
         )}
 
         <button
@@ -431,9 +435,9 @@ export function RegisterPage({
 
         <div className="auth-footer">
           Already have an account?{' '}
-          <span className="auth-link" onClick={onBack}>
+          <button className="auth-link" onClick={onBack} type="button">
             Sign in
-          </span>
+          </button>
         </div>
       </div>
     </div>
@@ -543,3 +547,26 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
     </div>
   );
 }
+
+LoginPage.propTypes = {
+  externalError: PropTypes.string,
+  onGoogleLogin: PropTypes.func.isRequired,
+  onLogin: PropTypes.func.isRequired,
+  onRegister: PropTypes.func.isRequired,
+};
+
+RegisterPage.propTypes = {
+  externalError: PropTypes.string,
+  onBack: PropTypes.func.isRequired,
+  onCancelVerification: PropTypes.func.isRequired,
+  onGoogleRegister: PropTypes.func.isRequired,
+  onResendCode: PropTypes.func.isRequired,
+  onStartRegistration: PropTypes.func.isRequired,
+  onVerifyRegistration: PropTypes.func.isRequired,
+};
+
+GooglePasswordSetupPage.propTypes = {
+  email: PropTypes.string.isRequired,
+  externalError: PropTypes.string,
+  onSubmit: PropTypes.func.isRequired,
+};
