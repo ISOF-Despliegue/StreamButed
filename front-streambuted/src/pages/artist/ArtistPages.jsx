@@ -5,6 +5,7 @@ import { IcMusic } from '../../components/icons/Icons';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { FilePicker } from '../../components/ui/FilePicker';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { InlineState } from '../../components/ui/InlineState';
 import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
 import { getAssetUrl, mediaService } from '../../services/mediaService';
@@ -142,22 +143,6 @@ const artistAlbumPropType = PropTypes.shape({
   status: PropTypes.string,
   title: PropTypes.string,
 });
-
-function InlineState({ title, message, onRetry }) {
-  return (
-    <div className="empty-state">
-      <div className="empty-text">{title}</div>
-      {message && <div className="empty-sub">{message}</div>}
-      {onRetry && <button className="btn-ghost" onClick={onRetry} style={{ marginTop: 14 }}>Reintentar</button>}
-    </div>
-  );
-}
-
-InlineState.propTypes = {
-  message: PropTypes.string,
-  onRetry: PropTypes.func,
-  title: PropTypes.string.isRequired,
-};
 
 export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
   const navigate = useNavigate();

@@ -5,6 +5,7 @@ import { catalogService } from '../../services/catalogService';
 import { userService } from '../../services/userService';
 import { formatDate } from '../../utils/formatters';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { InlineState } from '../../components/ui/InlineState';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
@@ -18,23 +19,7 @@ function formatMetricNumber(value) {
   return new Intl.NumberFormat('es-MX').format(Number(value ?? 0));
 }
 
-function InlineState({ title, message, onRetry }) {
-  return (
-    <div className="empty-state">
-      <div className="empty-text">{title}</div>
-      {message && <div className="empty-sub">{message}</div>}
-      {onRetry && <button className="btn-ghost" onClick={onRetry} style={{ marginTop: 14 }}>Reintentar</button>}
-    </div>
-  );
-}
-
-InlineState.propTypes = {
-  message: PropTypes.string,
-  onRetry: PropTypes.func,
-  title: PropTypes.string.isRequired,
-};
-
-export function AdminOverviewPage() {
+function useAdminSummary() {
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -55,6 +40,17 @@ export function AdminOverviewPage() {
   useEffect(() => {
     void loadSummary();
   }, [loadSummary]);
+
+  return {
+    error,
+    isLoading,
+    loadSummary,
+    summary,
+  };
+}
+
+export function AdminOverviewPage() {
+  const { error, isLoading, loadSummary, summary } = useAdminSummary();
 
   return (
     <div className="page-inner">
@@ -111,26 +107,7 @@ RankingCard.propTypes = {
 };
 
 export function AdminAnalyticsPage() {
-  const [summary, setSummary] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const loadSummary = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
-
-    try {
-      setSummary(await analyticsService.getAdminSummary());
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadSummary();
-  }, [loadSummary]);
+  const { error, isLoading, loadSummary, summary } = useAdminSummary();
 
   return (
     <div className="page-inner">
@@ -646,15 +623,16 @@ export function AdminModerationPage({ toast }) {
           rows={tracks.map(track => ({
             key: track.trackId,
             cells: [
-              <>
+              <div key="track-title">
                 <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{track.title}</div>
                 <div style={{ fontSize: 12, color: 'var(--t3)' }}>{track.genre}</div>
-              </>,
+              </div>,
               track.artistName,
               track.albumTitle ?? 'Single',
-              <CatalogStatusBadge status={track.status} />,
-              <span style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</span>,
+              <CatalogStatusBadge key="track-status" status={track.status} />,
+              <span key="track-created-at" style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</span>,
               <RetireActionButton
+                key="track-action"
                 disabled={isActionLoading || track.status === 'RETIRADO'}
                 onClick={() => confirmRetireTrack(track)}
               />,
@@ -672,12 +650,13 @@ export function AdminModerationPage({ toast }) {
           rows={albums.map(album => ({
             key: album.albumId,
             cells: [
-              <span style={{ fontWeight: 600, color: 'var(--t1)' }}>{album.title}</span>,
+              <span key="album-title" style={{ fontWeight: 600, color: 'var(--t1)' }}>{album.title}</span>,
               album.artistName,
               formatMetricNumber(album.trackCount),
-              <CatalogStatusBadge status={album.status} />,
-              <span style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</span>,
+              <CatalogStatusBadge key="album-status" status={album.status} />,
+              <span key="album-created-at" style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</span>,
               <RetireActionButton
+                key="album-action"
                 disabled={isActionLoading || album.status === 'RETIRADO'}
                 onClick={() => confirmRetireAlbum(album)}
               />,
@@ -704,23 +683,24 @@ export function AdminModerationPage({ toast }) {
             rows={users.map(user => ({
               key: user.id,
               cells: [
-                <>
+                <div key="user-identity">
                   <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{user.username}</div>
                   <div style={{ fontSize: 12, color: 'var(--t3)' }}>{user.email}</div>
-                </>,
-                <span className={getRoleBadgeClass(user.role)}>{user.role}</span>,
-                <>
+                </div>,
+                <span key="user-role" className={getRoleBadgeClass(user.role)}>{user.role}</span>,
+                <span key="user-state">
                   <span className={`status-dot ${user.isActive ? 'status-active' : 'status-suspended'}`} />
                   {user.isActive ? 'Activa' : 'Inactiva'}
-                </>,
-                <>
+                </span>,
+                <div key="user-ban-status">
                   <div>{getBanStatusLabel(user.banStatus)}</div>
                   {user.bannedUntil && (
                     <div style={{ fontSize: 12, color: 'var(--t3)' }}>Hasta {formatDate(user.bannedUntil)}</div>
                   )}
-                </>,
-                <span style={{ color: 'var(--t2)' }}>{formatDate(user.createdAt)}</span>,
+                </div>,
+                <span key="user-created-at" style={{ color: 'var(--t2)' }}>{formatDate(user.createdAt)}</span>,
                 <UserModerationAction
+                  key="user-action"
                   isLoading={isActionLoading}
                   onBan={openBanPanel}
                   onUnban={handleUnbanUser}

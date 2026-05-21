@@ -1,9 +1,24 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { CreateAlbumPage, EditTrackPage, MyAlbumsPage, MyTracksPage, UploadSinglePage } from "./ArtistPages";
+import {
+  ArtistAnalyticsPage,
+  ArtistDashboardPage,
+  CreateAlbumPage,
+  EditTrackPage,
+  MyAlbumsPage,
+  MyTracksPage,
+  UploadSinglePage,
+} from "./ArtistPages";
+import { analyticsService } from "../../services/analyticsService";
 import { catalogService } from "../../services/catalogService";
 import { mediaService } from "../../services/mediaService";
+
+jest.mock("../../services/analyticsService", () => ({
+  analyticsService: {
+    getArtistSummary: jest.fn(),
+  },
+}));
 
 jest.mock("../../services/catalogService", () => ({
   catalogService: {
@@ -23,6 +38,29 @@ jest.mock("../../services/mediaService", () => ({
     uploadCatalogImage: jest.fn(),
   },
 }));
+
+const artistAnalyticsSummary = {
+  artistId: "artist-1",
+  totalPlays: 42,
+  averageDailyPlays: 6,
+  averageDailyUniqueListeners: 3,
+  topTracks: [
+    {
+      trackId: "track-1",
+      title: "Luna",
+      plays: 22,
+      uniqueListeners: 9,
+    },
+  ],
+  tracks: [
+    {
+      trackId: "track-1",
+      title: "Luna",
+      plays: 22,
+      uniqueListeners: 9,
+    },
+  ],
+};
 
 function renderWithRouter(ui: React.ReactNode) {
   return render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -46,6 +84,7 @@ describe("artist upload forms", () => {
     jest.mocked(catalogService.createTrack).mockResolvedValue({} as never);
     jest.mocked(catalogService.createTrackInAlbum).mockResolvedValue({} as never);
     jest.mocked(catalogService.updateTrack).mockResolvedValue({} as never);
+    jest.mocked(analyticsService.getArtistSummary).mockResolvedValue(artistAnalyticsSummary as never);
     jest.mocked(catalogService.createAlbum).mockResolvedValue({
       albumId: "album-1",
       artistId: "artist-1",
@@ -57,6 +96,28 @@ describe("artist upload forms", () => {
     } as never);
     jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([]);
     jest.mocked(catalogService.listArtistTracks).mockResolvedValue([]);
+  });
+
+  it("renders artist dashboard and analytics summaries", async () => {
+    const dashboard = renderWithRouter(
+      <ArtistDashboardPage
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        user={{ id: "artist-1", username: "Ada" }}
+      />
+    );
+
+    expect(await screen.findAllByText("Reproducciones")).not.toHaveLength(0);
+    expect(screen.getByText("Top canciones")).toBeInTheDocument();
+    expect(screen.getByText("Luna")).toBeInTheDocument();
+
+    dashboard.unmount();
+
+    render(<ArtistAnalyticsPage user={{ id: "artist-1", username: "Ada" }} />);
+
+    expect(await screen.findByText("Reproducciones totales")).toBeInTheDocument();
+    expect(screen.getAllByText("Luna")).not.toHaveLength(0);
+    expect(analyticsService.getArtistSummary).toHaveBeenCalledWith("artist-1");
   });
 
   it("uploads media before creating a track", async () => {
