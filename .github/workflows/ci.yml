@@ -82,6 +82,7 @@ jobs:
         project:
           - services/media-service
           - services/streaming-service
+          - services/analytics-service
     steps:
       - uses: actions/checkout@v4
         with:
