@@ -7,19 +7,7 @@ import type {
   CurrentUser,
   UserRole,
 } from "../types/user.types";
-
-function withQuery(path: string, params: Record<string, string | number | undefined>): string {
-  const searchParams = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== "") {
-      searchParams.set(key, String(value));
-    }
-  });
-
-  const queryString = searchParams.toString();
-  return queryString ? `${path}?${queryString}` : path;
-}
+import { withQuery } from "../utils/url";
 
 function normalizeRole(role: string): UserRole {
   const normalized = role.toLowerCase();

@@ -204,6 +204,15 @@ const DURATION_UNITS = [
   ['WEEKS', 'Semanas'],
 ];
 
+function normalizeBanDurationAmount(value) {
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
+  }
+
+  return Math.min(parsed, 3650);
+}
+
 function getCatalogStatusLabel(status) {
   return status === 'RETIRADO' ? 'Retirado' : 'Publicado';
 }
@@ -235,8 +244,9 @@ function getBanConfirmationMessage(draft) {
     return `Confirma que deseas banear permanentemente la cuenta ${accountLabel}.`;
   }
 
+  const durationAmount = normalizeBanDurationAmount(draft.durationAmount);
   const unitLabel = DURATION_UNITS.find(([value]) => value === draft.durationUnit)?.[1]?.toLowerCase() ?? 'dias';
-  return `Confirma que deseas banear la cuenta ${accountLabel} por ${draft.durationAmount} ${unitLabel}.`;
+  return `Confirma que deseas banear la cuenta ${accountLabel} por ${durationAmount} ${unitLabel}.`;
 }
 
 function PaginationFooter({ pagination, label }) {
@@ -345,7 +355,7 @@ function BanAccountPanel({ draft, isLoading, onCancel, onChange, onSubmit }) {
                 max="3650"
                 type="number"
                 value={draft.durationAmount}
-                onChange={(event) => onChange({ durationAmount: Number(event.target.value) })}
+                onChange={(event) => onChange({ durationAmount: normalizeBanDurationAmount(event.target.value) })}
               />
             </label>
             <label className="form-group-mb">
@@ -531,11 +541,12 @@ export function AdminModerationPage({ toast }) {
   const banAccount = async (draft) => {
     setIsActionLoading(true);
     setActionError('');
+    const durationAmount = normalizeBanDurationAmount(draft.durationAmount);
 
     try {
       await userService.banUser(draft.user.id, {
         banType: draft.banType,
-        durationAmount: draft.banType === 'TEMPORARY' ? draft.durationAmount : undefined,
+        durationAmount: draft.banType === 'TEMPORARY' ? durationAmount : undefined,
         durationUnit: draft.banType === 'TEMPORARY' ? draft.durationUnit : undefined,
         reason: draft.reason,
       });
@@ -572,7 +583,10 @@ export function AdminModerationPage({ toast }) {
     }
 
     setActionError('');
-    const draft = { ...banDraft };
+    const draft = {
+      ...banDraft,
+      durationAmount: normalizeBanDurationAmount(banDraft.durationAmount),
+    };
     setConfirmation({
       title: 'Banear cuenta',
       message: getBanConfirmationMessage(draft),

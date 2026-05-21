@@ -225,6 +225,29 @@ describe("AdminPages", () => {
     await waitFor(() => expect(userService.unbanUser).toHaveBeenCalledWith("user-2"));
   });
 
+  it("normalizes temporary ban duration before confirming", async () => {
+    const user = userEvent.setup();
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Cuentas" }));
+    await screen.findByText("listener@example.com");
+
+    await user.click(screen.getByRole("button", { name: "Banear" }));
+    await user.clear(screen.getByLabelText("Tiempo"));
+    await user.click(screen.getByRole("button", { name: "Confirmar baneo" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/por 1 dias/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Banear cuenta" }));
+
+    await waitFor(() => expect(userService.banUser).toHaveBeenCalledWith("user-1", expect.objectContaining({
+      banType: "TEMPORARY",
+      durationAmount: 1,
+      durationUnit: "DAYS",
+    })));
+  });
+
   it("shows load errors and retries moderation data", async () => {
     const user = userEvent.setup();
     jest.mocked(catalogService.listAdminTracks)
