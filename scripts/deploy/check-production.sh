@@ -84,12 +84,26 @@ required_vars=(
   POSTGRES_IDENTITY_APP_PASSWORD
   POSTGRES_CATALOG_APP_USER
   POSTGRES_CATALOG_APP_PASSWORD
+  POSTGRES_IDENTITY_MIGRATOR_USER
+  POSTGRES_IDENTITY_MIGRATOR_PASSWORD
+  POSTGRES_CATALOG_MIGRATOR_USER
+  POSTGRES_CATALOG_MIGRATOR_PASSWORD
+  CATALOG_MIGRATOR_DATABASE_URL
   STREAMING_MONGO_URI
   STREAMING_MONGO_DB
   STREAMING_MONGO_ROOT_USER
   STREAMING_MONGO_ROOT_PASSWORD
   STREAMING_MONGO_APP_USER
   STREAMING_MONGO_APP_PASSWORD
+  ANALYTICS_MONGO_URI
+  ANALYTICS_MONGO_DB
+  ANALYTICS_MONGO_ROOT_USER
+  ANALYTICS_MONGO_ROOT_PASSWORD
+  ANALYTICS_MONGO_APP_USER
+  ANALYTICS_MONGO_APP_PASSWORD
+  ANALYTICS_PLAYBACK_QUEUE
+  ANALYTICS_LOGIN_QUEUE
+  ANALYTICS_CATALOG_QUEUE
   RABBITMQ_DEFAULT_USER
   RABBITMQ_DEFAULT_PASS
   MINIO_ACCESS_KEY
@@ -179,6 +193,12 @@ if command -v curl >/dev/null 2>&1; then
     grep -qi '^x-content-type-options: nosniff' /tmp/streambuted_api_headers.txt || fail "Missing X-Content-Type-Options nosniff header"
   else
     warn "HTTPS API health check did not respond; this is expected before DNS/TLS deployment"
+  fi
+
+  if curl -fsSI --max-time 10 "$API_ORIGIN/api/v1/analytics/health" >/dev/null; then
+    ok "HTTPS Analytics health endpoint responded"
+  else
+    warn "HTTPS Analytics health check did not respond; this is expected before DNS/TLS deployment"
   fi
 
   http_status="$(curl -sSIL --max-time 10 "http://api.migueleelg0106.me/api/v1/catalog/health" 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /^HTTP\//{code=$2} END{print code}')"

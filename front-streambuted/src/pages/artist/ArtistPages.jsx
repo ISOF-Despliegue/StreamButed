@@ -5,6 +5,8 @@ import { IcMusic } from '../../components/icons/Icons';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { FilePicker } from '../../components/ui/FilePicker';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { InlineState } from '../../components/ui/InlineState';
+import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
 import { getAssetUrl, mediaService } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
@@ -16,6 +18,10 @@ function getErrorMessage(error) {
   }
 
   return 'No se pudo completar la solicitud.';
+}
+
+function formatMetricNumber(value) {
+  return new Intl.NumberFormat('es-MX').format(Number(value ?? 0));
 }
 
 const TRACK_GENRES = [
@@ -138,40 +144,32 @@ const artistAlbumPropType = PropTypes.shape({
   title: PropTypes.string,
 });
 
-function InlineState({ title, message, onRetry }) {
-  return (
-    <div className="empty-state">
-      <div className="empty-text">{title}</div>
-      {message && <div className="empty-sub">{message}</div>}
-      {onRetry && <button className="btn-ghost" onClick={onRetry} style={{ marginTop: 14 }}>Reintentar</button>}
-    </div>
-  );
-}
-
-InlineState.propTypes = {
-  message: PropTypes.string,
-  onRetry: PropTypes.func,
-  title: PropTypes.string.isRequired,
-};
-
 export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
   const navigate = useNavigate();
   const [tracks, setTracks] = useState([]);
   const [albums, setAlbums] = useState([]);
+  const [analyticsSummary, setAnalyticsSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [analyticsError, setAnalyticsError] = useState('');
 
   const loadCatalog = useCallback(async () => {
     setIsLoading(true);
     setError('');
+    setAnalyticsError('');
 
     try {
-      const [trackResponse, albumResponse] = await Promise.all([
+      const [trackResponse, albumResponse, artistAnalytics] = await Promise.all([
         catalogService.listArtistTracks(user.id),
         catalogService.listArtistAlbums(user.id),
+        analyticsService.getArtistSummary(user.id).catch(err => {
+          setAnalyticsError(getErrorMessage(err));
+          return null;
+        }),
       ]);
       setTracks(trackResponse);
       setAlbums(albumResponse);
+      setAnalyticsSummary(artistAnalytics);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -202,11 +200,21 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
 
       {!isLoading && !error && (
         <>
-          <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 24 }}>
+          <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 24 }}>
             <div className="stat-card"><div className="stat-card-label">Pistas publicadas</div><div className="stat-card-value">{tracks.length}</div></div>
             <div className="stat-card"><div className="stat-card-label">Albums</div><div className="stat-card-value">{albums.length}</div></div>
-            <div className="stat-card"><div className="stat-card-label">Analytics</div><div className="stat-card-value">Pendiente</div></div>
+            <div className="stat-card"><div className="stat-card-label">Reproducciones</div><div className="stat-card-value">{formatMetricNumber(analyticsSummary?.totalPlays)}</div></div>
+            <div className="stat-card">
+              <div className="stat-card-label">Promedio diario</div>
+              <div className="stat-card-value">{formatMetricNumber(analyticsSummary?.averageDailyPlays)}</div>
+              <div className="stat-card-delta">{formatMetricNumber(analyticsSummary?.averageDailyUniqueListeners)} oyentes unicos</div>
+            </div>
           </div>
+          {analyticsError && (
+            <div className="confirm-dialog-warning" style={{ marginBottom: 18 }}>
+              Analytics no esta disponible temporalmente: {analyticsError}
+            </div>
+          )}
 
           <div className="section">
             <div className="section-header">
@@ -232,6 +240,29 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
               </table>
             )}
           </div>
+
+          {analyticsSummary?.topTracks?.length > 0 && (
+            <div className="section">
+              <div className="section-header">
+                <div className="section-title">Top canciones</div>
+                <button className="btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate(routes.artistAnalytics)}>Ver analiticas</button>
+              </div>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead><tr><th>Cancion</th><th>Reproducciones</th><th>Oyentes unicos</th></tr></thead>
+                  <tbody>
+                    {analyticsSummary.topTracks.map(track => (
+                      <tr key={track.trackId}>
+                        <td>{track.title}</td>
+                        <td>{formatMetricNumber(track.plays)}</td>
+                        <td>{formatMetricNumber(track.uniqueListeners)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -1301,14 +1332,110 @@ EditTrackPage.propTypes = {
   user: artistUserPropType.isRequired,
 };
 
-export function ArtistAnalyticsPage() {
+export function ArtistAnalyticsPage({ user }) {
+  const [summary, setSummary] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadAnalytics = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await analyticsService.getArtistSummary(user.id);
+      setSummary(response);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user.id]);
+
+  useEffect(() => {
+    void loadAnalytics();
+  }, [loadAnalytics]);
+
   return (
     <div className="page-inner">
-      <div className="page-header"><div className="page-title">Analiticas</div></div>
-      <InlineState
-        title="Analytics Service no esta disponible"
-        message="Esta vista queda preparada para conectarse cuando el backend implemente endpoints de analitica. No se muestran metricas falsas."
-      />
+      <div className="page-header">
+        <div className="artist-view-badge">Artista</div>
+        <div className="page-title">Analiticas</div>
+        <div className="page-subtitle">Rendimiento de tus canciones publicadas.</div>
+      </div>
+
+      {isLoading && <InlineState title="Cargando analiticas..." />}
+      {error && <InlineState title="No se pudieron cargar las analiticas" message={error} onRetry={loadAnalytics} />}
+
+      {!isLoading && !error && summary && (
+        <>
+          <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 24 }}>
+            <div className="stat-card">
+              <div className="stat-card-label">Reproducciones totales</div>
+              <div className="stat-card-value">{formatMetricNumber(summary.totalPlays)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-label">Promedio plays/dia</div>
+              <div className="stat-card-value">{formatMetricNumber(summary.averageDailyPlays)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-label">Oyentes unicos/dia</div>
+              <div className="stat-card-value">{formatMetricNumber(summary.averageDailyUniqueListeners)}</div>
+            </div>
+          </div>
+
+          <div className="section">
+            <div className="section-header">
+              <div className="section-title">Top 5 canciones</div>
+            </div>
+            {summary.topTracks.length === 0 ? (
+              <InlineState title="Aun no hay reproducciones registradas" />
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead><tr><th>Cancion</th><th>Reproducciones</th><th>Oyentes unicos</th></tr></thead>
+                  <tbody>
+                    {summary.topTracks.map(track => (
+                      <tr key={track.trackId}>
+                        <td>{track.title}</td>
+                        <td>{formatMetricNumber(track.plays)}</td>
+                        <td>{formatMetricNumber(track.uniqueListeners)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="section">
+            <div className="section-header">
+              <div className="section-title">Desglose por cancion</div>
+            </div>
+            {summary.tracks.length === 0 ? (
+              <InlineState title="Sin canciones con metricas" />
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead><tr><th>Cancion</th><th>Reproducciones</th><th>Oyentes unicos</th></tr></thead>
+                  <tbody>
+                    {summary.tracks.map(track => (
+                      <tr key={track.trackId}>
+                        <td>{track.title}</td>
+                        <td>{formatMetricNumber(track.plays)}</td>
+                        <td>{formatMetricNumber(track.uniqueListeners)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
+
+ArtistAnalyticsPage.propTypes = {
+  user: artistUserPropType.isRequired,
+};

@@ -67,6 +67,71 @@ describe("LoginPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Credenciales invalidas.");
   });
 
+  it("shows banned account errors in an app dialog", async () => {
+    const user = userEvent.setup();
+    const error = Object.assign(new Error("La cuenta se encuentra baneada."), {
+      details: {
+        code: "ACCOUNT_BANNED",
+        banType: "TEMPORARY",
+        bannedUntil: "2026-05-20T13:00:00Z",
+        remainingSeconds: 3660,
+      },
+    });
+    const onLogin = jest.fn().mockRejectedValue(error);
+
+    render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Enter your email"), "listener@example.com");
+    await user.type(screen.getByPlaceholderText("Enter your password"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Cuenta baneada");
+    expect(screen.getByRole("dialog")).toHaveTextContent("1 hora y 1 minuto");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("explains permanent account bans in the app dialog", async () => {
+    const user = userEvent.setup();
+    const error = Object.assign(new Error("La cuenta se encuentra baneada."), {
+      details: {
+        code: "ACCOUNT_BANNED",
+        banType: "PERMANENT",
+      },
+    });
+    const onLogin = jest.fn().mockRejectedValue(error);
+
+    render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Enter your email"), "listener@example.com");
+    await user.type(screen.getByPlaceholderText("Enter your password"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      "La cuenta se encuentra baneada permanentemente."
+    );
+  });
+
+  it("formats multi-day temporary bans", async () => {
+    const user = userEvent.setup();
+    const error = Object.assign(new Error("La cuenta se encuentra baneada."), {
+      details: {
+        code: "ACCOUNT_BANNED",
+        banType: "TEMPORARY",
+        bannedUntil: "2026-05-22T13:00:00Z",
+        remainingSeconds: 90000,
+      },
+    });
+    const onLogin = jest.fn().mockRejectedValue(error);
+
+    render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Enter your email"), "listener@example.com");
+    await user.type(screen.getByPlaceholderText("Enter your password"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("1 dia y 1 hora");
+  });
+
   it("starts Google login", async () => {
     const user = userEvent.setup();
     const onGoogleLogin = jest.fn();

@@ -290,9 +290,7 @@ Pendiente recomendado:
 ### Administrador
 
 - Overview
-- Usuarios
-- Contenido
-- Reportes
+- Analytics
 - Moderacion
 - Settings
 
@@ -311,25 +309,16 @@ Contiene:
 - Artistas
 - Tracks
 - Albumes
-- Usuarios mock
-- Moderacion mock
 - Actividad reciente
 - Datos de graficas
 
-No hay integracion real con backend todavia.
+Moderacion consume Catalog e Identity para listar canciones, albumes y cuentas.
 
 ## 14. Autenticacion actual
 
-La autenticacion sigue simulada en `AuthPages.jsx`.
-
-Credenciales mock de admin:
-
-```txt
-Email: admin@streambuted.com
-Password: admin123
-```
-
-Cualquier otro login entra como `listener`.
+La autenticacion consume el Identity Service real. Las cuentas administradoras
+se provisionan en base de datos desde `ADMIN_BOOTSTRAP_*`; no existen
+credenciales mock de administrador en el frontend.
 
 ## 15. Reproductor
 

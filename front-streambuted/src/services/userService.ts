@@ -1,6 +1,13 @@
 import { apiRequest } from "./apiClient";
 import type { UpdateProfileRequest } from "../types/auth.types";
-import type { CurrentUser, UserRole } from "../types/user.types";
+import type {
+  AdminUser,
+  AdminUserListResponse,
+  BanUserRequest,
+  CurrentUser,
+  UserRole,
+} from "../types/user.types";
+import { withQuery } from "../utils/url";
 
 function normalizeRole(role: string): UserRole {
   const normalized = role.toLowerCase();
@@ -40,5 +47,27 @@ export const userService = {
       method: "PATCH",
     });
     return normalizeUser(user);
+  },
+
+  listAdminUsers(params: { limit?: number; offset?: number } = {}): Promise<AdminUserListResponse> {
+    return apiRequest<AdminUserListResponse>(
+      withQuery("/users/admin", {
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      })
+    );
+  },
+
+  banUser(userId: string, request: BanUserRequest): Promise<AdminUser> {
+    return apiRequest<AdminUser>(`/users/admin/${userId}/ban`, {
+      method: "PATCH",
+      body: request,
+    });
+  },
+
+  unbanUser(userId: string): Promise<AdminUser> {
+    return apiRequest<AdminUser>(`/users/admin/${userId}/unban`, {
+      method: "PATCH",
+    });
   },
 };

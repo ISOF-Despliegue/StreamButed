@@ -2,6 +2,9 @@ import { apiRequest } from "./apiClient";
 import type {
   Album,
   AlbumTracksResponse,
+  AdminAlbum,
+  AdminCatalogListResponse,
+  AdminTrack,
   Artist,
   CatalogSearchParams,
   CatalogSearchResponse,
@@ -12,19 +15,7 @@ import type {
   UpdateArtistRequest,
   UpdateTrackRequest,
 } from "../types/catalog.types";
-
-function withQuery(path: string, params: Record<string, string | number | undefined>): string {
-  const searchParams = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== "") {
-      searchParams.set(key, String(value));
-    }
-  });
-
-  const queryString = searchParams.toString();
-  return queryString ? `${path}?${queryString}` : path;
-}
+import { withQuery } from "../utils/url";
 
 export const catalogService = {
   searchCatalog(params: CatalogSearchParams): Promise<CatalogSearchResponse> {
@@ -47,6 +38,26 @@ export const catalogService = {
 
   listArtistTracks(artistId: string): Promise<Track[]> {
     return apiRequest<Track[]>(`/catalog/artists/${artistId}/tracks`);
+  },
+
+  listAdminAlbums(params: { includeRetired?: boolean; limit?: number; offset?: number } = {}): Promise<AdminCatalogListResponse<AdminAlbum>> {
+    return apiRequest<AdminCatalogListResponse<AdminAlbum>>(
+      withQuery("/catalog/admin/albums", {
+        includeRetired: params.includeRetired === false ? "false" : "true",
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      })
+    );
+  },
+
+  listAdminTracks(params: { includeRetired?: boolean; limit?: number; offset?: number } = {}): Promise<AdminCatalogListResponse<AdminTrack>> {
+    return apiRequest<AdminCatalogListResponse<AdminTrack>>(
+      withQuery("/catalog/admin/tracks", {
+        includeRetired: params.includeRetired === false ? "false" : "true",
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      })
+    );
   },
 
   updateArtist(artistId: string, request: UpdateArtistRequest): Promise<Artist> {

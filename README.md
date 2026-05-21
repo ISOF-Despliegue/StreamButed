@@ -9,10 +9,13 @@ Monorepo de microservicios de StreamButed con orquestacion centralizada en la ra
 - `rabbitmq` (RabbitMQ 3.12-management-alpine)
 - `minio` (almacenamiento de assets)
 - `streaming-mongo` (MongoDB 7.0 para progreso de reproduccion)
+- `analytics-mongo` (MongoDB 7.0 para proyecciones de analitica)
 - `identity-service`
 - `catalog-service`
 - `media-service`
 - `streaming-service`
+- `analytics-service`
+- `live-service`
 - `gateway` (nginx)
 
 ## Bases de datos
@@ -27,6 +30,10 @@ Los puertos publicados en el host son configurables con `POSTGRES_IDENTITY_PORT`
 
 `streaming-service` usa MongoDB propio (`streaming-mongo`) para `playback_progress`. Mongo no publica
 `27017` al host por defecto y persiste en `streaming_mongo_data`.
+
+`analytics-service` usa MongoDB propio (`analytics-mongo`) para sus proyecciones de reproducciones,
+usuarios activos y snapshots de catalogo. En produccion el usuario de aplicacion se crea desde
+`db/init/analytics-mongo`.
 
 ## Requisitos
 
@@ -90,6 +97,8 @@ Estos puertos solo se exponen dentro de la red Docker; el trafico HTTP externo d
 - Catalog HTTP: `8082`
 - Media HTTP: `8083`
 - Streaming HTTP: `8084`
+- Analytics HTTP: `8085`
+- Live HTTP/Socket.IO: `3003`
 
 ## Playback bajo demanda
 

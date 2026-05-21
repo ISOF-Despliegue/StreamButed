@@ -44,8 +44,8 @@ import {
   ArtistAnalyticsPage,
 } from "./pages/artist/ArtistPages";
 import {
+  AdminAnalyticsPage,
   AdminOverviewPage,
-  AdminUsersPage,
   AdminModerationPage,
 } from "./pages/admin/AdminPages";
 import { ArtistLiveRoom } from "./pages/live/ArtistLiveRoom";
@@ -1133,7 +1133,7 @@ export default function StreamButed() {
                 path={routes.adminUsers}
                 element={
                   <RoleRoute allowedRoles={["admin"]}>
-                    <AdminUsersPage />
+                    <Navigate to={routes.adminModeration} replace />
                   </RoleRoute>
                 }
               />
@@ -1141,10 +1141,7 @@ export default function StreamButed() {
                 path={routes.adminContent}
                 element={
                   <RoleRoute allowedRoles={["admin"]}>
-                    <NotAvailableState
-                      title="Contenido"
-                      message="No hay endpoints administrativos de catalogo para moderacion global en esta iteracion."
-                    />
+                    <Navigate to={routes.adminModeration} replace />
                   </RoleRoute>
                 }
               />
@@ -1152,10 +1149,7 @@ export default function StreamButed() {
                 path={routes.adminReports}
                 element={
                   <RoleRoute allowedRoles={["admin"]}>
-                    <NotAvailableState
-                      title="Reportes"
-                      message="Analytics Service no tiene API HTTP ni ruta de gateway disponible."
-                    />
+                    <AdminAnalyticsPage />
                   </RoleRoute>
                 }
               />
@@ -1163,7 +1157,7 @@ export default function StreamButed() {
                 path={routes.adminModeration}
                 element={
                   <RoleRoute allowedRoles={["admin"]}>
-                    <AdminModerationPage />
+                    <AdminModerationPage toast={toast} />
                   </RoleRoute>
                 }
               />
@@ -1285,7 +1279,7 @@ export default function StreamButed() {
               path={routes.artistAnalytics}
               element={
                 <RoleRoute allowedRoles={["artist"]}>
-                  <ArtistAnalyticsPage />
+                  <ArtistAnalyticsPage user={user} />
                 </RoleRoute>
               }
             />

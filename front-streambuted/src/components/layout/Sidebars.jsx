@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 import {
   IcHome, IcSearch, IcLib, IcSettings,
   IcDashboard, IcTracks, IcUpload, IcChart, IcMusic,
-  IcOverview, IcUsers, IcContent, IcReport, IcShield,
+  IcOverview, IcReport, IcShield,
 } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
@@ -126,9 +126,7 @@ function MainSidebarComponent({ user }) {
 function AdminSidebarComponent({ user }) {
   const items = [
     { to: routes.adminOverview, end: true, label: 'Overview', icon: <IcOverview /> },
-    { to: routes.adminUsers, label: 'Usuarios', icon: <IcUsers /> },
-    { to: routes.adminContent, label: 'Contenido', icon: <IcContent /> },
-    { to: routes.adminReports, label: 'Reportes', icon: <IcReport /> },
+    { to: routes.adminReports, label: 'Analytics', icon: <IcReport /> },
     { to: routes.adminModeration, label: 'Moderación', icon: <IcShield /> },
     { to: routes.settings, label: 'Settings', icon: <IcSettings /> },
   ];

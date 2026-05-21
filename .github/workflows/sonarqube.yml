@@ -88,6 +88,13 @@ jobs:
           python -m coverage run -m pytest
           python -m coverage xml -o coverage.xml
 
+      - name: Test analytics service with coverage
+        working-directory: services/analytics-service
+        run: |
+          python -m pip install -r requirements.txt coverage
+          python -m coverage run -m pytest
+          python -m coverage xml -o coverage.xml
+
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v7
         env:

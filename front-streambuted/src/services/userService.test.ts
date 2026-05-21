@@ -91,4 +91,34 @@ describe("userService", () => {
       method: "PATCH",
     });
   });
+
+  it("calls admin moderation endpoints", async () => {
+    jest.mocked(apiRequest)
+      .mockResolvedValueOnce({ data: [], pagination: { total: 0 } } as never)
+      .mockResolvedValueOnce({ id: "user-1" } as never)
+      .mockResolvedValueOnce({ id: "user-1" } as never);
+
+    await userService.listAdminUsers({ limit: 25, offset: 50 });
+    await userService.banUser("user-1", {
+      banType: "TEMPORARY",
+      durationAmount: 7,
+      durationUnit: "DAYS",
+      reason: "Abuse",
+    });
+    await userService.unbanUser("user-1");
+
+    expect(apiRequest).toHaveBeenNthCalledWith(1, "/users/admin?limit=25&offset=50");
+    expect(apiRequest).toHaveBeenNthCalledWith(2, "/users/admin/user-1/ban", {
+      method: "PATCH",
+      body: {
+        banType: "TEMPORARY",
+        durationAmount: 7,
+        durationUnit: "DAYS",
+        reason: "Abuse",
+      },
+    });
+    expect(apiRequest).toHaveBeenNthCalledWith(3, "/users/admin/user-1/unban", {
+      method: "PATCH",
+    });
+  });
 });

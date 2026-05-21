@@ -33,6 +33,25 @@ export interface Track {
   updatedAt: string;
 }
 
+export interface AdminTrack extends Track {
+  artistName: string;
+  albumTitle: string | null;
+}
+
+export interface AdminAlbum extends Album {
+  artistName: string;
+  trackCount: number;
+}
+
+export interface AdminCatalogListResponse<T> {
+  data: T[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+  };
+}
+
 export interface CatalogSearchResponse {
   artists: Artist[];
   albums: Album[];
