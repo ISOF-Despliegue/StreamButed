@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_MAX_LENGTH = 320;
@@ -17,6 +18,63 @@ function getErrorMessage(error) {
   }
 
   return 'No se pudo completar la solicitud.';
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function getApiErrorPayload(error) {
+  if (!isObject(error) || !('details' in error) || !isObject(error.details)) {
+    return null;
+  }
+
+  return error.details;
+}
+
+function formatRemainingBanTime(seconds) {
+  const totalSeconds = Number(seconds);
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    return 'unos momentos';
+  }
+
+  const totalMinutes = Math.max(1, Math.ceil(totalSeconds / 60));
+  if (totalMinutes < 60) {
+    return totalMinutes === 1 ? '1 minuto' : `${totalMinutes} minutos`;
+  }
+
+  const totalHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (totalHours < 24) {
+    const hourText = totalHours === 1 ? '1 hora' : `${totalHours} horas`;
+    if (minutes === 0) {
+      return hourText;
+    }
+    const minuteText = minutes === 1 ? '1 minuto' : `${minutes} minutos`;
+    return `${hourText} y ${minuteText}`;
+  }
+
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const dayText = days === 1 ? '1 dia' : `${days} dias`;
+  if (hours === 0) {
+    return dayText;
+  }
+  const hourText = hours === 1 ? '1 hora' : `${hours} horas`;
+  return `${dayText} y ${hourText}`;
+}
+
+function getBannedAccountMessage(error) {
+  const payload = getApiErrorPayload(error);
+  if (!payload || (payload.code !== 'ACCOUNT_BANNED' && payload.error !== 'AccountBannedException')) {
+    return '';
+  }
+
+  if (payload.banType === 'PERMANENT' || !payload.bannedUntil) {
+    return 'La cuenta se encuentra baneada permanentemente.';
+  }
+
+  return `La cuenta se encuentra baneada. Se reactivara en ${formatRemainingBanTime(payload.remainingSeconds)}.`;
 }
 
 function validatePasswordRules(password) {
@@ -53,10 +111,13 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [bannedMessage, setBannedMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async () => {
     const normalizedEmail = email.trim();
+
+    setBannedMessage('');
 
     if (!normalizedEmail) return setError('Email requerido.');
     if (normalizedEmail.length > EMAIL_MAX_LENGTH) return setError('Email supera 320 caracteres.');
@@ -70,7 +131,12 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
     try {
       await onLogin({ email: normalizedEmail, password });
     } catch (err) {
-      setError(getErrorMessage(err));
+      const accountBanMessage = getBannedAccountMessage(err);
+      if (accountBanMessage) {
+        setBannedMessage(accountBanMessage);
+      } else {
+        setError(getErrorMessage(err));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -145,6 +211,15 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(bannedMessage)}
+        title="Cuenta baneada"
+        message={bannedMessage}
+        confirmLabel="Entendido"
+        onConfirm={() => setBannedMessage('')}
+        onCancel={() => setBannedMessage('')}
+      />
     </div>
   );
 }

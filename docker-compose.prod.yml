@@ -74,6 +74,31 @@ services:
     networks:
       - backend
 
+  analytics-mongo:
+    image: mongo:7.0
+    container_name: streambuted-analytics-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${ANALYTICS_MONGO_ROOT_USER:?missing}
+      MONGO_INITDB_ROOT_PASSWORD: ${ANALYTICS_MONGO_ROOT_PASSWORD:?missing}
+      MONGO_INITDB_DATABASE: ${ANALYTICS_MONGO_DB:?missing}
+      ANALYTICS_MONGO_DB: ${ANALYTICS_MONGO_DB:?missing}
+      ANALYTICS_MONGO_APP_USER: ${ANALYTICS_MONGO_APP_USER:?missing}
+      ANALYTICS_MONGO_APP_PASSWORD: ${ANALYTICS_MONGO_APP_PASSWORD:?missing}
+    expose:
+      - "27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u $${MONGO_INITDB_ROOT_USERNAME} -p $${MONGO_INITDB_ROOT_PASSWORD} --authenticationDatabase admin --eval 'db.adminCommand({ ping: 1 }).ok' | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - analytics_mongo_data:/data/db
+      - ./db/init/analytics-mongo:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend
+
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: streambuted-rabbitmq
@@ -172,6 +197,10 @@ services:
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:?missing}
       # OAuth returns to the SPA callback route. Keep CORS as origins only; do not include this path there.
       FRONTEND_URL: ${FRONTEND_URL:?missing}
+      ADMIN_BOOTSTRAP_ENABLED: ${ADMIN_BOOTSTRAP_ENABLED:-false}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_BOOTSTRAP_USERNAME:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
     expose:
       - "8081"
       - "9091"
@@ -313,6 +342,48 @@ services:
     networks:
       - backend
 
+  analytics-service:
+    build:
+      context: .
+      dockerfile: services/analytics-service/Dockerfile
+    container_name: streambuted-analytics-service
+    restart: unless-stopped
+    depends_on:
+      analytics-mongo:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ANALYTICS_PORT: 8085
+      ANALYTICS_MONGO_URI: ${ANALYTICS_MONGO_URI:?missing}
+      ANALYTICS_MONGO_DB: ${ANALYTICS_MONGO_DB:?missing}
+      JWT_ISSUER: ${JWT_ISSUER:?missing}
+      JWT_JWKS_URL: http://identity-service:8081/api/v1/auth/.well-known/jwks.json
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?missing}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?missing}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?missing}
+      EVENT_SIGNING_SECRET: ${EVENT_SIGNING_SECRET:?missing}
+      ANALYTICS_PLAYBACK_QUEUE: analytics.track-playback-counted
+      ANALYTICS_LOGIN_QUEUE: analytics.user-logged-in
+      ANALYTICS_CATALOG_QUEUE: analytics.catalog-events
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?missing}
+    expose:
+      - "8085"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8085/health', timeout=2).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - backend
+
   live-service:
     build:
       context: .
@@ -361,6 +432,8 @@ services:
         condition: service_healthy
       streaming-service:
         condition: service_healthy
+      analytics-service:
+        condition: service_healthy
       live-service:
         condition: service_healthy
     ports:
@@ -382,6 +455,7 @@ volumes:
   rabbitmq_data:
   minio_data:
   streaming_mongo_data:
+  analytics_mongo_data:
 
 networks:
   backend:

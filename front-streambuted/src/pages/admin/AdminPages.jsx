@@ -1,25 +1,61 @@
+import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
+import { analyticsService } from '../../services/analyticsService';
+import { catalogService } from '../../services/catalogService';
+import { userService } from '../../services/userService';
+import { formatDate } from '../../utils/formatters';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 
-function Placeholder({ title, message }) {
+function getErrorMessage(error) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'No se pudo completar la solicitud.';
+}
+
+function formatMetricNumber(value) {
+  return new Intl.NumberFormat('es-MX').format(Number(value ?? 0));
+}
+
+function InlineState({ title, message, onRetry }) {
   return (
-    <div className="page-inner">
-      <div className="page-header">
-        <div className="page-title">{title}</div>
-      </div>
-      <div className="empty-state">
-        <div className="empty-text">Integracion pendiente</div>
-        <div className="empty-sub">{message}</div>
-      </div>
+    <div className="empty-state">
+      <div className="empty-text">{title}</div>
+      {message && <div className="empty-sub">{message}</div>}
+      {onRetry && <button className="btn-ghost" onClick={onRetry} style={{ marginTop: 14 }}>Reintentar</button>}
     </div>
   );
 }
 
-Placeholder.propTypes = {
-  message: PropTypes.string.isRequired,
+InlineState.propTypes = {
+  message: PropTypes.string,
+  onRetry: PropTypes.func,
   title: PropTypes.string.isRequired,
 };
 
 export function AdminOverviewPage() {
+  const [summary, setSummary] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadSummary = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      setSummary(await analyticsService.getAdminSummary());
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSummary();
+  }, [loadSummary]);
+
   return (
     <div className="page-inner">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -27,37 +63,621 @@ export function AdminOverviewPage() {
       </div>
 
       <div className="stat-cards">
-        <div className="stat-card"><div className="stat-card-label">Identity Service</div><div className="stat-card-value">Conectado</div></div>
-        <div className="stat-card"><div className="stat-card-label">Catalog Service</div><div className="stat-card-value">Conectado</div></div>
-        <div className="stat-card"><div className="stat-card-label">Media Service</div><div className="stat-card-value">Conectado</div></div>
-        <div className="stat-card"><div className="stat-card-label">Analytics</div><div className="stat-card-value">Pendiente</div></div>
+        <div className="stat-card"><div className="stat-card-label">DAU</div><div className="stat-card-value">{formatMetricNumber(summary?.dailyActiveUsers)}</div></div>
+        <div className="stat-card"><div className="stat-card-label">MAU</div><div className="stat-card-value">{formatMetricNumber(summary?.monthlyActiveUsers)}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Reproducciones</div><div className="stat-card-value">{formatMetricNumber(summary?.totalPlays)}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Analytics</div><div className="stat-card-value">{error ? 'Error' : 'Activo'}</div></div>
       </div>
 
-      <div className="settings-card" style={{ maxWidth: 860 }}>
-        <div className="settings-card-title">Panel administrativo preparado</div>
-        <p style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.7 }}>
-          No hay endpoints administrativos para usuarios, reportes, moderacion global o analitica.
-          Por eso se removieron tablas, graficas y actividad mock de la UI productiva.
-        </p>
-      </div>
+      {isLoading && <InlineState title="Cargando analiticas globales..." />}
+      {error && <InlineState title="No se pudieron cargar las analiticas" message={error} onRetry={loadSummary} />}
+
+      {!isLoading && !error && summary && (
+        <div className="chart-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <RankingCard title="Top canciones" rows={summary.topTracks} primaryKey="title" />
+          <RankingCard title="Top artistas" rows={summary.topArtists} primaryKey="artistName" />
+        </div>
+      )}
     </div>
   );
 }
 
-export function AdminUsersPage() {
+function RankingCard({ title, rows, primaryKey }) {
   return (
-    <Placeholder
-      title="User Management"
-      message="Identity expone /users/me y /users/promote para el usuario autenticado, pero no una API administrativa de usuarios en esta iteracion."
-    />
+    <div className="chart-card">
+      <div className="chart-card-title">{title}</div>
+      <div className="chart-card-sub">Ordenado por reproducciones</div>
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 13, color: 'var(--t2)' }}>Sin datos registrados.</div>
+      ) : (
+        <div className="chart-legend">
+          {rows.slice(0, 5).map((row, index) => (
+            <div className="legend-item" key={row.trackId ?? row.artistId}>
+              <span className="legend-dot" style={{ background: index === 0 ? 'var(--accent)' : 'var(--border2)' }} />
+              <span>{row[primaryKey]}</span>
+              <span className="legend-pct">{formatMetricNumber(row.plays)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
-export function AdminModerationPage() {
+RankingCard.propTypes = {
+  primaryKey: PropTypes.string.isRequired,
+  rows: PropTypes.arrayOf(PropTypes.object).isRequired,
+  title: PropTypes.string.isRequired,
+};
+
+export function AdminAnalyticsPage() {
+  const [summary, setSummary] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadSummary = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      setSummary(await analyticsService.getAdminSummary());
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSummary();
+  }, [loadSummary]);
+
   return (
-    <Placeholder
-      title="Content Moderation"
-      message="Catalog permite crear, editar y retirar contenido propio de artista. No hay API de moderacion global ni reportes de contenido disponibles."
-    />
+    <div className="page-inner">
+      <div className="page-header">
+        <div className="page-title">Analytics</div>
+        <div className="page-subtitle">Uso global y rankings de la plataforma.</div>
+      </div>
+
+      {isLoading && <InlineState title="Cargando analytics..." />}
+      {error && <InlineState title="No se pudo cargar Analytics" message={error} onRetry={loadSummary} />}
+
+      {!isLoading && !error && summary && (
+        <>
+          <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 24 }}>
+            <div className="stat-card"><div className="stat-card-label">DAU</div><div className="stat-card-value">{formatMetricNumber(summary.dailyActiveUsers)}</div></div>
+            <div className="stat-card"><div className="stat-card-label">MAU</div><div className="stat-card-value">{formatMetricNumber(summary.monthlyActiveUsers)}</div></div>
+            <div className="stat-card"><div className="stat-card-label">Reproducciones globales</div><div className="stat-card-value">{formatMetricNumber(summary.totalPlays)}</div></div>
+          </div>
+
+          <div className="chart-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <AnalyticsTable title="Top canciones" rows={summary.topTracks} nameKey="title" />
+            <AnalyticsTable title="Top artistas" rows={summary.topArtists} nameKey="artistName" />
+          </div>
+        </>
+      )}
+    </div>
   );
 }
+
+function AnalyticsTable({ title, rows, nameKey }) {
+  return (
+    <div className="table-wrap">
+      <div className="table-header">
+        <div className="section-title">{title}</div>
+      </div>
+      {rows.length === 0 ? (
+        <InlineState title="Sin metricas disponibles" />
+      ) : (
+        <table className="data-table">
+          <thead><tr><th>Nombre</th><th>Reproducciones</th><th>Oyentes unicos</th></tr></thead>
+          <tbody>
+            {rows.map(row => (
+              <tr key={row.trackId ?? row.artistId}>
+                <td>{row[nameKey]}</td>
+                <td>{formatMetricNumber(row.plays)}</td>
+                <td>{formatMetricNumber(row.uniqueListeners)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+AnalyticsTable.propTypes = {
+  nameKey: PropTypes.string.isRequired,
+  rows: PropTypes.arrayOf(PropTypes.object).isRequired,
+  title: PropTypes.string.isRequired,
+};
+
+const MODERATION_TABS = [
+  ['tracks', 'Canciones'],
+  ['albums', 'Albumes'],
+  ['users', 'Cuentas'],
+];
+
+const DURATION_UNITS = [
+  ['HOURS', 'Horas'],
+  ['DAYS', 'Dias'],
+  ['WEEKS', 'Semanas'],
+];
+
+function getCatalogStatusLabel(status) {
+  return status === 'RETIRADO' ? 'Retirado' : 'Publicado';
+}
+
+function getBanStatusLabel(status) {
+  switch (status) {
+    case 'TEMPORARY':
+      return 'Baneo temporal';
+    case 'PERMANENT':
+      return 'Baneo permanente';
+    case 'EXPIRED':
+      return 'Baneo expirado';
+    case 'INACTIVE':
+      return 'Inactiva';
+    default:
+      return 'Sin baneo';
+  }
+}
+
+function getRoleBadgeClass(role) {
+  if (role === 'admin') return 'badge badge-admin';
+  if (role === 'artist') return 'badge badge-artist';
+  return 'badge badge-listener';
+}
+
+function getBanConfirmationMessage(draft) {
+  const accountLabel = `${draft.user.username} - ${draft.user.email}`;
+  if (draft.banType === 'PERMANENT') {
+    return `Confirma que deseas banear permanentemente la cuenta ${accountLabel}.`;
+  }
+
+  const unitLabel = DURATION_UNITS.find(([value]) => value === draft.durationUnit)?.[1]?.toLowerCase() ?? 'dias';
+  return `Confirma que deseas banear la cuenta ${accountLabel} por ${draft.durationAmount} ${unitLabel}.`;
+}
+
+function PaginationFooter({ pagination, label }) {
+  return (
+    <div className="pagination">
+      <span>{formatMetricNumber(pagination.total)} {label}</span>
+      <span>Mostrando {formatMetricNumber(pagination.dataCount)} de {formatMetricNumber(pagination.total)}</span>
+    </div>
+  );
+}
+
+PaginationFooter.propTypes = {
+  label: PropTypes.string.isRequired,
+  pagination: PropTypes.shape({
+    dataCount: PropTypes.number.isRequired,
+    total: PropTypes.number.isRequired,
+  }).isRequired,
+};
+
+function BanAccountPanel({ draft, isLoading, onCancel, onChange, onSubmit }) {
+  if (!draft.user) {
+    return null;
+  }
+
+  const isTemporary = draft.banType === 'TEMPORARY';
+
+  return (
+    <form className="moderation-action-panel" onSubmit={onSubmit}>
+      <div>
+        <div className="section-title">Banear cuenta</div>
+        <div style={{ color: 'var(--t2)', fontSize: 13 }}>{draft.user.username} - {draft.user.email}</div>
+      </div>
+
+      <div className="moderation-form-grid">
+        <label className="form-group-mb">
+          <span className="form-label">Tipo</span>
+          <select value={draft.banType} onChange={(event) => onChange({ banType: event.target.value })}>
+            <option value="TEMPORARY">Temporal</option>
+            <option value="PERMANENT">Permanente</option>
+          </select>
+        </label>
+
+        {isTemporary && (
+          <>
+            <label className="form-group-mb">
+              <span className="form-label">Tiempo</span>
+              <input
+                min="1"
+                max="3650"
+                type="number"
+                value={draft.durationAmount}
+                onChange={(event) => onChange({ durationAmount: Number(event.target.value) })}
+              />
+            </label>
+            <label className="form-group-mb">
+              <span className="form-label">Unidad</span>
+              <select value={draft.durationUnit} onChange={(event) => onChange({ durationUnit: event.target.value })}>
+                {DURATION_UNITS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+          </>
+        )}
+
+        <label
+          className="form-group-mb moderation-reason-field"
+          style={{ gridColumn: isTemporary ? 'auto' : 'span 3' }}
+        >
+          <span className="form-label">Motivo interno</span>
+          <input
+            maxLength={500}
+            placeholder="Opcional"
+            value={draft.reason}
+            onChange={(event) => onChange({ reason: event.target.value })}
+          />
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <button className="btn-ghost" disabled={isLoading} type="button" onClick={onCancel}>Cancelar</button>
+        <button className="btn-danger" disabled={isLoading} type="submit">
+          {isLoading ? 'Aplicando...' : 'Confirmar baneo'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+BanAccountPanel.propTypes = {
+  draft: PropTypes.shape({
+    banType: PropTypes.string.isRequired,
+    durationAmount: PropTypes.number.isRequired,
+    durationUnit: PropTypes.string.isRequired,
+    reason: PropTypes.string.isRequired,
+    user: PropTypes.object,
+  }).isRequired,
+  isLoading: PropTypes.bool.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  onChange: PropTypes.func.isRequired,
+  onSubmit: PropTypes.func.isRequired,
+};
+
+export function AdminModerationPage({ toast }) {
+  const [activeTab, setActiveTab] = useState('tracks');
+  const [tracks, setTracks] = useState([]);
+  const [albums, setAlbums] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [pagination, setPagination] = useState({ dataCount: 0, limit: 50, offset: 0, total: 0 });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [confirmation, setConfirmation] = useState(null);
+  const [banDraft, setBanDraft] = useState({
+    user: null,
+    banType: 'TEMPORARY',
+    durationAmount: 7,
+    durationUnit: 'DAYS',
+    reason: '',
+  });
+
+  const loadModerationItems = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+    setActionError('');
+
+    try {
+      if (activeTab === 'tracks') {
+        const response = await catalogService.listAdminTracks({ includeRetired: true, limit: 50, offset: 0 });
+        setTracks(response.data);
+        setPagination({ ...response.pagination, dataCount: response.data.length });
+        return;
+      }
+
+      if (activeTab === 'albums') {
+        const response = await catalogService.listAdminAlbums({ includeRetired: true, limit: 50, offset: 0 });
+        setAlbums(response.data);
+        setPagination({ ...response.pagination, dataCount: response.data.length });
+        return;
+      }
+
+      const response = await userService.listAdminUsers({ limit: 50, offset: 0 });
+      setUsers(response.data);
+      setPagination({ ...response.pagination, dataCount: response.data.length });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    void loadModerationItems();
+  }, [loadModerationItems]);
+
+  const retireTrack = async (track) => {
+    setIsActionLoading(true);
+    setActionError('');
+    try {
+      await catalogService.retireTrack(track.trackId);
+      toast('Cancion retirada.');
+      setConfirmation(null);
+      await loadModerationItems();
+    } catch (err) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const retireAlbum = async (album) => {
+    setIsActionLoading(true);
+    setActionError('');
+    try {
+      await catalogService.retireAlbum(album.albumId);
+      toast('Album retirado.');
+      setConfirmation(null);
+      await loadModerationItems();
+    } catch (err) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const confirmRetireTrack = (track) => {
+    setActionError('');
+    setConfirmation({
+      title: 'Retirar cancion',
+      message: `Confirma que deseas retirar "${track.title}" del catalogo.`,
+      confirmLabel: 'Retirar cancion',
+      onConfirm: () => retireTrack(track),
+    });
+  };
+
+  const confirmRetireAlbum = (album) => {
+    setActionError('');
+    setConfirmation({
+      title: 'Retirar album',
+      message: `Confirma que deseas retirar "${album.title}" del catalogo.`,
+      confirmLabel: 'Retirar album',
+      onConfirm: () => retireAlbum(album),
+    });
+  };
+
+  const banAccount = async (draft) => {
+    setIsActionLoading(true);
+    setActionError('');
+
+    try {
+      await userService.banUser(draft.user.id, {
+        banType: draft.banType,
+        durationAmount: draft.banType === 'TEMPORARY' ? draft.durationAmount : undefined,
+        durationUnit: draft.banType === 'TEMPORARY' ? draft.durationUnit : undefined,
+        reason: draft.reason,
+      });
+      toast('Cuenta baneada.');
+      setConfirmation(null);
+      setBanDraft((current) => ({ ...current, user: null }));
+      await loadModerationItems();
+    } catch (err) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleBanDraftChange = (patch) => {
+    setBanDraft((current) => ({ ...current, ...patch }));
+  };
+
+  const openBanPanel = (user) => {
+    setActionError('');
+    setBanDraft({
+      user,
+      banType: 'TEMPORARY',
+      durationAmount: 7,
+      durationUnit: 'DAYS',
+      reason: '',
+    });
+  };
+
+  const handleBanSubmit = async (event) => {
+    event.preventDefault();
+    if (!banDraft.user) {
+      return;
+    }
+
+    setActionError('');
+    const draft = { ...banDraft };
+    setConfirmation({
+      title: 'Banear cuenta',
+      message: getBanConfirmationMessage(draft),
+      confirmLabel: 'Banear cuenta',
+      onConfirm: () => banAccount(draft),
+    });
+  };
+
+  const handleUnbanUser = async (user) => {
+    setIsActionLoading(true);
+    setActionError('');
+
+    try {
+      await userService.unbanUser(user.id);
+      toast('Cuenta reactivada.');
+      await loadModerationItems();
+    } catch (err) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  return (
+    <div className="page-inner">
+      <div className="page-header">
+        <div className="page-title">Moderacion</div>
+        <div className="page-subtitle">Gestion operativa de canciones, albumes y cuentas de la plataforma.</div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+        {MODERATION_TABS.map(([value, label]) => (
+          <button
+            key={value}
+            className={`filter-btn${activeTab === value ? ' active' : ''}`}
+            onClick={() => {
+              setActiveTab(value);
+              setBanDraft((current) => ({ ...current, user: null }));
+            }}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {isLoading && <InlineState title="Cargando moderacion..." />}
+      {error && <InlineState title="No se pudo cargar Moderacion" message={error} onRetry={loadModerationItems} />}
+      {actionError && <InlineState title="No se pudo aplicar la accion" message={actionError} />}
+
+      {!isLoading && !error && activeTab === 'tracks' && (
+        <div className="table-wrap">
+          {tracks.length === 0 ? (
+            <InlineState title="No hay canciones registradas" />
+          ) : (
+            <table className="data-table">
+              <thead><tr><th>Cancion</th><th>Artista</th><th>Album</th><th>Estado</th><th>Fecha</th><th>Accion</th></tr></thead>
+              <tbody>
+                {tracks.map(track => (
+                  <tr key={track.trackId}>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{track.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--t3)' }}>{track.genre}</div>
+                    </td>
+                    <td>{track.artistName}</td>
+                    <td>{track.albumTitle ?? 'Single'}</td>
+                    <td><span className={`badge ${track.status === 'RETIRADO' ? 'badge-danger-soft' : 'badge-success-soft'}`}>{getCatalogStatusLabel(track.status)}</span></td>
+                    <td style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</td>
+                    <td>
+                      <button
+                        className="btn-danger"
+                        disabled={isActionLoading || track.status === 'RETIRADO'}
+                        onClick={() => confirmRetireTrack(track)}
+                        type="button"
+                      >
+                        Retirar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <PaginationFooter label="canciones" pagination={pagination} />
+        </div>
+      )}
+
+      {!isLoading && !error && activeTab === 'albums' && (
+        <div className="table-wrap">
+          {albums.length === 0 ? (
+            <InlineState title="No hay albumes registrados" />
+          ) : (
+            <table className="data-table">
+              <thead><tr><th>Album</th><th>Artista</th><th>Canciones</th><th>Estado</th><th>Fecha</th><th>Accion</th></tr></thead>
+              <tbody>
+                {albums.map(album => (
+                  <tr key={album.albumId}>
+                    <td style={{ fontWeight: 600, color: 'var(--t1)' }}>{album.title}</td>
+                    <td>{album.artistName}</td>
+                    <td>{formatMetricNumber(album.trackCount)}</td>
+                    <td><span className={`badge ${album.status === 'RETIRADO' ? 'badge-danger-soft' : 'badge-success-soft'}`}>{getCatalogStatusLabel(album.status)}</span></td>
+                    <td style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</td>
+                    <td>
+                      <button
+                        className="btn-danger"
+                        disabled={isActionLoading || album.status === 'RETIRADO'}
+                        onClick={() => confirmRetireAlbum(album)}
+                        type="button"
+                      >
+                        Retirar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <PaginationFooter label="albumes" pagination={pagination} />
+        </div>
+      )}
+
+      {!isLoading && !error && activeTab === 'users' && (
+        <>
+          <BanAccountPanel
+            draft={banDraft}
+            isLoading={isActionLoading}
+            onCancel={() => setBanDraft((current) => ({ ...current, user: null }))}
+            onChange={handleBanDraftChange}
+            onSubmit={handleBanSubmit}
+          />
+
+          <div className="table-wrap">
+            {users.length === 0 ? (
+              <InlineState title="No hay cuentas registradas" />
+            ) : (
+              <table className="data-table">
+                <thead><tr><th>Cuenta</th><th>Rol</th><th>Estado</th><th>Baneo</th><th>Alta</th><th>Accion</th></tr></thead>
+                <tbody>
+                  {users.map(user => (
+                    <tr key={user.id}>
+                      <td>
+                        <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{user.username}</div>
+                        <div style={{ fontSize: 12, color: 'var(--t3)' }}>{user.email}</div>
+                      </td>
+                      <td><span className={getRoleBadgeClass(user.role)}>{user.role}</span></td>
+                      <td>
+                        <span className={`status-dot ${user.isActive ? 'status-active' : 'status-suspended'}`} />
+                        {user.isActive ? 'Activa' : 'Inactiva'}
+                      </td>
+                      <td>
+                        <div>{getBanStatusLabel(user.banStatus)}</div>
+                        {user.bannedUntil && (
+                          <div style={{ fontSize: 12, color: 'var(--t3)' }}>Hasta {formatDate(user.bannedUntil)}</div>
+                        )}
+                      </td>
+                      <td style={{ color: 'var(--t2)' }}>{formatDate(user.createdAt)}</td>
+                      <td>
+                        {user.role === 'admin' ? (
+                          <span style={{ color: 'var(--t3)' }}>Protegida</span>
+                        ) : user.banStatus === 'ACTIVE' ? (
+                          <button className="btn-danger" disabled={isActionLoading} onClick={() => openBanPanel(user)} type="button">Banear</button>
+                        ) : (
+                          <button className="btn-ghost" disabled={isActionLoading} onClick={() => handleUnbanUser(user)} type="button">Reactivar</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <PaginationFooter label="cuentas" pagination={pagination} />
+          </div>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={Boolean(confirmation)}
+        title={confirmation?.title ?? ''}
+        message={confirmation?.message ?? ''}
+        confirmLabel={confirmation?.confirmLabel ?? 'Confirmar'}
+        isLoading={isActionLoading}
+        onConfirm={() => confirmation?.onConfirm()}
+        onCancel={() => setConfirmation(null)}
+      />
+    </div>
+  );
+}
+
+AdminModerationPage.propTypes = {
+  toast: PropTypes.func,
+};
+
+AdminModerationPage.defaultProps = {
+  toast: () => {},
+};
