@@ -256,6 +256,63 @@ PaginationFooter.propTypes = {
   }).isRequired,
 };
 
+function CatalogStatusBadge({ status }) {
+  const className = status === 'RETIRADO' ? 'badge-danger-soft' : 'badge-success-soft';
+  return <span className={`badge ${className}`}>{getCatalogStatusLabel(status)}</span>;
+}
+
+CatalogStatusBadge.propTypes = {
+  status: PropTypes.string.isRequired,
+};
+
+function RetireActionButton({ disabled, onClick }) {
+  return (
+    <button className="btn-danger" disabled={disabled} onClick={onClick} type="button">
+      Retirar
+    </button>
+  );
+}
+
+RetireActionButton.propTypes = {
+  disabled: PropTypes.bool.isRequired,
+  onClick: PropTypes.func.isRequired,
+};
+
+function ModerationTable({ emptyTitle, headers, label, pagination, rows }) {
+  return (
+    <div className="table-wrap">
+      {rows.length === 0 ? (
+        <InlineState title={emptyTitle} />
+      ) : (
+        <table className="data-table">
+          <thead>
+            <tr>{headers.map(header => <th key={header}>{header}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map(row => (
+              <tr key={row.key}>
+                {row.cells.map((cell, index) => <td key={`${row.key}-${index}`}>{cell}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <PaginationFooter label={label} pagination={pagination} />
+    </div>
+  );
+}
+
+ModerationTable.propTypes = {
+  emptyTitle: PropTypes.string.isRequired,
+  headers: PropTypes.arrayOf(PropTypes.string).isRequired,
+  label: PropTypes.string.isRequired,
+  pagination: PaginationFooter.propTypes.pagination,
+  rows: PropTypes.arrayOf(PropTypes.shape({
+    cells: PropTypes.arrayOf(PropTypes.node).isRequired,
+    key: PropTypes.string.isRequired,
+  })).isRequired,
+};
+
 function BanAccountPanel({ draft, isLoading, onCancel, onChange, onSubmit }) {
   if (!draft.user) {
     return null;
@@ -336,6 +393,36 @@ BanAccountPanel.propTypes = {
   onCancel: PropTypes.func.isRequired,
   onChange: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired,
+};
+
+function UserModerationAction({ isLoading, onBan, onUnban, user }) {
+  if (user.role === 'admin') {
+    return <span style={{ color: 'var(--t3)' }}>Protegida</span>;
+  }
+
+  if (user.banStatus === 'ACTIVE') {
+    return (
+      <button className="btn-danger" disabled={isLoading} onClick={() => onBan(user)} type="button">
+        Banear
+      </button>
+    );
+  }
+
+  return (
+    <button className="btn-ghost" disabled={isLoading} onClick={() => onUnban(user)} type="button">
+      Reactivar
+    </button>
+  );
+}
+
+UserModerationAction.propTypes = {
+  isLoading: PropTypes.bool.isRequired,
+  onBan: PropTypes.func.isRequired,
+  onUnban: PropTypes.func.isRequired,
+  user: PropTypes.shape({
+    banStatus: PropTypes.string.isRequired,
+    role: PropTypes.string.isRequired,
+  }).isRequired,
 };
 
 export function AdminModerationPage({ toast }) {
@@ -537,74 +624,52 @@ export function AdminModerationPage({ toast }) {
       {actionError && <InlineState title="No se pudo aplicar la accion" message={actionError} />}
 
       {!isLoading && !error && activeTab === 'tracks' && (
-        <div className="table-wrap">
-          {tracks.length === 0 ? (
-            <InlineState title="No hay canciones registradas" />
-          ) : (
-            <table className="data-table">
-              <thead><tr><th>Cancion</th><th>Artista</th><th>Album</th><th>Estado</th><th>Fecha</th><th>Accion</th></tr></thead>
-              <tbody>
-                {tracks.map(track => (
-                  <tr key={track.trackId}>
-                    <td>
-                      <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{track.title}</div>
-                      <div style={{ fontSize: 12, color: 'var(--t3)' }}>{track.genre}</div>
-                    </td>
-                    <td>{track.artistName}</td>
-                    <td>{track.albumTitle ?? 'Single'}</td>
-                    <td><span className={`badge ${track.status === 'RETIRADO' ? 'badge-danger-soft' : 'badge-success-soft'}`}>{getCatalogStatusLabel(track.status)}</span></td>
-                    <td style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</td>
-                    <td>
-                      <button
-                        className="btn-danger"
-                        disabled={isActionLoading || track.status === 'RETIRADO'}
-                        onClick={() => confirmRetireTrack(track)}
-                        type="button"
-                      >
-                        Retirar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <PaginationFooter label="canciones" pagination={pagination} />
-        </div>
+        <ModerationTable
+          emptyTitle="No hay canciones registradas"
+          headers={['Cancion', 'Artista', 'Album', 'Estado', 'Fecha', 'Accion']}
+          label="canciones"
+          pagination={pagination}
+          rows={tracks.map(track => ({
+            key: track.trackId,
+            cells: [
+              <>
+                <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{track.title}</div>
+                <div style={{ fontSize: 12, color: 'var(--t3)' }}>{track.genre}</div>
+              </>,
+              track.artistName,
+              track.albumTitle ?? 'Single',
+              <CatalogStatusBadge status={track.status} />,
+              <span style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</span>,
+              <RetireActionButton
+                disabled={isActionLoading || track.status === 'RETIRADO'}
+                onClick={() => confirmRetireTrack(track)}
+              />,
+            ],
+          }))}
+        />
       )}
 
       {!isLoading && !error && activeTab === 'albums' && (
-        <div className="table-wrap">
-          {albums.length === 0 ? (
-            <InlineState title="No hay albumes registrados" />
-          ) : (
-            <table className="data-table">
-              <thead><tr><th>Album</th><th>Artista</th><th>Canciones</th><th>Estado</th><th>Fecha</th><th>Accion</th></tr></thead>
-              <tbody>
-                {albums.map(album => (
-                  <tr key={album.albumId}>
-                    <td style={{ fontWeight: 600, color: 'var(--t1)' }}>{album.title}</td>
-                    <td>{album.artistName}</td>
-                    <td>{formatMetricNumber(album.trackCount)}</td>
-                    <td><span className={`badge ${album.status === 'RETIRADO' ? 'badge-danger-soft' : 'badge-success-soft'}`}>{getCatalogStatusLabel(album.status)}</span></td>
-                    <td style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</td>
-                    <td>
-                      <button
-                        className="btn-danger"
-                        disabled={isActionLoading || album.status === 'RETIRADO'}
-                        onClick={() => confirmRetireAlbum(album)}
-                        type="button"
-                      >
-                        Retirar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <PaginationFooter label="albumes" pagination={pagination} />
-        </div>
+        <ModerationTable
+          emptyTitle="No hay albumes registrados"
+          headers={['Album', 'Artista', 'Canciones', 'Estado', 'Fecha', 'Accion']}
+          label="albumes"
+          pagination={pagination}
+          rows={albums.map(album => ({
+            key: album.albumId,
+            cells: [
+              <span style={{ fontWeight: 600, color: 'var(--t1)' }}>{album.title}</span>,
+              album.artistName,
+              formatMetricNumber(album.trackCount),
+              <CatalogStatusBadge status={album.status} />,
+              <span style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</span>,
+              <RetireActionButton
+                disabled={isActionLoading || album.status === 'RETIRADO'}
+                onClick={() => confirmRetireAlbum(album)}
+              />,
+            ],
+          }))}
+        />
       )}
 
       {!isLoading && !error && activeTab === 'users' && (
@@ -617,47 +682,39 @@ export function AdminModerationPage({ toast }) {
             onSubmit={handleBanSubmit}
           />
 
-          <div className="table-wrap">
-            {users.length === 0 ? (
-              <InlineState title="No hay cuentas registradas" />
-            ) : (
-              <table className="data-table">
-                <thead><tr><th>Cuenta</th><th>Rol</th><th>Estado</th><th>Baneo</th><th>Alta</th><th>Accion</th></tr></thead>
-                <tbody>
-                  {users.map(user => (
-                    <tr key={user.id}>
-                      <td>
-                        <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{user.username}</div>
-                        <div style={{ fontSize: 12, color: 'var(--t3)' }}>{user.email}</div>
-                      </td>
-                      <td><span className={getRoleBadgeClass(user.role)}>{user.role}</span></td>
-                      <td>
-                        <span className={`status-dot ${user.isActive ? 'status-active' : 'status-suspended'}`} />
-                        {user.isActive ? 'Activa' : 'Inactiva'}
-                      </td>
-                      <td>
-                        <div>{getBanStatusLabel(user.banStatus)}</div>
-                        {user.bannedUntil && (
-                          <div style={{ fontSize: 12, color: 'var(--t3)' }}>Hasta {formatDate(user.bannedUntil)}</div>
-                        )}
-                      </td>
-                      <td style={{ color: 'var(--t2)' }}>{formatDate(user.createdAt)}</td>
-                      <td>
-                        {user.role === 'admin' ? (
-                          <span style={{ color: 'var(--t3)' }}>Protegida</span>
-                        ) : user.banStatus === 'ACTIVE' ? (
-                          <button className="btn-danger" disabled={isActionLoading} onClick={() => openBanPanel(user)} type="button">Banear</button>
-                        ) : (
-                          <button className="btn-ghost" disabled={isActionLoading} onClick={() => handleUnbanUser(user)} type="button">Reactivar</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <PaginationFooter label="cuentas" pagination={pagination} />
-          </div>
+          <ModerationTable
+            emptyTitle="No hay cuentas registradas"
+            headers={['Cuenta', 'Rol', 'Estado', 'Baneo', 'Alta', 'Accion']}
+            label="cuentas"
+            pagination={pagination}
+            rows={users.map(user => ({
+              key: user.id,
+              cells: [
+                <>
+                  <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{user.username}</div>
+                  <div style={{ fontSize: 12, color: 'var(--t3)' }}>{user.email}</div>
+                </>,
+                <span className={getRoleBadgeClass(user.role)}>{user.role}</span>,
+                <>
+                  <span className={`status-dot ${user.isActive ? 'status-active' : 'status-suspended'}`} />
+                  {user.isActive ? 'Activa' : 'Inactiva'}
+                </>,
+                <>
+                  <div>{getBanStatusLabel(user.banStatus)}</div>
+                  {user.bannedUntil && (
+                    <div style={{ fontSize: 12, color: 'var(--t3)' }}>Hasta {formatDate(user.bannedUntil)}</div>
+                  )}
+                </>,
+                <span style={{ color: 'var(--t2)' }}>{formatDate(user.createdAt)}</span>,
+                <UserModerationAction
+                  isLoading={isActionLoading}
+                  onBan={openBanPanel}
+                  onUnban={handleUnbanUser}
+                  user={user}
+                />,
+              ],
+            }))}
+          />
         </>
       )}
 

@@ -34,4 +34,32 @@ describe("catalogService", () => {
       expect.any(Object)
     );
   });
+
+  it("calls admin catalog list and retire endpoints", async () => {
+    await catalogService.listAdminTracks({ includeRetired: false, limit: 25, offset: 50 });
+    await catalogService.listAdminAlbums({ limit: 10, offset: 5 });
+    await catalogService.retireTrack("track-1");
+    await catalogService.retireAlbum("album-1");
+
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost/api/v1/catalog/admin/tracks?includeRetired=false&limit=25&offset=50",
+      expect.any(Object)
+    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost/api/v1/catalog/admin/albums?includeRetired=true&limit=10&offset=5",
+      expect.any(Object)
+    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost/api/v1/catalog/tracks/track-1/retire",
+      expect.objectContaining({ method: "PATCH" })
+    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://localhost/api/v1/catalog/albums/album-1/retire",
+      expect.objectContaining({ method: "PATCH" })
+    );
+  });
 });
