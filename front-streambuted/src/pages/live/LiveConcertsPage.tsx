@@ -34,7 +34,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
       setError(null);
 
       if (!token) {
-        throw new Error("No se encontró token JWT en AuthContext.");
+        throw new Error("No pudimos validar tu sesión. Inicia sesión nuevamente.");
       }
 
       const data = await apiRequest<LiveRoom[] | { data?: LiveRoom[]; rooms?: LiveRoom[] }>(
@@ -43,7 +43,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
       );
       setRooms(Array.isArray(data) ? data : data.data || data.rooms || []);
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Error al cargar conciertos");
+      setError(fetchError instanceof Error ? fetchError.message : "No se pudieron cargar los conciertos");
     } finally {
       setLoading(false);
     }
@@ -52,7 +52,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
   useEffect(() => {
     if (!token) {
       setLoading(false);
-      setError("No se encontró token JWT en AuthContext.");
+      setError("No pudimos validar tu sesión. Inicia sesión nuevamente.");
       return;
     }
 
@@ -82,7 +82,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
 
           {canStart && onStartBroadcast && (
             <button onClick={onStartBroadcast} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#000", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              {artist.state === "live" ? "Ver mi Live" : "Iniciar concierto"}
+              {artist.state === "live" ? "Ver mi transmisión" : "Iniciar concierto"}
             </button>
           )}
         </div>
@@ -90,7 +90,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
 
       {artist.state === "live" && (
         <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid #EF4444", borderRadius: 8, padding: 14, color: "#F2EDE6", fontSize: 14, marginBottom: 16 }}>
-          Estás transmitiendo ahora: <strong>{artist.title}</strong>. Puedes volver a Do Live sin perder la transmisión.
+          Estás transmitiendo ahora: <strong>{artist.title}</strong>. Puedes volver a tu transmisión sin perderla.
         </div>
       )}
 

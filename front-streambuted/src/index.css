@@ -180,8 +180,13 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   display: flex; align-items: center; gap: 10px;
   padding: 8px 10px; border-radius: var(--r8);
   cursor: pointer; transition: background .12s;
+  color: inherit; text-decoration: none;
 }
 .user-chip:hover { background: var(--bg3); }
+.user-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .user-avatar {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--bg4);
@@ -435,28 +440,58 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
 .album-actions { display: flex; align-items: center; gap: 12px; }
 
 /* Artist profile */
-.artist-banner {
-  height: 200px; background: var(--bg2);
-  position: relative; overflow: hidden;
-}
-.artist-banner-gradient {
-  position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(139,92,246,0.22) 0%, transparent 60%);
-}
 .artist-info-row {
-  display: flex; align-items: flex-end; gap: 20px;
-  padding: 0 32px; margin-top: -50px; margin-bottom: 28px;
+  display: flex; align-items: center; gap: 20px;
+  padding: 32px; margin-bottom: 28px;
 }
+.artist-info-main { min-width: 0; }
 .artist-avatar-lg {
   width: 100px; height: 100px; border-radius: 50%;
   background: var(--bg4); border: 4px solid var(--bg0);
-  flex-shrink: 0; overflow: hidden; position: relative; z-index: 1;
+  flex-shrink: 0; overflow: hidden; position: relative;
   display: flex; align-items: center; justify-content: center;
   font-size: 36px; font-weight: 700; color: var(--accent);
 }
 .artist-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
 .artist-name-lg { font-size: 28px; font-weight: 800; color: var(--t1); }
 .artist-stats { font-size: 13px; color: var(--t2); margin-top: 4px; }
+.artist-profile-edit-btn {
+  margin-left: auto;
+  padding: 10px 20px;
+  border-radius: var(--r8);
+  border: 1px solid var(--border2);
+  color: var(--t1);
+  background: var(--bg2);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.artist-profile-edit-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.artist-profile-edit-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 720px) {
+  .artist-info-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 24px;
+  }
+
+  .artist-info-main {
+    flex: 1;
+    min-width: 180px;
+  }
+
+  .artist-profile-edit-btn {
+    margin-left: 0;
+  }
+}
 .follow-btn {
   margin-left: auto; margin-bottom: 8px;
   padding: 9px 22px; border-radius: 99px;

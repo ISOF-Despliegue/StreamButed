@@ -20,7 +20,7 @@ export function BottomPlayer({
     <div className="bottom-player">
       <div className="player-track" style={{ color: 'var(--t3)', fontSize: 13 }}>
         <div className="player-cover"><IcMusic /></div>
-        <span>Selecciona una pista del catalogo.</span>
+        <span>Selecciona una pista del catálogo.</span>
       </div>
     </div>
   );
@@ -64,7 +64,7 @@ export function BottomPlayer({
           <button
             className="btn-icon"
             disabled={!playback.canUseAlbumControls}
-            title="Aleatorio del album"
+            title="Aleatorio del álbum"
             aria-pressed={playback.shuffleEnabled}
             onClick={onToggleShuffle}
           >

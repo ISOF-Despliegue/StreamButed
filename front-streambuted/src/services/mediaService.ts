@@ -35,9 +35,49 @@ const EXTENSION_TYPES: Record<string, string> = {
   mp4: "audio/mp4",
 };
 
+const UPLOAD_FILE_NAME_MAX_LENGTH = 80;
+const UPLOAD_FILE_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+
 function assertFile(file: File | null | undefined, message: string): asserts file is File {
   if (!file) {
     throw new Error(message);
+  }
+}
+
+export function getUploadFileHelperText(example: string): string {
+  return `Ejemplo: ${example}. Usa letras sin acentos, números, guiones, guion bajo o puntos; máximo ${UPLOAD_FILE_NAME_MAX_LENGTH} caracteres.`;
+}
+
+export function getUploadFileNameError(
+  file: Pick<File, "name"> | null | undefined,
+  example = "mi-archivo-01.mp3"
+): string {
+  const fileName = file?.name?.trim() ?? "";
+
+  if (!fileName) {
+    return "";
+  }
+
+  if (fileName.length > UPLOAD_FILE_NAME_MAX_LENGTH) {
+    return `El nombre del archivo no puede superar ${UPLOAD_FILE_NAME_MAX_LENGTH} caracteres. Ejemplo válido: ${example}.`;
+  }
+
+  if (
+    !UPLOAD_FILE_NAME_PATTERN.test(fileName) ||
+    fileName.startsWith(".") ||
+    fileName.endsWith(".") ||
+    fileName.includes("..")
+  ) {
+    return `El nombre del archivo solo puede usar letras sin acentos, números, guiones, guion bajo y puntos. Ejemplo válido: ${example}.`;
+  }
+
+  return "";
+}
+
+function assertUploadFileName(file: File, example: string): void {
+  const fileNameError = getUploadFileNameError(file, example);
+  if (fileNameError) {
+    throw new Error(fileNameError);
   }
 }
 
@@ -56,7 +96,7 @@ function assertAcceptedFile(file: File, allowedTypes: Set<string>, maxBytes: num
   }
 
   if (file.size > maxBytes) {
-    throw new Error(`${label} supera el tamano maximo permitido.`);
+    throw new Error(`${label} supera el tamaño máximo permitido.`);
   }
 }
 
@@ -73,6 +113,7 @@ export function getAssetUrl(assetId: string): string {
 export const mediaService = {
   uploadProfileImage(file: File): Promise<AssetUploadResponse> {
     assertFile(file, "Selecciona una imagen de perfil.");
+    assertUploadFileName(file, "foto-perfil-01.png");
     assertAcceptedFile(file, IMAGE_TYPES, MAX_PROFILE_IMAGE_BYTES, "La imagen de perfil");
 
     return apiRequest<AssetUploadResponse>("/media/profile-image", {
@@ -83,6 +124,7 @@ export const mediaService = {
 
   uploadAudio(file: File): Promise<AssetUploadResponse> {
     assertFile(file, "Selecciona un archivo de audio.");
+    assertUploadFileName(file, "mi-cancion-01.mp3");
     assertAcceptedFile(file, AUDIO_TYPES, MAX_AUDIO_BYTES, "El audio");
 
     return apiRequest<AssetUploadResponse>("/media/audio", {
@@ -93,6 +135,7 @@ export const mediaService = {
 
   uploadCatalogImage(file: File, usage: CatalogImageUsage): Promise<AssetUploadResponse> {
     assertFile(file, "Selecciona una imagen de portada.");
+    assertUploadFileName(file, "portada-01.png");
     assertAcceptedFile(file, IMAGE_TYPES, MAX_CATALOG_IMAGE_BYTES, "La portada");
 
     const formData = fileFormData(file);

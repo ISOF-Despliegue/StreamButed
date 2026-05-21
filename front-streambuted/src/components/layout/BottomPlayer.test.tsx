@@ -42,7 +42,7 @@ describe("BottomPlayer", () => {
       />
     );
 
-    expect(screen.getByTitle("Aleatorio del album")).toBeDisabled();
+    expect(screen.getByTitle("Aleatorio del álbum")).toBeDisabled();
     expect(screen.getByTitle("Pista anterior")).toBeDisabled();
     expect(screen.getByTitle("Siguiente pista")).toBeDisabled();
   });
@@ -67,7 +67,7 @@ describe("BottomPlayer", () => {
 
     await user.click(screen.getByTitle("Siguiente pista"));
 
-    expect(screen.getByTitle("Aleatorio del album")).not.toBeDisabled();
+    expect(screen.getByTitle("Aleatorio del álbum")).not.toBeDisabled();
     expect(screen.getByTitle("Pista anterior")).not.toBeDisabled();
     expect(onNext).toHaveBeenCalledTimes(1);
   });

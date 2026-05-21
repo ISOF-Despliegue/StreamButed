@@ -70,8 +70,8 @@ export function ListenerLiveRoom({ roomId, concertTitle, artistName, onLeave }: 
 
       {state !== "watching" && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.85)", color: "#F2EDE6", gap: 16 }}>
-          {state === "idle" && <><div style={{ fontSize: 32 }}>Conectando</div><div>Preparando conexion...</div></>}
-          {state === "joining" && <><div style={{ fontSize: 32 }}>Cargando</div><div>Uniendose al concierto...</div></>}
+          {state === "idle" && <><div style={{ fontSize: 32 }}>Conectando</div><div>Preparando conexión...</div></>}
+          {state === "joining" && <><div style={{ fontSize: 32 }}>Cargando</div><div>Uniéndose al concierto...</div></>}
           {state === "ended" && <><div style={{ fontSize: 20, fontWeight: 700 }}>El concierto ha terminado</div><button onClick={handleLeave} style={{ padding: "10px 24px", borderRadius: 8, background: "var(--accent)", border: "none", color: "#000", fontWeight: 700, cursor: "pointer" }}>Volver</button></>}
           {state === "error" && <><div style={{ color: "#EF4444" }}>{error || "Error al conectar"}</div><button onClick={handleLeave} style={{ padding: "10px 24px", borderRadius: 8, background: "#1E1E28", border: "1px solid #2E2E3E", color: "#F2EDE6", cursor: "pointer" }}>Salir</button></>}
         </div>

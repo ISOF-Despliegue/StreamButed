@@ -1,3 +1,4 @@
+/* global beforeEach, describe, expect, it, jest */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -163,16 +164,16 @@ describe("AdminPages", () => {
     render(<AdminModerationPage toast={toast} />);
 
     expect(await screen.findByText("Luna")).toBeInTheDocument();
-    expect(screen.getByText("Single")).toBeInTheDocument();
+    expect(screen.getByText("Sencillo")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Retirar" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/retirar "Luna"/i)).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "Retirar cancion" }));
+    await user.click(within(dialog).getByRole("button", { name: "Retirar canción" }));
 
     await waitFor(() => expect(catalogService.retireTrack).toHaveBeenCalledWith("track-1"));
-    expect(toast).toHaveBeenCalledWith("Cancion retirada.");
+    expect(toast).toHaveBeenCalledWith("Canción retirada.");
   });
 
   it("loads albums and retires an album through the in-app confirmation", async () => {
@@ -180,14 +181,14 @@ describe("AdminPages", () => {
 
     render(<AdminModerationPage toast={jest.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Albumes" }));
+    await user.click(screen.getByRole("button", { name: "Álbumes" }));
     expect(await screen.findByText("Noches")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Retirar" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/retirar "Noches"/i)).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "Retirar album" }));
+    await user.click(within(dialog).getByRole("button", { name: "Retirar álbum" }));
 
     await waitFor(() => expect(catalogService.retireAlbum).toHaveBeenCalledWith("album-1"));
   });
@@ -201,17 +202,17 @@ describe("AdminPages", () => {
     await user.click(screen.getByRole("button", { name: "Cuentas" }));
     expect(await screen.findByText("listener@example.com")).toBeInTheDocument();
     expect(screen.getByText("Protegida")).toBeInTheDocument();
-    expect(screen.getByText("Baneo temporal")).toBeInTheDocument();
-    expect(screen.getAllByText("Sin baneo")).not.toHaveLength(0);
+    expect(screen.getByText("Suspensión temporal")).toBeInTheDocument();
+    expect(screen.getAllByText("Sin suspensión")).not.toHaveLength(0);
 
-    await user.click(screen.getByRole("button", { name: "Banear" }));
+    await user.click(screen.getByRole("button", { name: "Suspender" }));
     await user.selectOptions(screen.getByDisplayValue("Temporal"), "PERMANENT");
     await user.type(screen.getByPlaceholderText("Opcional"), "Uso indebido");
-    await user.click(screen.getByRole("button", { name: "Confirmar baneo" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar suspensión" }));
 
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/permanentemente la cuenta listener/i)).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Banear cuenta" }));
+    await user.click(within(dialog).getByRole("button", { name: "Suspender cuenta" }));
 
     await waitFor(() => expect(userService.banUser).toHaveBeenCalledWith("user-1", {
       banType: "PERMANENT",
@@ -219,7 +220,7 @@ describe("AdminPages", () => {
       durationUnit: undefined,
       reason: "Uso indebido",
     }));
-    expect(toast).toHaveBeenCalledWith("Cuenta baneada.");
+    expect(toast).toHaveBeenCalledWith("Cuenta suspendida.");
 
     await user.click(screen.getByRole("button", { name: "Reactivar" }));
     await waitFor(() => expect(userService.unbanUser).toHaveBeenCalledWith("user-2"));
@@ -233,13 +234,13 @@ describe("AdminPages", () => {
     await user.click(screen.getByRole("button", { name: "Cuentas" }));
     await screen.findByText("listener@example.com");
 
-    await user.click(screen.getByRole("button", { name: "Banear" }));
+    await user.click(screen.getByRole("button", { name: "Suspender" }));
     await user.clear(screen.getByLabelText("Tiempo"));
-    await user.click(screen.getByRole("button", { name: "Confirmar baneo" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar suspensión" }));
 
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText(/por 1 dias/i)).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Banear cuenta" }));
+    expect(within(dialog).getByText(/por 1 días/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Suspender cuenta" }));
 
     await waitFor(() => expect(userService.banUser).toHaveBeenCalledWith("user-1", expect.objectContaining({
       banType: "TEMPORARY",

@@ -118,9 +118,9 @@ function resolveErrorMessage(status: number, body: unknown): string {
 
   if (payload?.message) return payload.message;
   if (payload?.error) return payload.error;
-  if (status === 401) return "La sesion expiro. Inicia sesion nuevamente.";
-  if (status === 403) return "No tienes permisos para esta accion.";
-  if (status >= 500) return "El servicio no esta disponible en este momento.";
+  if (status === 401) return "La sesión expiró. Inicia sesión nuevamente.";
+  if (status === 403) return "No tienes permisos para esta acción.";
+  if (status >= 500) return "La plataforma no está disponible en este momento.";
 
   return "No se pudo completar la solicitud.";
 }
@@ -139,14 +139,20 @@ export async function apiRequest<T>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(buildApiUrl(path), {
-    ...options,
-    credentials: "include",
-    headers,
-    body: isObjectBody(options.body)
-      ? JSON.stringify(options.body)
-      : (options.body as BodyInit | null | undefined),
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildApiUrl(path), {
+      ...options,
+      credentials: "include",
+      headers,
+      body: isObjectBody(options.body)
+        ? JSON.stringify(options.body)
+        : (options.body as BodyInit | null | undefined),
+    });
+  } catch (error) {
+    browserLogger.warn("Network request failed.", error);
+    throw new Error("No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.");
+  }
 
   if (!response.ok) {
     const errorBody = await parseErrorBody(response);

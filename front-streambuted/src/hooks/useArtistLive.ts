@@ -59,7 +59,7 @@ function emitAsync<T>(
 
 async function requestStrictCameraAndMicrophone(): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error("Este navegador no soporta getUserMedia.");
+    throw new Error("Este navegador no permite usar cámara y micrófono.");
   }
 
   try {
@@ -99,19 +99,19 @@ async function requestStrictCameraAndMicrophone(): Promise<MediaStream> {
 
     if (!cameraWorks && !micWorks) {
       throw new Error(
-        "No se pudo acceder a camara ni microfono. Revisa permisos de Windows y del navegador."
+        "No se pudo acceder a la cámara ni al micrófono. Revisa los permisos de Windows y del navegador."
       );
     }
 
     if (!cameraWorks) {
       throw new Error(
-        "No se pudo acceder a la camara. Revisa que este activa y permitida para el navegador."
+        "No se pudo acceder a la cámara. Revisa que esté activa y permitida para el navegador."
       );
     }
 
     if (!micWorks) {
       throw new Error(
-        "No se pudo acceder al microfono. Revisa que este activo y permitido para el navegador."
+        "No se pudo acceder al micrófono. Revisa que esté activo y permitido para el navegador."
       );
     }
 
@@ -154,7 +154,7 @@ export function useArtistLive(socket: Socket | null): UseArtistLiveReturn {
   const goLive = useCallback(
     async (newTitle: string) => {
       if (!socket) {
-        setError("No hay conexion con live-service.");
+        setError("No hay conexión para iniciar la transmisión.");
         return;
       }
 
@@ -248,7 +248,7 @@ export function useArtistLive(socket: Socket | null): UseArtistLiveReturn {
 
         const audioTrack = stream.getAudioTracks()[0];
         if (!audioTrack) {
-          throw new Error("No se obtuvo pista de audio del microfono.");
+          throw new Error("No se pudo obtener audio del micrófono.");
         }
 
         audioProducerRef.current = await sendTransport.produce({
@@ -258,7 +258,7 @@ export function useArtistLive(socket: Socket | null): UseArtistLiveReturn {
 
         const videoTrack = stream.getVideoTracks()[0];
         if (!videoTrack) {
-          throw new Error("No se obtuvo pista de video de la camara.");
+          throw new Error("No se pudo obtener video de la cámara.");
         }
 
         videoProducerRef.current = await sendTransport.produce({

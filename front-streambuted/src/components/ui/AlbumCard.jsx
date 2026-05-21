@@ -3,7 +3,7 @@ import { getAssetUrl } from '../../services/mediaService';
 import PropTypes from 'prop-types';
 
 export function AlbumCard({ album, onClick }) {
-  const artistName = album.artist || album.artistName || 'Catalogo';
+  const artistName = album.artist || album.artistName || 'Artista';
 
   return (
     <button className="album-card" onClick={onClick} type="button">
@@ -13,7 +13,7 @@ export function AlbumCard({ album, onClick }) {
         ) : (
           <div style={{ fontSize: 28, color: 'var(--t3)' }}><IcMusic /></div>
         )}
-        <div className="play-overlay" style={{ color: '#fff', fontSize: 32 }}>Play</div>
+        <div className="play-overlay" style={{ color: '#fff', fontSize: 32 }}>Reproducir</div>
       </div>
       <div className="album-card-title">{album.title}</div>
       <div className="album-card-artist">{artistName}</div>

@@ -34,7 +34,7 @@ export function ExpandedPlayer({
       <div className="ep-main">
         <button className="ep-close" onClick={onClose}><IcChevron dir="down" /></button>
         <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 20, textTransform: 'uppercase' }}>
-          {playback.isLoading ? 'Cargando audio' : 'Reproduccion'}
+          {playback.isLoading ? 'Cargando audio' : 'Reproducción'}
         </div>
         <div className="ep-cover">
           {track.coverAssetId ? (
@@ -61,7 +61,7 @@ export function ExpandedPlayer({
           <button
             className="btn-icon"
             disabled={!playback.canUseAlbumControls}
-            title="Aleatorio del album"
+            title="Aleatorio del álbum"
             aria-pressed={playback.shuffleEnabled}
             onClick={onToggleShuffle}
           >

@@ -10,7 +10,7 @@ export function ProtectedRoute({ children, fallback = null }: ProtectedRouteProp
   const { isAuthenticated, isLoadingSession } = useAuth();
 
   if (isLoadingSession) {
-    return <div className="page-inner">Cargando sesion...</div>;
+    return <div className="page-inner">Cargando sesión...</div>;
   }
 
   if (!isAuthenticated) {

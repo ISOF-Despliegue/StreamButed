@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 export function FilePicker({
@@ -9,12 +9,20 @@ export function FilePicker({
   buttonLabel = 'Seleccionar archivo',
 }) {
   const inputId = useId();
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!file && inputRef.current) {
+      inputRef.current.value = '';
+    }
+  }, [file]);
 
   return (
     <div>
       <div className="file-picker-row">
         <input
           id={inputId}
+          ref={inputRef}
           className="file-picker-input"
           type="file"
           accept={accept}

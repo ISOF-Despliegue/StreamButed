@@ -126,7 +126,7 @@ export function useListenerLive(socket: Socket | null): UseListenerLiveReturn {
   const joinRoom = useCallback(
     async (roomId: string) => {
       if (!socket) {
-        setError("Not connected to live server");
+        setError("No hay conexión para entrar a la transmisión.");
         return;
       }
 

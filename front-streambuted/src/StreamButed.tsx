@@ -25,7 +25,6 @@ import { ConfirmDialog } from "./components/ui/ConfirmDialog";
 import { BottomPlayer } from "./components/layout/BottomPlayer";
 import { ExpandedPlayer } from "./components/layout/ExpandedPlayer";
 import { MainSidebar, AdminSidebar } from "./components/layout/Sidebars";
-import LogoutButton from "./components/layout/LogoutButton";
 import { GooglePasswordSetupPage, LoginPage, RegisterPage } from "./pages/AuthPages";
 import { SettingsPage } from "./pages/SettingsPage";
 import {
@@ -172,40 +171,12 @@ async function attachArtistName(track: AppTrack): Promise<AppTrack> {
   }
 }
 
-function getRoleLabel(role: CurrentUser["role"]): string {
-  switch (role) {
-    case "admin":
-      return "Administrador";
-    case "artist":
-      return "Artista";
-    default:
-      return "Oyente";
-  }
-}
-
-type SessionBarProps = Readonly<{
-  user: CurrentUser;
-  roleLabel: string;
-  onLogout: () => void;
-}>;
-
-function SessionBar({ user, roleLabel, onLogout }: SessionBarProps) {
-  return (
-    <header className="session-bar">
-      <div className="session-meta" aria-live="polite">
-        Sesion activa: <strong>{user.username}</strong> - {roleLabel}
-      </div>
-      <LogoutButton onLogout={onLogout} />
-    </header>
-  );
-}
-
 function NotAvailableState({ title, message }: Readonly<{ title: string; message: string }>) {
   return (
     <div className="page-inner">
       <div className="page-title">{title}</div>
       <div className="empty-state">
-        <div className="empty-text">Servicio no disponible todavia</div>
+        <div className="empty-text">Esta sección aún no está disponible</div>
         <div className="empty-sub">{message}</div>
       </div>
     </div>
@@ -294,7 +265,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       async (track: AppTrack, nextQueue: PlaybackQueueState, saveCurrent = true) => {
         const trackId = getTrackIdentifier(track);
         if (!trackId) {
-          toast("La pista no tiene un identificador valido.");
+          toast("La pista no tiene un identificador válido.");
           return;
         }
 
@@ -353,13 +324,13 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
             }
           } catch (playError) {
             browserLogger.error("Audio playback failed to start.", playError);
-            setPlaybackError("Presiona play para continuar la reproduccion.");
+            setPlaybackError("Presiona reproducir para continuar.");
           }
         } catch (error) {
           browserLogger.error("Failed to start playback.", error);
           if (playbackRequestIdRef.current === requestId) {
-            setPlaybackError("No se pudo iniciar la reproduccion.");
-            toast("No se pudo iniciar la reproduccion de esta pista.");
+            setPlaybackError("No se pudo iniciar la reproducción.");
+            toast("No se pudo iniciar la reproducción de esta pista.");
           }
         } finally {
           if (playbackRequestIdRef.current === requestId) {
@@ -497,8 +468,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           setIsPlaying(true);
         } catch (error) {
           browserLogger.error("Audio playback failed.", error);
-          setPlaybackError("No se pudo continuar la reproduccion.");
-          toast("No se pudo continuar la reproduccion.");
+          setPlaybackError("No se pudo continuar la reproducción.");
+          toast("No se pudo continuar la reproducción.");
         }
         return;
       }
@@ -751,6 +722,10 @@ type SinglePlaybackRouteProps = Readonly<{
   onPlayTrack: (track: AppTrack) => void;
 }>;
 
+type ArtistProfileRouteProps = SinglePlaybackRouteProps & Readonly<{
+  currentUser: CurrentUser;
+}>;
+
 type AlbumPlaybackRouteProps = Readonly<{
   currentTrack: AppTrack | null;
   onPlayTrack: (track: AppTrack, tracks: AppTrack[], albumId: string) => void;
@@ -762,8 +737,8 @@ function AlbumDetailRoute({ currentTrack, onPlayTrack }: AlbumPlaybackRouteProps
   if (!albumId) {
     return (
       <NotAvailableState
-        title="Album no seleccionado"
-        message="La URL no contiene un albumId valido."
+        title="Álbum no seleccionado"
+        message="No encontramos el álbum que intentas abrir."
       />
     );
   }
@@ -777,14 +752,14 @@ function AlbumDetailRoute({ currentTrack, onPlayTrack }: AlbumPlaybackRouteProps
   );
 }
 
-function ArtistProfileRoute({ currentTrack, onPlayTrack }: SinglePlaybackRouteProps) {
+function ArtistProfileRoute({ currentTrack, currentUser, onPlayTrack }: ArtistProfileRouteProps) {
   const { artistId } = useParams();
 
   if (!artistId) {
     return (
       <NotAvailableState
         title="Artista no seleccionado"
-        message="La URL no contiene un artistId valido."
+        message="No encontramos el artista que intentas abrir."
       />
     );
   }
@@ -792,6 +767,7 @@ function ArtistProfileRoute({ currentTrack, onPlayTrack }: SinglePlaybackRoutePr
   return (
     <ArtistProfilePage
       artistId={artistId}
+      currentUser={currentUser}
       currentTrack={currentTrack}
       onPlayTrack={onPlayTrack}
     />
@@ -812,8 +788,8 @@ function ListenerLiveRoomRoute() {
   if (!roomId) {
     return (
       <NotAvailableState
-        title="Live no seleccionado"
-        message="La URL no contiene un roomId valido."
+        title="Transmisión no seleccionada"
+        message="No encontramos la transmisión que intentas abrir."
       />
     );
   }
@@ -896,18 +872,18 @@ function ArtistEditTrackRoute({ toast, user }: ArtistEditTrackRouteProps) {
   if (!trackId) {
     return (
       <NotAvailableState
-        title="Track no seleccionado"
-        message="La URL no contiene un trackId valido."
+        title="Pista no seleccionada"
+        message="No encontramos la pista que intentas editar."
       />
     );
   }
 
   if (isLoading) {
-    return <div className="page-inner">Cargando track...</div>;
+    return <div className="page-inner">Cargando pista...</div>;
   }
 
   if (error) {
-    return <NotAvailableState title="No se pudo cargar el track" message={error} />;
+    return <NotAvailableState title="No se pudo cargar la pista" message={error} />;
   }
 
   if (!track) {
@@ -1011,9 +987,9 @@ export default function StreamButed() {
 
     setOauthStatus(oauthStatus);
     if (oauthStatus === "google-error") {
-      setOauthError(params.get("message") || "No se pudo completar Google OAuth.");
+      setOauthError(params.get("message") || "No se pudo completar el acceso con Google.");
     } else if (oauthStatus === "google-password-setup") {
-      setOauthError("Completa tu password para terminar el registro con Google.");
+      setOauthError("Completa tu contraseña para terminar el registro con Google.");
     } else {
       setOauthError("");
     }
@@ -1048,8 +1024,8 @@ export default function StreamButed() {
       <div className="auth-shell">
         <div className="auth-card">
           <div className="auth-logo"><div className="auth-logo-mark">S</div></div>
-          <div className="auth-title">Cargando sesion</div>
-          <div className="auth-sub">Validando refresh token con Identity Service...</div>
+          <div className="auth-title">Cargando sesión</div>
+          <div className="auth-sub">Preparando tu experiencia...</div>
         </div>
       </div>
     );
@@ -1097,14 +1073,14 @@ export default function StreamButed() {
     );
   }
 
-  const roleLabel = getRoleLabel(user.role);
   const defaultRoute = getDefaultRoute(user);
+  const requestLogout = () => setShowLogoutConfirmation(true);
   const logoutDialog = (
     <ConfirmDialog
       open={showLogoutConfirmation}
-      title="Cerrar sesion"
-      message="Se guardara el progreso de reproduccion actual y volveras a la pantalla de inicio de sesion."
-      confirmLabel="Cerrar sesion"
+      title="Cerrar sesión"
+      message="Guardaremos tu progreso actual y volverás a la pantalla de inicio de sesión."
+      confirmLabel="Cerrar sesión"
       tone="primary"
       isLoading={isLoggingOut}
       onConfirm={handleLogout}
@@ -1116,7 +1092,6 @@ export default function StreamButed() {
   if (user.role === "admin") {
     return (
       <div className="app-shell">
-        <SessionBar user={user} roleLabel={roleLabel} onLogout={() => setShowLogoutConfirmation(true)} />
         <div className="app-body">
           <AdminSidebar user={user} />
           <div className="main-content">
@@ -1161,7 +1136,10 @@ export default function StreamButed() {
                   </RoleRoute>
                 }
               />
-              <Route path={routes.settings} element={<SettingsPage user={user} toast={toast} />} />
+              <Route
+                path={routes.settings}
+                element={<SettingsPage user={user} toast={toast} onRequestLogout={requestLogout} />}
+              />
               <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
               <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
               <Route path={routes.authCallback} element={<Navigate to={defaultRoute} replace />} />
@@ -1177,7 +1155,6 @@ export default function StreamButed() {
 
   return (
     <div className="app-shell">
-      <SessionBar user={user} roleLabel={roleLabel} onLogout={() => setShowLogoutConfirmation(true)} />
       <div className="app-body">
         <MainSidebar user={user} />
         <div className="main-content">
@@ -1192,7 +1169,7 @@ export default function StreamButed() {
               element={
                 <NotAvailableState
                   title="Biblioteca"
-                  message="La API de biblioteca personal todavia no existe. Esta vista queda lista para conectarse cuando el backend exponga favoritos o colecciones."
+                  message="Muy pronto podrás guardar tus canciones y álbumes favoritos aquí."
                 />
               }
             />
@@ -1202,7 +1179,13 @@ export default function StreamButed() {
             />
             <Route
               path={routePatterns.artistProfile}
-              element={<ArtistProfileRoute onPlayTrack={playSingleTrack} currentTrack={currentTrack} />}
+              element={
+                <ArtistProfileRoute
+                  currentUser={user}
+                  onPlayTrack={playSingleTrack}
+                  currentTrack={currentTrack}
+                />
+              }
             />
             <Route
               path={routes.lives}
@@ -1283,7 +1266,10 @@ export default function StreamButed() {
                 </RoleRoute>
               }
             />
-            <Route path={routes.settings} element={<SettingsPage user={user} toast={toast} />} />
+            <Route
+              path={routes.settings}
+              element={<SettingsPage user={user} toast={toast} onRequestLogout={requestLogout} />}
+            />
             <Route path="/admin/*" element={<Navigate to={routes.home} replace />} />
             <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
             <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />

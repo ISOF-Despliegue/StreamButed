@@ -43,7 +43,7 @@ describe("SearchPage", () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText("Busca canciones, artistas, albums..."), "night");
+    await user.type(screen.getByPlaceholderText("Busca canciones, artistas, álbumes..."), "night");
 
     await waitFor(() => {
       expect(catalogService.searchCatalog).toHaveBeenCalledWith({
@@ -110,12 +110,12 @@ describe("SearchPage", () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText("Busca canciones, artistas, albums..."), "noche");
+    await user.type(screen.getByPlaceholderText("Busca canciones, artistas, álbumes..."), "noche");
 
-    expect(await screen.findByText("Genero")).toBeInTheDocument();
-    expect(screen.getByText("Album")).toBeInTheDocument();
+    expect(await screen.findByText("Género")).toBeInTheDocument();
+    expect(screen.getByText("Álbum")).toBeInTheDocument();
     expect(screen.getByText("Pop")).toBeInTheDocument();
-    expect(screen.getByText("Single")).toBeInTheDocument();
+    expect(screen.getByText("Sencillo")).toBeInTheDocument();
     expect(screen.getByText("Rock")).toBeInTheDocument();
     expect(screen.getByText("Album Morado")).toBeInTheDocument();
   });
@@ -160,7 +160,7 @@ describe("SearchPage", () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText("Busca canciones, artistas, albums..."), "uno");
+    await user.type(screen.getByPlaceholderText("Busca canciones, artistas, álbumes..."), "uno");
 
     await screen.findByText("Album Uno");
 

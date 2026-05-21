@@ -12,7 +12,7 @@ export function RoleRoute({ allowedRoles, children, fallback }: RoleRouteProps) 
   const { user, isAuthenticated, isLoadingSession } = useAuth();
 
   if (isLoadingSession) {
-    return <div className="page-inner">Cargando sesion...</div>;
+    return <div className="page-inner">Cargando sesión...</div>;
   }
 
   if (!isAuthenticated || !user || !allowedRoles.includes(user.role)) {
