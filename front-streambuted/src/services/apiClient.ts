@@ -263,6 +263,7 @@ export async function apiRequest<T>(
     if (refreshedToken) {
       try {
         response = await sendApiRequest(normalizedPath, options, refreshedToken);
+        parsedErrorBody = undefined;
       } catch (error) {
         browserLogger.warn("Network request failed after session refresh.", error);
         throw new Error("No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.");

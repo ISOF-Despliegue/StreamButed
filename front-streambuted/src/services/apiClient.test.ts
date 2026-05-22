@@ -162,4 +162,35 @@ describe("apiClient", () => {
     expect(sessionTerminatedListener).toHaveBeenCalledTimes(1);
     window.removeEventListener(SESSION_TERMINATED_EVENT, sessionTerminatedListener);
   });
+
+  it("uses the retried response body after refresh instead of stale forbidden details", async () => {
+    authTokenStore.setAccessToken("listener-token");
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "No tienes permisos para esta acción." }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accessToken: "artist-token" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Acceso denegado al recurso final." }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+    await expect(apiRequest("/catalog/artists/artist-1")).rejects.toMatchObject({
+      status: 403,
+      message: "Acceso denegado al recurso final.",
+      details: expect.objectContaining({
+        message: "Acceso denegado al recurso final.",
+      }),
+    });
+  });
 });
