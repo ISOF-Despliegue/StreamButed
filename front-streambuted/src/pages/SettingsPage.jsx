@@ -2,19 +2,28 @@ import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../hooks/useAuth';
 import { catalogService } from '../services/catalogService';
-import { getAssetUrl, mediaService } from '../services/mediaService';
+import {
+  getAssetUrl,
+  getUploadFileHelperText,
+  getUploadFileNameError,
+  mediaService,
+} from '../services/mediaService';
 import { FilePicker } from '../components/ui/FilePicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import LogoutButton from '../components/layout/LogoutButton';
 import { browserLogger } from '../utils/browserLogger';
 import { reloadCurrentPage } from '../utils/navigation';
+import { toUserFacingMessage } from '../utils/userFacingMessages';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return toUserFacingMessage(error.message);
   }
 
   return 'No se pudo completar la solicitud.';
 }
+
+const PROFILE_IMAGE_FILE_HELPER = `JPG, PNG o WEBP. Máximo 5 MB. ${getUploadFileHelperText('foto-perfil-01.png')}`;
 
 async function waitForArtistProfile(artistId) {
   const delays = [600, 1000, 1600, 2400];
@@ -24,14 +33,27 @@ async function waitForArtistProfile(artistId) {
     try {
       return await catalogService.getArtist(artistId);
     } catch (error) {
-      browserLogger.warn('Artist profile is not ready in Catalog yet. Retrying.', error);
+      browserLogger.warn('Artist profile is not ready yet. Retrying.', error);
     }
   }
 
   return null;
 }
 
-export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
+function buildArtistProfileSyncPayload(user) {
+  return {
+    displayName: user.username,
+    biography: user.bio ?? null,
+    profileImageAssetId: user.profileImageAssetId ?? null,
+  };
+}
+
+export function SettingsPage({
+  user,
+  toast,
+  reloadPage = reloadCurrentPage,
+  onRequestLogout = () => {},
+}) {
   const { updateProfile, promoteToArtist } = useAuth();
   const [username, setUsername] = useState(user.username);
   const [bio, setBio] = useState(user.bio ?? '');
@@ -79,10 +101,18 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
     }
 
     const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    const fileNameError = getUploadFileNameError(selectedFile, 'foto-perfil-01.png');
+    if (fileNameError) {
+      event.target.value = '';
+      setProfileImageFile(null);
+      setError(fileNameError);
+      return;
+    }
+
     if (!allowedTypes.includes(selectedFile.type)) {
       event.target.value = '';
       setProfileImageFile(null);
-      setError('Formato de imagen invalido. Usa JPG, PNG o WEBP.');
+      setError('Formato de imagen inválido. Usa JPG, PNG o WEBP.');
       return;
     }
 
@@ -90,7 +120,7 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
     if (selectedFile.size > maxSizeBytes) {
       event.target.value = '';
       setProfileImageFile(null);
-      setError('La imagen supera el maximo de 5 MB.');
+      setError('La imagen supera el máximo de 5 MB.');
       return;
     }
 
@@ -102,13 +132,13 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
     const normalizedUsername = username.trim();
     const normalizedBio = bio.trim();
 
-    if (!normalizedUsername) return setError('Username requerido.');
+    if (!normalizedUsername) return setError('Todos los campos son obligatorios.');
     if (normalizedUsername.length < 3 || normalizedUsername.length > 50) {
-      return setError('Username debe tener entre 3 y 50 caracteres.');
+      return setError('El nombre de usuario debe tener entre 3 y 50 caracteres.');
     }
 
     if (normalizedBio.length > 1000) {
-      return setError('Bio no puede superar 1000 caracteres.');
+      return setError('La biografía no puede superar 1000 caracteres.');
     }
 
     return {
@@ -153,8 +183,8 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
             profileImageAssetId,
           });
         } catch (catalogError) {
-          browserLogger.error('Failed to sync artist profile after Identity update.', catalogError);
-          const syncMessage = 'Perfil actualizado en Identity, pero no se pudo sincronizar el perfil publico de artista. Intenta guardar de nuevo.';
+          browserLogger.error('Failed to sync public artist profile after profile update.', catalogError);
+          const syncMessage = 'Perfil actualizado, pero no se pudo actualizar tu perfil público de artista. Intenta guardar de nuevo.';
           setProfileImageFile(null);
           setShowSaveConfirmation(false);
           setError(syncMessage);
@@ -176,21 +206,28 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
   const handleConfirmPromotion = async () => {
     setIsPromoting(true);
     setError('');
-    setPromotionMessage('Promoviendo cuenta en Identity Service...');
+    setPromotionMessage('Activando modo artista...');
 
     try {
       const promotedUser = await promoteToArtist();
-      setPromotionMessage('Preparando perfil de artista en Catalog...');
+      setPromotionMessage('Preparando tu perfil de artista...');
 
       const artist = await waitForArtistProfile(promotedUser.id);
       if (artist) {
+        try {
+          await catalogService.updateArtist(
+            promotedUser.id,
+            buildArtistProfileSyncPayload(promotedUser)
+          );
+        } catch (catalogError) {
+          browserLogger.warn('Artist profile was created, but initial public profile sync failed.', catalogError);
+        }
         setPromotionMessage('Perfil de artista listo.');
         toast('Modo artista activado');
         setShowPromotionModal(false);
         setTermsAccepted(false);
-        reloadPage();
       } else {
-        setPromotionMessage('Catalog aun esta preparando tu perfil. Reintenta desde el dashboard en unos segundos.');
+        setPromotionMessage('Tu perfil de artista aún se está preparando. Reintenta en unos segundos.');
         setShowPromotionModal(false);
         setTermsAccepted(false);
       }
@@ -204,17 +241,17 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
   const profileImageUrl = profilePreviewUrl ||
     (user.profileImageAssetId ? getAssetUrl(user.profileImageAssetId) : '');
   const profileImageAlt = profilePreviewUrl
-    ? `Previsualizacion de foto de perfil de ${user.username || 'usuario'}`
+    ? `Previsualización de foto de perfil de ${user.username || 'usuario'}`
     : `Foto de perfil de ${user.username || 'usuario'}`;
 
   return (
     <div className="page-inner">
       <div className="page-header">
-        <div className="page-title">Settings</div>
+        <div className="page-title">Ajustes</div>
       </div>
 
       <div className="settings-card" style={{ maxWidth: 600 }}>
-        <div className="settings-card-title">Profile</div>
+        <div className="settings-card-title">Perfil</div>
         <div className="avatar-upload-row">
           <div className="avatar-upload-img">
             {profileImageUrl ? (
@@ -232,28 +269,28 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
               accept="image/png,image/jpeg,image/webp"
               file={profileImageFile}
               onChange={handleProfileImageChange}
-              helperText="JPG, PNG o WEBP. Max 5 MB."
+              helperText={PROFILE_IMAGE_FILE_HELPER}
               buttonLabel="Seleccionar archivo"
             />
           </div>
         </div>
         <div className="form-group-mb">
-          <label className="form-label" htmlFor="settings-username">Username</label>
+          <label className="form-label" htmlFor="settings-username">Nombre de usuario</label>
           <input
             id="settings-username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter username"
+            placeholder="Nombre de usuario"
             maxLength={50}
           />
         </div>
         <div className="form-group-mb">
-          <label className="form-label" htmlFor="settings-bio">Bio</label>
+          <label className="form-label" htmlFor="settings-bio">Biografía</label>
           <textarea
             id="settings-bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            placeholder="Tell us about yourself"
+            placeholder="Cuéntanos sobre ti"
             rows={4}
             maxLength={1000}
           />
@@ -261,22 +298,21 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={requestSave} disabled={isSaving}>
-          {isSaving ? 'Saving...' : 'Save Changes'}
+          {isSaving ? 'Guardando...' : 'Guardar cambios'}
         </button>
       </div>
 
       {user.role === 'listener' && (
         <div className="settings-card" style={{ maxWidth: 600, marginTop: 24 }}>
-          <div className="settings-card-title">Become an Artist</div>
+          <div className="settings-card-title">Convertirte en artista</div>
           <p style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 16, lineHeight: 1.7 }}>
-            Artist mode enables uploads and catalog management. Analytics, lives and playback metrics
-            stay pending until those backend services exist.
+            El modo artista te permite subir canciones, crear álbumes, transmitir en vivo y revisar tus estadísticas.
           </p>
           <button
             className="btn-primary"
             onClick={() => setShowPromotionModal(true)}
           >
-            Start artist mode
+            Activar modo artista
           </button>
           {promotionMessage && (
             <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 12 }}>{promotionMessage}</div>
@@ -284,10 +320,14 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
         </div>
       )}
 
+      <div className="settings-logout-row" style={{ maxWidth: 600 }}>
+        <LogoutButton onLogout={onRequestLogout} />
+      </div>
+
       <ConfirmDialog
         open={showSaveConfirmation}
         title="Actualizar perfil"
-        message="Confirma que deseas guardar estos cambios en tu perfil. El nuevo nombre, biografia o imagen se usaran en la app."
+        message="Confirma que deseas guardar estos cambios en tu perfil. El nuevo nombre, biografía o imagen se usarán en la app."
         confirmLabel="Guardar cambios"
         tone="primary"
         isLoading={isSaving}
@@ -298,7 +338,7 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
       <ConfirmDialog
         open={showPromotionModal}
         title="Activar modo artista"
-        message="Identity Service promovera tu cuenta inmediatamente. Catalog creara el perfil de artista desde el evento de RabbitMQ, por lo que puede tardar unos segundos."
+        message="Activaremos tu perfil de artista. Este cambio es permanente y puede tardar unos segundos en reflejarse."
         confirmLabel="Activar modo"
         isLoading={isPromoting}
         disabled={!termsAccepted}
@@ -308,7 +348,7 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
           setTermsAccepted(false);
         }}
       >
-        <div className="confirm-dialog-warning">Esta accion es permanente.</div>
+        <div className="confirm-dialog-warning">Esta acción es permanente.</div>
         <label className="confirm-dialog-check">
           <input
             type="checkbox"
@@ -323,6 +363,7 @@ export function SettingsPage({ user, toast, reloadPage = reloadCurrentPage }) {
 }
 
 SettingsPage.propTypes = {
+  onRequestLogout: PropTypes.func,
   reloadPage: PropTypes.func,
   toast: PropTypes.func.isRequired,
   user: PropTypes.shape({

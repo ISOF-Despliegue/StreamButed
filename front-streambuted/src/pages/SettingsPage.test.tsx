@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsPage } from "./SettingsPage";
 import { useAuth } from "../hooks/useAuth";
@@ -18,6 +18,8 @@ jest.mock("../services/catalogService", () => ({
 
 jest.mock("../services/mediaService", () => ({
   getAssetUrl: jest.fn((assetId: string) => `http://localhost/api/v1/media/assets/${assetId}`),
+  getUploadFileHelperText: jest.fn((example: string) => `Ejemplo: ${example}.`),
+  getUploadFileNameError: jest.fn(() => ""),
   mediaService: {
     uploadProfileImage: jest.fn(),
   },
@@ -89,7 +91,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage user={listenerUser} toast={toast} reloadPage={reloadSpy} />);
 
-    await user.click(screen.getByRole("button", { name: "Start artist mode" }));
+    await user.click(screen.getByRole("button", { name: "Activar modo artista" }));
     await user.click(screen.getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: "Activar modo" }));
 
@@ -99,14 +101,14 @@ describe("SettingsPage", () => {
 
     expect(
       await screen.findByText(
-        "Catalog aun esta preparando tu perfil. Reintenta desde el dashboard en unos segundos."
+        "Tu perfil de artista aún se está preparando. Reintenta en unos segundos."
       )
     ).toBeInTheDocument();
     expect(reloadSpy).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("reloads after the artist profile becomes available", async () => {
+  it("syncs the public artist profile after the artist profile becomes available", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     const toast = jest.fn();
     const reloadSpy = jest.fn();
@@ -118,7 +120,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage user={listenerUser} toast={toast} reloadPage={reloadSpy} />);
 
-    await user.click(screen.getByRole("button", { name: "Start artist mode" }));
+    await user.click(screen.getByRole("button", { name: "Activar modo artista" }));
     await user.click(screen.getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: "Activar modo" }));
 
@@ -126,7 +128,12 @@ describe("SettingsPage", () => {
       await jest.advanceTimersByTimeAsync(700);
     });
 
-    await waitFor(() => expect(reloadSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(catalogService.updateArtist).toHaveBeenCalledWith("listener-1", {
+      displayName: "listener",
+      biography: null,
+      profileImageAssetId: null,
+    }));
+    expect(reloadSpy).not.toHaveBeenCalled();
     expect(toast).toHaveBeenCalledWith("Modo artista activado");
   });
   it("validates the profile form before opening the confirmation dialog", async () => {
@@ -134,16 +141,33 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage user={listenerUser} toast={jest.fn()} />);
 
-    const usernameInput = screen.getByLabelText("Username");
+    const usernameInput = screen.getByLabelText("Nombre de usuario");
     await user.clear(usernameInput);
-    await user.click(screen.getByRole("button", { name: "Save Changes" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Username requerido.");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son obligatorios.");
 
     await user.type(usernameInput, "ab");
-    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Username debe tener entre 3 y 50 caracteres."
+      "El nombre de usuario debe tener entre 3 y 50 caracteres."
     );
+  });
+
+  it("requests logout from settings", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const onRequestLogout = jest.fn();
+
+    render(
+      <SettingsPage
+        user={listenerUser}
+        toast={jest.fn()}
+        onRequestLogout={onRequestLogout}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: /Cerrar/ }));
+
+    expect(onRequestLogout).toHaveBeenCalledTimes(1);
   });
 
   it("rejects invalid and oversized profile images", async () => {
@@ -156,7 +180,7 @@ describe("SettingsPage", () => {
       },
     });
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Formato de imagen invalido. Usa JPG, PNG o WEBP."
+      "Formato de imagen inválido. Usa JPG, PNG o WEBP."
     );
 
     const hugePng = new File(["png"], "avatar.png", { type: "image/png" });
@@ -167,7 +191,7 @@ describe("SettingsPage", () => {
       },
     });
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "La imagen supera el maximo de 5 MB."
+      "La imagen supera el máximo de 5 MB."
     );
   });
 
@@ -195,8 +219,8 @@ describe("SettingsPage", () => {
 
     const { container, unmount } = render(<SettingsPage user={artistUser} toast={toast} />);
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const usernameInput = screen.getByLabelText("Username");
-    const bioInput = screen.getByLabelText("Bio");
+    const usernameInput = screen.getByLabelText("Nombre de usuario");
+    const bioInput = screen.getByLabelText("Biografía");
 
     await user.clear(usernameInput);
     await user.type(usernameInput, "artist-renamed");
@@ -204,13 +228,14 @@ describe("SettingsPage", () => {
     await user.type(bioInput, "Nueva bio");
     await user.upload(fileInput, new File(["png"], "avatar.png", { type: "image/png" }));
 
-    expect(await screen.findByAltText("Previsualizacion de foto de perfil de listener")).toHaveAttribute(
+    expect(await screen.findByAltText("Previsualización de foto de perfil de listener")).toHaveAttribute(
       "src",
       "blob:profile-preview"
     );
 
-    await user.click(screen.getByRole("button", { name: "Save Changes" }));
-    await user.click(await screen.findByRole("button", { name: "Guardar cambios" }));
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Guardar cambios" }));
 
     await waitFor(() => {
       expect(mediaService.uploadProfileImage).toHaveBeenCalledWith(expect.any(File));
@@ -245,16 +270,17 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage user={artistUser} toast={toast} />);
 
-    await user.clear(screen.getByLabelText("Username"));
-    await user.type(screen.getByLabelText("Username"), "artist-renamed");
-    await user.click(screen.getByRole("button", { name: "Save Changes" }));
-    await user.click(await screen.findByRole("button", { name: "Guardar cambios" }));
+    await user.clear(screen.getByLabelText("Nombre de usuario"));
+    await user.type(screen.getByLabelText("Nombre de usuario"), "artist-renamed");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Guardar cambios" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Perfil actualizado en Identity, pero no se pudo sincronizar el perfil publico de artista. Intenta guardar de nuevo."
+      "Perfil actualizado, pero no se pudo actualizar tu perfil público de artista. Intenta guardar de nuevo."
     );
     expect(toast).toHaveBeenCalledWith(
-      "Perfil actualizado en Identity, pero no se pudo sincronizar el perfil publico de artista. Intenta guardar de nuevo."
+      "Perfil actualizado, pero no se pudo actualizar tu perfil público de artista. Intenta guardar de nuevo."
     );
     consoleErrorSpy.mockRestore();
   });

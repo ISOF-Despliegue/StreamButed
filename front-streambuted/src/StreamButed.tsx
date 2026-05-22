@@ -25,7 +25,6 @@ import { ConfirmDialog } from "./components/ui/ConfirmDialog";
 import { BottomPlayer } from "./components/layout/BottomPlayer";
 import { ExpandedPlayer } from "./components/layout/ExpandedPlayer";
 import { MainSidebar, AdminSidebar } from "./components/layout/Sidebars";
-import LogoutButton from "./components/layout/LogoutButton";
 import { GooglePasswordSetupPage, LoginPage, RegisterPage } from "./pages/AuthPages";
 import { SettingsPage } from "./pages/SettingsPage";
 import {
@@ -56,9 +55,19 @@ import { routePatterns, routes } from "./routes/appRoutes";
 import { useAuth } from "./hooks/useAuth";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
+import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
 import { authService } from "./services/authService";
 import { browserLogger } from "./utils/browserLogger";
 import { getSecureRandomInt } from "./utils/secureRandom";
+import { toUserFacingMessage } from "./utils/userFacingMessages";
+import {
+  buildAlbumQueue,
+  buildSingleQueue,
+  getNextQueueTrackId,
+  getPreviousQueueTrackId,
+  getTrackIdentifier,
+  type PlaybackQueueState as PlaybackQueueStateBase,
+} from "./utils/playbackQueue";
 import type { CurrentUser } from "./types/user.types";
 import type { Track } from "./types/catalog.types";
 import type { PlaybackProgressRequest } from "./types/playback.types";
@@ -71,17 +80,7 @@ type AppTrack = Track & {
   plays?: number;
 };
 
-type PlaybackSourceType = "single" | "album";
-
-type PlaybackQueueState = {
-  sourceType: PlaybackSourceType;
-  albumId: string | null;
-  tracks: AppTrack[];
-  currentTrackId: string | null;
-  currentIndex: number;
-  shuffleEnabled: boolean;
-  shuffledTrackIds: string[];
-};
+type PlaybackQueueState = PlaybackQueueStateBase<AppTrack>;
 
 type PlaybackState = {
   isPlaying: boolean;
@@ -90,6 +89,7 @@ type PlaybackState = {
   durationSeconds: number;
   error: string;
   canUseAlbumControls: boolean;
+  repeatEnabled: boolean;
   shuffleEnabled: boolean;
 };
 
@@ -102,44 +102,6 @@ const EMPTY_QUEUE: PlaybackQueueState = {
   shuffleEnabled: false,
   shuffledTrackIds: [],
 };
-
-function getTrackIdentifier(track: AppTrack | null | undefined): string {
-  return track?.trackId ?? track?.id ?? "";
-}
-
-function buildSingleQueue(track: AppTrack): PlaybackQueueState {
-  return {
-    sourceType: "single",
-    albumId: null,
-    tracks: [track],
-    currentTrackId: getTrackIdentifier(track),
-    currentIndex: 0,
-    shuffleEnabled: false,
-    shuffledTrackIds: [],
-  };
-}
-
-function buildAlbumQueue(
-  albumId: string,
-  tracks: AppTrack[],
-  track: AppTrack
-): PlaybackQueueState {
-  const currentTrackId = getTrackIdentifier(track);
-  const currentIndex = Math.max(
-    0,
-    tracks.findIndex((item) => getTrackIdentifier(item) === currentTrackId)
-  );
-
-  return {
-    sourceType: "album",
-    albumId,
-    tracks,
-    currentTrackId,
-    currentIndex,
-    shuffleEnabled: false,
-    shuffledTrackIds: [],
-  };
-}
 
 function shuffleRemainingTrackIds(tracks: AppTrack[], currentTrackId: string): string[] {
   const remaining = tracks
@@ -154,14 +116,6 @@ function shuffleRemainingTrackIds(tracks: AppTrack[], currentTrackId: string): s
   return [currentTrackId, ...remaining];
 }
 
-function getQueueOrder(queue: PlaybackQueueState): string[] {
-  if (queue.shuffleEnabled && queue.shuffledTrackIds.length > 0) {
-    return queue.shuffledTrackIds;
-  }
-
-  return queue.tracks.map(getTrackIdentifier).filter(Boolean);
-}
-
 async function attachArtistName(track: AppTrack): Promise<AppTrack> {
   try {
     const artist = await catalogService.getArtist(track.artistId);
@@ -172,40 +126,12 @@ async function attachArtistName(track: AppTrack): Promise<AppTrack> {
   }
 }
 
-function getRoleLabel(role: CurrentUser["role"]): string {
-  switch (role) {
-    case "admin":
-      return "Administrador";
-    case "artist":
-      return "Artista";
-    default:
-      return "Oyente";
-  }
-}
-
-type SessionBarProps = Readonly<{
-  user: CurrentUser;
-  roleLabel: string;
-  onLogout: () => void;
-}>;
-
-function SessionBar({ user, roleLabel, onLogout }: SessionBarProps) {
-  return (
-    <header className="session-bar">
-      <div className="session-meta" aria-live="polite">
-        Sesion activa: <strong>{user.username}</strong> - {roleLabel}
-      </div>
-      <LogoutButton onLogout={onLogout} />
-    </header>
-  );
-}
-
 function NotAvailableState({ title, message }: Readonly<{ title: string; message: string }>) {
   return (
     <div className="page-inner">
       <div className="page-title">{title}</div>
       <div className="empty-state">
-        <div className="empty-text">Servicio no disponible todavia</div>
+        <div className="empty-text">Esta sección aún no está disponible</div>
         <div className="empty-sub">{message}</div>
       </div>
     </div>
@@ -239,6 +165,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
     const [playbackDurationSeconds, setPlaybackDurationSeconds] = useState(0);
     const [playbackError, setPlaybackError] = useState("");
     const [volume, setVolume] = useState<number>(72);
+    const [repeatEnabled, setRepeatEnabled] = useState<boolean>(false);
     const [expandedPlayer, setExpandedPlayer] = useState<boolean>(false);
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -291,10 +218,15 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
     }, []);
 
     const startPlayback = useCallback(
-      async (track: AppTrack, nextQueue: PlaybackQueueState, saveCurrent = true) => {
+      async (
+        track: AppTrack,
+        nextQueue: PlaybackQueueState,
+        saveCurrent = true,
+        resumeProgress = true
+      ) => {
         const trackId = getTrackIdentifier(track);
         if (!trackId) {
-          toast("La pista no tiene un identificador valido.");
+          toast("La pista no tiene un identificador válido.");
           return;
         }
 
@@ -328,9 +260,9 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
             return;
           }
 
-          pendingSeekSecondsRef.current =
-            progress.positionSeconds > 0 ? progress.positionSeconds : null;
-          setPlaybackPositionSeconds(progress.positionSeconds ?? 0);
+          const restorePosition = resumeProgress ? (progress.positionSeconds ?? 0) : 0;
+          pendingSeekSecondsRef.current = restorePosition > 0 ? restorePosition : null;
+          setPlaybackPositionSeconds(restorePosition);
           setPlaybackDurationSeconds(progress.durationSeconds ?? 0);
           audio.src = session.streamUrl;
           audio.volume = volume / 100;
@@ -344,7 +276,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
               await playbackService.updatePlaybackProgress(trackId, {
                 positionSeconds: Number.isFinite(audio.currentTime)
                   ? audio.currentTime
-                  : (progress.positionSeconds ?? 0),
+                  : restorePosition,
                 durationSeconds: Number.isFinite(audio.duration)
                   ? audio.duration
                   : (progress.durationSeconds ?? null),
@@ -353,13 +285,13 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
             }
           } catch (playError) {
             browserLogger.error("Audio playback failed to start.", playError);
-            setPlaybackError("Presiona play para continuar la reproduccion.");
+            setPlaybackError("Presiona reproducir para continuar.");
           }
         } catch (error) {
           browserLogger.error("Failed to start playback.", error);
           if (playbackRequestIdRef.current === requestId) {
-            setPlaybackError("No se pudo iniciar la reproduccion.");
-            toast("No se pudo iniciar la reproduccion de esta pista.");
+            setPlaybackError("No se pudo iniciar la reproducción.");
+            toast("No se pudo iniciar la reproducción de esta pista.");
           }
         } finally {
           if (playbackRequestIdRef.current === requestId) {
@@ -385,7 +317,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
     );
 
     const playQueueTrackById = useCallback(
-      async (trackId: string, saveCurrent = true) => {
+      async (trackId: string, saveCurrent = true, resumeProgress = false) => {
         const queue = playbackQueueRef.current;
         const track = queue.tracks.find((item) => getTrackIdentifier(item) === trackId);
         if (!track) {
@@ -403,51 +335,95 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
             currentTrackId: trackId,
             currentIndex,
           },
-          saveCurrent
+          saveCurrent,
+          resumeProgress
         );
       },
       [startPlayback]
     );
 
-    const getAdjacentTrackId = useCallback((direction: 1 | -1): string | null => {
-      const queue = playbackQueueRef.current;
-      const order = getQueueOrder(queue);
-      if (queue.sourceType !== "album" || order.length <= 1 || !queue.currentTrackId) {
-        return null;
+    const restartCurrentTrack = useCallback(
+      async (playAfterRestart: boolean) => {
+        const audio = audioRef.current;
+        if (!audio) {
+          return;
+        }
+
+        audio.currentTime = 0;
+        pendingSeekSecondsRef.current = null;
+        setPlaybackPositionSeconds(0);
+
+        if (playAfterRestart) {
+          try {
+            await audio.play();
+            setIsPlaying(true);
+          } catch (error) {
+            browserLogger.error("Audio playback failed after restart.", error);
+            setPlaybackError("No se pudo continuar la reproducción.");
+            toast("No se pudo continuar la reproducción.");
+          }
+        } else {
+          setIsPlaying(false);
+        }
+
+        await saveCurrentProgress(playAfterRestart);
+      },
+      [saveCurrentProgress, toast]
+    );
+
+    const finishPlayback = useCallback(async () => {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.pause();
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          audio.currentTime = audio.duration;
+          setPlaybackPositionSeconds(audio.duration);
+        }
       }
 
-      const currentOrderIndex = Math.max(0, order.indexOf(queue.currentTrackId));
-      const nextIndex = (currentOrderIndex + direction + order.length) % order.length;
-      const nextTrackId = order[nextIndex];
-
-      if (nextTrackId === queue.currentTrackId && order.length > 1) {
-        return order[(nextIndex + direction + order.length) % order.length];
-      }
-
-      return nextTrackId;
-    }, []);
+      setIsPlaying(false);
+      await saveCurrentProgress(false);
+    }, [saveCurrentProgress]);
 
     const handleNextTrack = useCallback(() => {
-      const nextTrackId = getAdjacentTrackId(1);
-      if (nextTrackId) {
-        void playQueueTrackById(nextTrackId);
-      }
-    }, [getAdjacentTrackId, playQueueTrackById]);
+      const queue = playbackQueueRef.current;
+      const nextTrackId = getNextQueueTrackId(queue, repeatEnabled);
 
-    const handlePreviousTrack = useCallback(() => {
-      const audio = audioRef.current;
-      if (audio && audio.currentTime > 3) {
-        audio.currentTime = 0;
-        setPlaybackPositionSeconds(0);
-        void saveCurrentProgress(isPlaying);
+      if (!nextTrackId) {
+        void finishPlayback();
         return;
       }
 
-      const previousTrackId = getAdjacentTrackId(-1);
-      if (previousTrackId) {
-        void playQueueTrackById(previousTrackId);
+      if (nextTrackId === queue.currentTrackId) {
+        void restartCurrentTrack(true);
+        return;
       }
-    }, [getAdjacentTrackId, isPlaying, playQueueTrackById, saveCurrentProgress]);
+
+      void playQueueTrackById(nextTrackId);
+    }, [finishPlayback, playQueueTrackById, repeatEnabled, restartCurrentTrack]);
+
+    const handlePreviousTrack = useCallback(() => {
+      const queue = playbackQueueRef.current;
+      const audio = audioRef.current;
+
+      if (queue.sourceType !== "album") {
+        void restartCurrentTrack(isPlaying);
+        return;
+      }
+
+      if (audio && audio.currentTime > 5) {
+        void restartCurrentTrack(isPlaying);
+        return;
+      }
+
+      const previousTrackId = getPreviousQueueTrackId(queue);
+      if (!previousTrackId) {
+        void restartCurrentTrack(isPlaying);
+        return;
+      }
+
+      void playQueueTrackById(previousTrackId);
+    }, [isPlaying, playQueueTrackById, restartCurrentTrack]);
 
     const handleToggleShuffle = useCallback(() => {
       setPlaybackQueue((queue) => {
@@ -475,6 +451,10 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       });
     }, [setPlaybackQueue]);
 
+    const handleToggleRepeat = useCallback(() => {
+      setRepeatEnabled((enabled) => !enabled);
+    }, []);
+
     const handleTogglePlay = useCallback(async () => {
       const audio = audioRef.current;
       const track = currentTrackRef.current;
@@ -497,8 +477,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           setIsPlaying(true);
         } catch (error) {
           browserLogger.error("Audio playback failed.", error);
-          setPlaybackError("No se pudo continuar la reproduccion.");
-          toast("No se pudo continuar la reproduccion.");
+          setPlaybackError("No se pudo continuar la reproducción.");
+          toast("No se pudo continuar la reproducción.");
         }
         return;
       }
@@ -577,11 +557,20 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       setIsPlaying(false);
       await saveCurrentProgress(false);
 
-      const nextTrackId = getAdjacentTrackId(1);
-      if (nextTrackId) {
-        await playQueueTrackById(nextTrackId, false);
+      const queue = playbackQueueRef.current;
+      const nextTrackId = getNextQueueTrackId(queue, repeatEnabled);
+
+      if (!nextTrackId) {
+        return;
       }
-    }, [getAdjacentTrackId, playQueueTrackById, saveCurrentProgress]);
+
+      if (nextTrackId === queue.currentTrackId) {
+        await restartCurrentTrack(true);
+        return;
+      }
+
+      await playQueueTrackById(nextTrackId, false, false);
+    }, [playQueueTrackById, repeatEnabled, restartCurrentTrack, saveCurrentProgress]);
 
     const handleAudioError = useCallback(() => {
       if (!currentTrackRef.current) {
@@ -605,6 +594,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       setPlaybackPositionSeconds(0);
       setPlaybackDurationSeconds(0);
       setPlaybackError("");
+      setRepeatEnabled(false);
       setExpandedPlayer(false);
     }, []);
 
@@ -668,6 +658,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       durationSeconds: playbackDurationSeconds,
       error: playbackError,
       canUseAlbumControls,
+      repeatEnabled,
       shuffleEnabled: playbackQueue.shuffleEnabled,
     };
 
@@ -685,6 +676,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           onNext={handleNextTrack}
           onPrevious={handlePreviousTrack}
           onToggleShuffle={handleToggleShuffle}
+          onToggleRepeat={handleToggleRepeat}
           onSelectTrack={(trackToSelect: AppTrack) => {
             const trackId = getTrackIdentifier(trackToSelect);
             if (playbackQueue.sourceType === "album" && trackId) {
@@ -710,6 +702,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           onNext={handleNextTrack}
           onPrevious={handlePreviousTrack}
           onToggleShuffle={handleToggleShuffle}
+          onToggleRepeat={handleToggleRepeat}
         />
         <audio
           ref={audioRef}
@@ -731,7 +724,7 @@ function getRouteErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "No se pudo cargar la informacion.";
+  return "No se pudo cargar la información.";
 }
 
 function getDefaultRoute(user: CurrentUser): string {
@@ -751,6 +744,10 @@ type SinglePlaybackRouteProps = Readonly<{
   onPlayTrack: (track: AppTrack) => void;
 }>;
 
+type ArtistProfileRouteProps = SinglePlaybackRouteProps & Readonly<{
+  currentUser: CurrentUser;
+}>;
+
 type AlbumPlaybackRouteProps = Readonly<{
   currentTrack: AppTrack | null;
   onPlayTrack: (track: AppTrack, tracks: AppTrack[], albumId: string) => void;
@@ -762,8 +759,8 @@ function AlbumDetailRoute({ currentTrack, onPlayTrack }: AlbumPlaybackRouteProps
   if (!albumId) {
     return (
       <NotAvailableState
-        title="Album no seleccionado"
-        message="La URL no contiene un albumId valido."
+        title="Álbum no seleccionado"
+        message="No encontramos el álbum que intentas abrir."
       />
     );
   }
@@ -777,14 +774,14 @@ function AlbumDetailRoute({ currentTrack, onPlayTrack }: AlbumPlaybackRouteProps
   );
 }
 
-function ArtistProfileRoute({ currentTrack, onPlayTrack }: SinglePlaybackRouteProps) {
+function ArtistProfileRoute({ currentTrack, currentUser, onPlayTrack }: ArtistProfileRouteProps) {
   const { artistId } = useParams();
 
   if (!artistId) {
     return (
       <NotAvailableState
         title="Artista no seleccionado"
-        message="La URL no contiene un artistId valido."
+        message="No encontramos el artista que intentas abrir."
       />
     );
   }
@@ -792,6 +789,7 @@ function ArtistProfileRoute({ currentTrack, onPlayTrack }: SinglePlaybackRoutePr
   return (
     <ArtistProfilePage
       artistId={artistId}
+      currentUser={currentUser}
       currentTrack={currentTrack}
       onPlayTrack={onPlayTrack}
     />
@@ -812,8 +810,8 @@ function ListenerLiveRoomRoute() {
   if (!roomId) {
     return (
       <NotAvailableState
-        title="Live no seleccionado"
-        message="La URL no contiene un roomId valido."
+        title="Transmisión no seleccionada"
+        message="No encontramos la transmisión que intentas abrir."
       />
     );
   }
@@ -896,18 +894,18 @@ function ArtistEditTrackRoute({ toast, user }: ArtistEditTrackRouteProps) {
   if (!trackId) {
     return (
       <NotAvailableState
-        title="Track no seleccionado"
-        message="La URL no contiene un trackId valido."
+        title="Pista no seleccionada"
+        message="No encontramos la pista que intentas editar."
       />
     );
   }
 
   if (isLoading) {
-    return <div className="page-inner">Cargando track...</div>;
+    return <div className="page-inner">Cargando pista...</div>;
   }
 
   if (error) {
-    return <NotAvailableState title="No se pudo cargar el track" message={error} />;
+    return <NotAvailableState title="No se pudo cargar la pista" message={error} />;
   }
 
   if (!track) {
@@ -946,6 +944,7 @@ export default function StreamButed() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [oauthError, setOauthError] = useState("");
   const [oauthStatus, setOauthStatus] = useState("");
+  const [showSuspendedDialog, setShowSuspendedDialog] = useState(false);
 
   const playbackControllerRef = useRef<PlaybackControllerHandle | null>(null);
 
@@ -1011,9 +1010,9 @@ export default function StreamButed() {
 
     setOauthStatus(oauthStatus);
     if (oauthStatus === "google-error") {
-      setOauthError(params.get("message") || "No se pudo completar Google OAuth.");
+      setOauthError(toUserFacingMessage(params.get("message") || "No se pudo completar el acceso con Google."));
     } else if (oauthStatus === "google-password-setup") {
-      setOauthError("Completa tu password para terminar el registro con Google.");
+      setOauthError("Completa tu contraseña para terminar el registro con Google.");
     } else {
       setOauthError("");
     }
@@ -1027,6 +1026,20 @@ export default function StreamButed() {
       window.location.hash,
     ].join("");
     window.history.replaceState(null, "", nextUrl);
+  }, []);
+
+  useEffect(() => {
+    const handleSessionTerminated = (event: Event) => {
+      const payload = event instanceof CustomEvent ? event.detail : null;
+      if (payload?.code === "ACCOUNT_BANNED" || payload?.error === "AccountBannedException") {
+        setShowSuspendedDialog(true);
+      }
+    };
+
+    window.addEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
+    return () => {
+      window.removeEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -1048,8 +1061,8 @@ export default function StreamButed() {
       <div className="auth-shell">
         <div className="auth-card">
           <div className="auth-logo"><div className="auth-logo-mark">S</div></div>
-          <div className="auth-title">Cargando sesion</div>
-          <div className="auth-sub">Validando refresh token con Identity Service...</div>
+          <div className="auth-title">Cargando sesión</div>
+          <div className="auth-sub">Preparando tu experiencia...</div>
         </div>
       </div>
     );
@@ -1066,24 +1079,36 @@ export default function StreamButed() {
     );
 
     return (
-      <Routes>
-        <Route path={routes.login} element={loginPage} />
-        <Route path={routes.authCallback} element={loginPage} />
-        <Route
-          path={routes.register}
-          element={
-            <RegisterPage
-              onStartRegistration={handleRegister}
-              onVerifyRegistration={handleVerifyRegistration}
-              onResendCode={resendRegistrationCode}
-              onCancelVerification={cancelRegistration}
-              onBack={() => navigate(routes.login)}
-              externalError={oauthError}
-            />
-          }
+      <>
+        <Routes>
+          <Route path={routes.login} element={loginPage} />
+          <Route path={routes.authCallback} element={loginPage} />
+          <Route
+            path={routes.register}
+            element={
+              <RegisterPage
+                onStartRegistration={handleRegister}
+                onVerifyRegistration={handleVerifyRegistration}
+                onResendCode={resendRegistrationCode}
+                onCancelVerification={cancelRegistration}
+                onBack={() => navigate(routes.login)}
+                externalError={oauthError}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to={routes.login} replace />} />
+        </Routes>
+        <ConfirmDialog
+          open={showSuspendedDialog}
+          title="Cuenta suspendida"
+          message="Tu cuenta fue suspendida por un administrador del sistema."
+          confirmLabel="Aceptar"
+          showCancel={false}
+          tone="primary"
+          onConfirm={() => setShowSuspendedDialog(false)}
+          onCancel={() => setShowSuspendedDialog(false)}
         />
-        <Route path="*" element={<Navigate to={routes.login} replace />} />
-      </Routes>
+      </>
     );
   }
 
@@ -1097,14 +1122,14 @@ export default function StreamButed() {
     );
   }
 
-  const roleLabel = getRoleLabel(user.role);
   const defaultRoute = getDefaultRoute(user);
+  const requestLogout = () => setShowLogoutConfirmation(true);
   const logoutDialog = (
     <ConfirmDialog
       open={showLogoutConfirmation}
-      title="Cerrar sesion"
-      message="Se guardara el progreso de reproduccion actual y volveras a la pantalla de inicio de sesion."
-      confirmLabel="Cerrar sesion"
+      title="Cerrar sesión"
+      message="Guardaremos tu progreso actual y volverás a la pantalla de inicio de sesión."
+      confirmLabel="Cerrar sesión"
       tone="primary"
       isLoading={isLoggingOut}
       onConfirm={handleLogout}
@@ -1112,11 +1137,22 @@ export default function StreamButed() {
     />
   );
   const toastNode = toastMsg ? <Toast msg={toastMsg} onDone={() => setToastMsg(null)} /> : null;
+  const suspendedDialog = (
+    <ConfirmDialog
+      open={showSuspendedDialog}
+      title="Cuenta suspendida"
+      message="Tu cuenta fue suspendida por un administrador del sistema."
+      confirmLabel="Aceptar"
+      showCancel={false}
+      tone="primary"
+      onConfirm={() => setShowSuspendedDialog(false)}
+      onCancel={() => setShowSuspendedDialog(false)}
+    />
+  );
 
   if (user.role === "admin") {
     return (
       <div className="app-shell">
-        <SessionBar user={user} roleLabel={roleLabel} onLogout={() => setShowLogoutConfirmation(true)} />
         <div className="app-body">
           <AdminSidebar user={user} />
           <div className="main-content">
@@ -1161,7 +1197,10 @@ export default function StreamButed() {
                   </RoleRoute>
                 }
               />
-              <Route path={routes.settings} element={<SettingsPage user={user} toast={toast} />} />
+              <Route
+                path={routes.settings}
+                element={<SettingsPage user={user} toast={toast} onRequestLogout={requestLogout} />}
+              />
               <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
               <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
               <Route path={routes.authCallback} element={<Navigate to={defaultRoute} replace />} />
@@ -1170,6 +1209,7 @@ export default function StreamButed() {
           </div>
         </div>
         {logoutDialog}
+        {suspendedDialog}
         {toastNode}
       </div>
     );
@@ -1177,7 +1217,6 @@ export default function StreamButed() {
 
   return (
     <div className="app-shell">
-      <SessionBar user={user} roleLabel={roleLabel} onLogout={() => setShowLogoutConfirmation(true)} />
       <div className="app-body">
         <MainSidebar user={user} />
         <div className="main-content">
@@ -1192,7 +1231,7 @@ export default function StreamButed() {
               element={
                 <NotAvailableState
                   title="Biblioteca"
-                  message="La API de biblioteca personal todavia no existe. Esta vista queda lista para conectarse cuando el backend exponga favoritos o colecciones."
+                  message="Muy pronto podrás guardar tus canciones y álbumes favoritos aquí."
                 />
               }
             />
@@ -1202,7 +1241,13 @@ export default function StreamButed() {
             />
             <Route
               path={routePatterns.artistProfile}
-              element={<ArtistProfileRoute onPlayTrack={playSingleTrack} currentTrack={currentTrack} />}
+              element={
+                <ArtistProfileRoute
+                  currentUser={user}
+                  onPlayTrack={playSingleTrack}
+                  currentTrack={currentTrack}
+                />
+              }
             />
             <Route
               path={routes.lives}
@@ -1239,7 +1284,12 @@ export default function StreamButed() {
               path={routes.artistTracks}
               element={
                 <RoleRoute allowedRoles={["artist"]}>
-                  <MyTracksPage toast={toast} user={user} />
+                  <MyTracksPage
+                    currentTrack={currentTrack}
+                    onPlayTrack={playSingleTrack}
+                    toast={toast}
+                    user={user}
+                  />
                 </RoleRoute>
               }
             />
@@ -1247,7 +1297,12 @@ export default function StreamButed() {
               path={routes.artistAlbums}
               element={
                 <RoleRoute allowedRoles={["artist"]}>
-                  <MyAlbumsPage toast={toast} user={user} />
+                  <MyAlbumsPage
+                    currentTrack={currentTrack}
+                    onPlayTrack={playAlbumTrack}
+                    toast={toast}
+                    user={user}
+                  />
                 </RoleRoute>
               }
             />
@@ -1283,7 +1338,10 @@ export default function StreamButed() {
                 </RoleRoute>
               }
             />
-            <Route path={routes.settings} element={<SettingsPage user={user} toast={toast} />} />
+            <Route
+              path={routes.settings}
+              element={<SettingsPage user={user} toast={toast} onRequestLogout={requestLogout} />}
+            />
             <Route path="/admin/*" element={<Navigate to={routes.home} replace />} />
             <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
             <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
@@ -1302,6 +1360,7 @@ export default function StreamButed() {
         toast={toast}
       />
       {logoutDialog}
+      {suspendedDialog}
       {toastNode}
     </div>
   );

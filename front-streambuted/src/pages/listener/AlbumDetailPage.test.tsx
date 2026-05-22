@@ -1,12 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { AlbumDetailPage } from "./ListenerPages";
+import { AlbumDetailPage, ArtistProfilePage } from "./ListenerPages";
 import { catalogService } from "../../services/catalogService";
 
 jest.mock("../../services/catalogService", () => ({
   catalogService: {
+    getArtist: jest.fn(),
     getAlbum: jest.fn(),
+    listArtistAlbums: jest.fn(),
+    listArtistTracks: jest.fn(),
     listAlbumTracks: jest.fn(),
   },
 }));
@@ -80,5 +83,30 @@ describe("AlbumDetailPage", () => {
       ]),
       "album-1"
     );
+  });
+});
+
+describe("ArtistProfilePage", () => {
+  it("shows an edit link when the profile belongs to the current artist", async () => {
+    jest.mocked(catalogService.getArtist).mockResolvedValue({
+      artistId: "artist-1",
+      displayName: "Urielito",
+      biography: "Long live sahur",
+      profileImageAssetId: null,
+    } as never);
+    jest.mocked(catalogService.listArtistTracks).mockResolvedValue([] as never);
+    jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([] as never);
+
+    renderWithRouter(
+      <ArtistProfilePage
+        artistId="artist-1"
+        currentUser={{ id: "artist-1", role: "artist" }}
+        onPlayTrack={jest.fn()}
+        currentTrack={null}
+      />
+    );
+
+    expect(await screen.findByText("Urielito")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Editar" })).toHaveAttribute("href", "/settings");
   });
 });

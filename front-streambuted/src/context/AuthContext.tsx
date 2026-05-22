@@ -8,6 +8,7 @@ import {
 import { AuthContext } from "./authContextValue";
 import { authService } from "../services/authService";
 import { authTokenStore } from "../services/authTokenStore";
+import { SESSION_TERMINATED_EVENT } from "../services/apiClient";
 import { userService } from "../services/userService";
 import { browserLogger } from "../utils/browserLogger";
 import type {
@@ -64,6 +65,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     void refreshSession();
   }, [refreshSession]);
+
+  useEffect(() => {
+    return authTokenStore.subscribe(setAccessToken);
+  }, []);
+
+  useEffect(() => {
+    const handleSessionTerminated = () => {
+      clearSession();
+    };
+
+    window.addEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
+    return () => {
+      window.removeEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
+    };
+  }, [clearSession]);
 
   const login = useCallback(
     async (request: LoginRequest): Promise<CurrentUser> => {

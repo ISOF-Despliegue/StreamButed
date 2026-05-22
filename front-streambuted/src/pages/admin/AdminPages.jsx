@@ -4,12 +4,13 @@ import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
 import { userService } from '../../services/userService';
 import { formatDate } from '../../utils/formatters';
+import { toUserFacingMessage } from '../../utils/userFacingMessages';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InlineState } from '../../components/ui/InlineState';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return toUserFacingMessage(error.message);
   }
 
   return 'No se pudo completar la solicitud.';
@@ -55,23 +56,23 @@ export function AdminOverviewPage() {
   return (
     <div className="page-inner">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div className="page-title">Overview</div>
+        <div className="page-title">Resumen</div>
       </div>
 
       <div className="stat-cards">
-        <div className="stat-card"><div className="stat-card-label">DAU</div><div className="stat-card-value">{formatMetricNumber(summary?.dailyActiveUsers)}</div></div>
-        <div className="stat-card"><div className="stat-card-label">MAU</div><div className="stat-card-value">{formatMetricNumber(summary?.monthlyActiveUsers)}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Usuarios diarios</div><div className="stat-card-value">{formatMetricNumber(summary?.dailyActiveUsers)}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Usuarios mensuales</div><div className="stat-card-value">{formatMetricNumber(summary?.monthlyActiveUsers)}</div></div>
         <div className="stat-card"><div className="stat-card-label">Reproducciones</div><div className="stat-card-value">{formatMetricNumber(summary?.totalPlays)}</div></div>
-        <div className="stat-card"><div className="stat-card-label">Analytics</div><div className="stat-card-value">{error ? 'Error' : 'Activo'}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Analíticas</div><div className="stat-card-value">{error ? 'Error' : 'Activo'}</div></div>
       </div>
 
-      {isLoading && <InlineState title="Cargando analiticas globales..." />}
-      {error && <InlineState title="No se pudieron cargar las analiticas" message={error} onRetry={loadSummary} />}
+      {isLoading && <InlineState title="Cargando analíticas globales..." />}
+      {error && <InlineState title="No se pudieron cargar las analíticas" message={error} onRetry={loadSummary} />}
 
       {!isLoading && !error && summary && (
         <div className="chart-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <RankingCard title="Top canciones" rows={summary.topTracks} primaryKey="title" />
-          <RankingCard title="Top artistas" rows={summary.topArtists} primaryKey="artistName" />
+          <RankingCard title="Canciones principales" rows={summary.topTracks} primaryKey="title" />
+          <RankingCard title="Artistas principales" rows={summary.topArtists} primaryKey="artistName" />
         </div>
       )}
     </div>
@@ -112,24 +113,24 @@ export function AdminAnalyticsPage() {
   return (
     <div className="page-inner">
       <div className="page-header">
-        <div className="page-title">Analytics</div>
+        <div className="page-title">Analíticas</div>
         <div className="page-subtitle">Uso global y rankings de la plataforma.</div>
       </div>
 
-      {isLoading && <InlineState title="Cargando analytics..." />}
-      {error && <InlineState title="No se pudo cargar Analytics" message={error} onRetry={loadSummary} />}
+      {isLoading && <InlineState title="Cargando analíticas..." />}
+      {error && <InlineState title="No se pudieron cargar las analíticas" message={error} onRetry={loadSummary} />}
 
       {!isLoading && !error && summary && (
         <>
           <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 24 }}>
-            <div className="stat-card"><div className="stat-card-label">DAU</div><div className="stat-card-value">{formatMetricNumber(summary.dailyActiveUsers)}</div></div>
-            <div className="stat-card"><div className="stat-card-label">MAU</div><div className="stat-card-value">{formatMetricNumber(summary.monthlyActiveUsers)}</div></div>
+            <div className="stat-card"><div className="stat-card-label">Usuarios diarios</div><div className="stat-card-value">{formatMetricNumber(summary.dailyActiveUsers)}</div></div>
+            <div className="stat-card"><div className="stat-card-label">Usuarios mensuales</div><div className="stat-card-value">{formatMetricNumber(summary.monthlyActiveUsers)}</div></div>
             <div className="stat-card"><div className="stat-card-label">Reproducciones globales</div><div className="stat-card-value">{formatMetricNumber(summary.totalPlays)}</div></div>
           </div>
 
           <div className="chart-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <AnalyticsTable title="Top canciones" rows={summary.topTracks} nameKey="title" />
-            <AnalyticsTable title="Top artistas" rows={summary.topArtists} nameKey="artistName" />
+            <AnalyticsTable title="Canciones principales" rows={summary.topTracks} nameKey="title" />
+            <AnalyticsTable title="Artistas principales" rows={summary.topArtists} nameKey="artistName" />
           </div>
         </>
       )}
@@ -144,10 +145,10 @@ function AnalyticsTable({ title, rows, nameKey }) {
         <div className="section-title">{title}</div>
       </div>
       {rows.length === 0 ? (
-        <InlineState title="Sin metricas disponibles" />
+        <InlineState title="Sin métricas disponibles" />
       ) : (
         <table className="data-table">
-          <thead><tr><th>Nombre</th><th>Reproducciones</th><th>Oyentes unicos</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Reproducciones</th><th>Oyentes únicos</th></tr></thead>
           <tbody>
             {rows.map(row => (
               <tr key={row.trackId ?? row.artistId}>
@@ -171,13 +172,13 @@ AnalyticsTable.propTypes = {
 
 const MODERATION_TABS = [
   ['tracks', 'Canciones'],
-  ['albums', 'Albumes'],
+  ['albums', 'Álbumes'],
   ['users', 'Cuentas'],
 ];
 
 const DURATION_UNITS = [
   ['HOURS', 'Horas'],
-  ['DAYS', 'Dias'],
+  ['DAYS', 'Días'],
   ['WEEKS', 'Semanas'],
 ];
 
@@ -197,15 +198,15 @@ function getCatalogStatusLabel(status) {
 function getBanStatusLabel(status) {
   switch (status) {
     case 'TEMPORARY':
-      return 'Baneo temporal';
+      return 'Suspensión temporal';
     case 'PERMANENT':
-      return 'Baneo permanente';
+      return 'Suspensión permanente';
     case 'EXPIRED':
-      return 'Baneo expirado';
+      return 'Suspensión expirada';
     case 'INACTIVE':
       return 'Inactiva';
     default:
-      return 'Sin baneo';
+      return 'Sin suspensión';
   }
 }
 
@@ -215,15 +216,21 @@ function getRoleBadgeClass(role) {
   return 'badge badge-listener';
 }
 
+function getRoleLabel(role) {
+  if (role === 'admin') return 'Administrador';
+  if (role === 'artist') return 'Artista';
+  return 'Oyente';
+}
+
 function getBanConfirmationMessage(draft) {
   const accountLabel = `${draft.user.username} - ${draft.user.email}`;
   if (draft.banType === 'PERMANENT') {
-    return `Confirma que deseas banear permanentemente la cuenta ${accountLabel}.`;
+    return `Confirma que deseas suspender permanentemente la cuenta ${accountLabel}.`;
   }
 
   const durationAmount = normalizeBanDurationAmount(draft.durationAmount);
-  const unitLabel = DURATION_UNITS.find(([value]) => value === draft.durationUnit)?.[1]?.toLowerCase() ?? 'dias';
-  return `Confirma que deseas banear la cuenta ${accountLabel} por ${durationAmount} ${unitLabel}.`;
+  const unitLabel = DURATION_UNITS.find(([value]) => value === draft.durationUnit)?.[1]?.toLowerCase() ?? 'días';
+  return `Confirma que deseas suspender la cuenta ${accountLabel} por ${durationAmount} ${unitLabel}.`;
 }
 
 function PaginationFooter({ pagination, label }) {
@@ -310,7 +317,7 @@ function BanAccountPanel({ draft, isLoading, onCancel, onChange, onSubmit }) {
   return (
     <form className="moderation-action-panel" onSubmit={onSubmit}>
       <div>
-        <div className="section-title">Banear cuenta</div>
+        <div className="section-title">Suspender cuenta</div>
         <div style={{ color: 'var(--t2)', fontSize: 13 }}>{draft.user.username} - {draft.user.email}</div>
       </div>
 
@@ -361,7 +368,7 @@ function BanAccountPanel({ draft, isLoading, onCancel, onChange, onSubmit }) {
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <button className="btn-ghost" disabled={isLoading} type="button" onClick={onCancel}>Cancelar</button>
         <button className="btn-danger" disabled={isLoading} type="submit">
-          {isLoading ? 'Aplicando...' : 'Confirmar baneo'}
+          {isLoading ? 'Aplicando...' : 'Confirmar suspensión'}
         </button>
       </div>
     </form>
@@ -390,7 +397,7 @@ function UserModerationAction({ isLoading, onBan, onUnban, user }) {
   if (user.banStatus === 'ACTIVE') {
     return (
       <button className="btn-danger" disabled={isLoading} onClick={() => onBan(user)} type="button">
-        Banear
+        Suspender
       </button>
     );
   }
@@ -470,7 +477,7 @@ export function AdminModerationPage({ toast }) {
     setActionError('');
     try {
       await catalogService.retireTrack(track.trackId);
-      toast('Cancion retirada.');
+      toast('Canción retirada.');
       setConfirmation(null);
       await loadModerationItems();
     } catch (err) {
@@ -485,7 +492,7 @@ export function AdminModerationPage({ toast }) {
     setActionError('');
     try {
       await catalogService.retireAlbum(album.albumId);
-      toast('Album retirado.');
+      toast('Álbum retirado.');
       setConfirmation(null);
       await loadModerationItems();
     } catch (err) {
@@ -498,9 +505,9 @@ export function AdminModerationPage({ toast }) {
   const confirmRetireTrack = (track) => {
     setActionError('');
     setConfirmation({
-      title: 'Retirar cancion',
-      message: `Confirma que deseas retirar "${track.title}" del catalogo.`,
-      confirmLabel: 'Retirar cancion',
+      title: 'Retirar canción',
+      message: `Confirma que deseas retirar "${track.title}".`,
+      confirmLabel: 'Retirar canción',
       onConfirm: () => retireTrack(track),
     });
   };
@@ -508,9 +515,9 @@ export function AdminModerationPage({ toast }) {
   const confirmRetireAlbum = (album) => {
     setActionError('');
     setConfirmation({
-      title: 'Retirar album',
-      message: `Confirma que deseas retirar "${album.title}" del catalogo.`,
-      confirmLabel: 'Retirar album',
+      title: 'Retirar álbum',
+      message: `Confirma que deseas retirar "${album.title}".`,
+      confirmLabel: 'Retirar álbum',
       onConfirm: () => retireAlbum(album),
     });
   };
@@ -527,7 +534,7 @@ export function AdminModerationPage({ toast }) {
         durationUnit: draft.banType === 'TEMPORARY' ? draft.durationUnit : undefined,
         reason: draft.reason,
       });
-      toast('Cuenta baneada.');
+      toast('Cuenta suspendida.');
       setConfirmation(null);
       setBanDraft((current) => ({ ...current, user: null }));
       await loadModerationItems();
@@ -565,9 +572,9 @@ export function AdminModerationPage({ toast }) {
       durationAmount: normalizeBanDurationAmount(banDraft.durationAmount),
     };
     setConfirmation({
-      title: 'Banear cuenta',
+      title: 'Suspender cuenta',
       message: getBanConfirmationMessage(draft),
-      confirmLabel: 'Banear cuenta',
+      confirmLabel: 'Suspender cuenta',
       onConfirm: () => banAccount(draft),
     });
   };
@@ -590,8 +597,8 @@ export function AdminModerationPage({ toast }) {
   return (
     <div className="page-inner">
       <div className="page-header">
-        <div className="page-title">Moderacion</div>
-        <div className="page-subtitle">Gestion operativa de canciones, albumes y cuentas de la plataforma.</div>
+        <div className="page-title">Moderación</div>
+        <div className="page-subtitle">Gestión operativa de canciones, álbumes y cuentas de la plataforma.</div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
@@ -610,14 +617,14 @@ export function AdminModerationPage({ toast }) {
         ))}
       </div>
 
-      {isLoading && <InlineState title="Cargando moderacion..." />}
-      {error && <InlineState title="No se pudo cargar Moderacion" message={error} onRetry={loadModerationItems} />}
-      {actionError && <InlineState title="No se pudo aplicar la accion" message={actionError} />}
+      {isLoading && <InlineState title="Cargando moderación..." />}
+      {error && <InlineState title="No se pudo cargar la moderación" message={error} onRetry={loadModerationItems} />}
+      {actionError && <InlineState title="No se pudo aplicar la acción" message={actionError} />}
 
       {!isLoading && !error && activeTab === 'tracks' && (
         <ModerationTable
           emptyTitle="No hay canciones registradas"
-          headers={['Cancion', 'Artista', 'Album', 'Estado', 'Fecha', 'Accion']}
+          headers={['Canción', 'Artista', 'Álbum', 'Estado', 'Fecha', 'Acción']}
           label="canciones"
           pagination={pagination}
           rows={tracks.map(track => ({
@@ -628,7 +635,7 @@ export function AdminModerationPage({ toast }) {
                 <div style={{ fontSize: 12, color: 'var(--t3)' }}>{track.genre}</div>
               </div>,
               track.artistName,
-              track.albumTitle ?? 'Single',
+              track.albumTitle ?? 'Sencillo',
               <CatalogStatusBadge key="track-status" status={track.status} />,
               <span key="track-created-at" style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</span>,
               <RetireActionButton
@@ -643,9 +650,9 @@ export function AdminModerationPage({ toast }) {
 
       {!isLoading && !error && activeTab === 'albums' && (
         <ModerationTable
-          emptyTitle="No hay albumes registrados"
-          headers={['Album', 'Artista', 'Canciones', 'Estado', 'Fecha', 'Accion']}
-          label="albumes"
+          emptyTitle="No hay álbumes registrados"
+          headers={['Álbum', 'Artista', 'Canciones', 'Estado', 'Fecha', 'Acción']}
+          label="álbumes"
           pagination={pagination}
           rows={albums.map(album => ({
             key: album.albumId,
@@ -677,7 +684,7 @@ export function AdminModerationPage({ toast }) {
 
           <ModerationTable
             emptyTitle="No hay cuentas registradas"
-            headers={['Cuenta', 'Rol', 'Estado', 'Baneo', 'Alta', 'Accion']}
+            headers={['Cuenta', 'Rol', 'Estado', 'Suspensión', 'Alta', 'Acción']}
             label="cuentas"
             pagination={pagination}
             rows={users.map(user => ({
@@ -687,7 +694,7 @@ export function AdminModerationPage({ toast }) {
                   <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{user.username}</div>
                   <div style={{ fontSize: 12, color: 'var(--t3)' }}>{user.email}</div>
                 </div>,
-                <span key="user-role" className={getRoleBadgeClass(user.role)}>{user.role}</span>,
+                <span key="user-role" className={getRoleBadgeClass(user.role)}>{getRoleLabel(user.role)}</span>,
                 <span key="user-state">
                   <span className={`status-dot ${user.isActive ? 'status-active' : 'status-suspended'}`} />
                   {user.isActive ? 'Activa' : 'Inactiva'}

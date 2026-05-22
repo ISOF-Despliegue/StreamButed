@@ -1,4 +1,9 @@
-import { getAssetUrl, mediaService } from "./mediaService";
+import {
+  getAssetUrl,
+  getUploadFileHelperText,
+  getUploadFileNameError,
+  mediaService,
+} from "./mediaService";
 import { getMediaAssetUrl } from "./gatewayUrl";
 
 describe("mediaService", () => {
@@ -32,6 +37,22 @@ describe("mediaService", () => {
     await mediaService.uploadAudio(file);
 
     expect(globalThis.fetch).toHaveBeenCalled();
+  });
+
+  it("validates upload file names before sending the request", async () => {
+    const file = new File(["audio"], "canción bonita.mp3", { type: "audio/mpeg" });
+
+    expect(getUploadFileNameError(file, "mi-cancion-01.mp3")).toContain(
+      "El nombre del archivo solo puede usar letras sin acentos"
+    );
+    expect(() => mediaService.uploadAudio(file)).toThrow(
+      "El nombre del archivo solo puede usar letras sin acentos"
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("explains valid upload file names in helper text", () => {
+    expect(getUploadFileHelperText("mi-cancion-01.mp3")).toContain("Ejemplo: mi-cancion-01.mp3");
   });
 
   it("builds media asset URLs from the public gateway without duplicating /api", () => {

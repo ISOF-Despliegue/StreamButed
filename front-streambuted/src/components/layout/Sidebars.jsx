@@ -1,9 +1,9 @@
 import { memo } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import {
   IcHome, IcSearch, IcLib, IcSettings,
-  IcDashboard, IcTracks, IcUpload, IcChart, IcMusic,
+  IcDashboard, IcUpload, IcChart, IcMusic,
   IcOverview, IcReport, IcShield,
 } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
@@ -30,27 +30,33 @@ function SidebarNavItem({ item }) {
  */
 function MainSidebarComponent({ user }) {
   const discoverItems = [
-    { to: routes.home, end: true, label: 'Home', icon: <IcHome /> },
-    { to: routes.search, label: 'Search', icon: <IcSearch /> },
-    { to: routes.library, label: 'Library', icon: <IcLib /> },
-    { to: routes.lives, label: 'Lives', icon: <span style={{ fontSize: 14 }}>Live</span> },
-    { to: routes.settings, label: 'Settings', icon: <IcSettings /> },
+    { to: routes.home, end: true, label: 'Inicio', icon: <IcHome /> },
+    { to: routes.search, label: 'Buscar', icon: <IcSearch /> },
+    { to: routes.library, label: 'Biblioteca', icon: <IcLib /> },
+    { to: routes.lives, label: 'En vivo', icon: <span style={{ fontSize: 14 }}>Vivo</span> },
+    { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
   ];
 
   // Manage items are only shown when the user holds the artist role.
   const manageItems =
     user.role === 'artist'
       ? [
-          { to: routes.artistDashboard, end: true, label: 'Dashboard', icon: <IcDashboard /> },
-          { to: routes.artistTracks, label: 'My Tracks', icon: <IcTracks /> },
-          { to: routes.artistAlbums, label: 'Albums', icon: <IcMusic /> },
-          { to: routes.artistAnalytics, label: 'Analytics', icon: <IcChart /> },
-          { to: routes.artistUpload, label: 'Upload +', icon: <IcUpload /> },
-          { to: routes.artistLive, label: 'Do Live', icon: <span style={{ fontSize: 14 }}>Live</span> },
+          { to: routes.artistDashboard, end: true, label: 'Panel', icon: <IcDashboard /> },
+          { to: routes.artistTracks, label: 'Mis pistas', icon: <span className="nav-note-icon" aria-hidden="true">♩</span> },
+          { to: routes.artistAlbums, label: 'Álbumes', icon: <IcMusic /> },
+          { to: routes.artistAnalytics, label: 'Analíticas', icon: <IcChart /> },
+          { to: routes.artistUpload, label: 'Subir +', icon: <IcUpload /> },
+          { to: routes.artistLive, label: 'Transmitir', icon: <span style={{ fontSize: 14 }}>Vivo</span> },
         ]
       : []; 
 
-  const roleLabel = user.role === 'artist' ? 'Artist' : 'Listener';
+  const roleLabel = user.role === 'artist' ? 'Artista' : 'Oyente';
+  const profilePath = user.role === 'artist' && user.id
+    ? routes.artistProfile(user.id)
+    : routes.settings;
+  const profileLabel = user.role === 'artist'
+    ? `Ver perfil de ${user.username}`
+    : 'Abrir ajustes';
 
   const avatarNode = user.profileImageAssetId ? (
     <img
@@ -79,7 +85,7 @@ function MainSidebarComponent({ user }) {
           textTransform: 'uppercase',
         }}
       >
-        Discover
+        Descubrir
       </div>
       <div className="sidebar-section" style={{ paddingTop: 4 }}>
         {discoverItems.map((item) => (
@@ -100,7 +106,7 @@ function MainSidebarComponent({ user }) {
               textTransform: 'uppercase',
             }}
           >
-            Manage
+            Gestionar
           </div>
           <div className="sidebar-section" style={{ paddingTop: 4 }}>
             {manageItems.map((item) => (
@@ -111,13 +117,13 @@ function MainSidebarComponent({ user }) {
       )}
 
       <div className="sidebar-footer">
-        <div className="user-chip">
+        <Link className="user-chip" to={profilePath} aria-label={profileLabel}>
           <div className="user-avatar">{avatarNode}</div>
           <div className="user-info">
             <div className="user-name">{user.username}</div>
             <div className="user-role">{roleLabel}</div>
           </div>
-        </div>
+        </Link>
       </div>
     </div>
   );
@@ -125,10 +131,10 @@ function MainSidebarComponent({ user }) {
 
 function AdminSidebarComponent({ user }) {
   const items = [
-    { to: routes.adminOverview, end: true, label: 'Overview', icon: <IcOverview /> },
-    { to: routes.adminReports, label: 'Analytics', icon: <IcReport /> },
+    { to: routes.adminOverview, end: true, label: 'Resumen', icon: <IcOverview /> },
+    { to: routes.adminReports, label: 'Analíticas', icon: <IcReport /> },
     { to: routes.adminModeration, label: 'Moderación', icon: <IcShield /> },
-    { to: routes.settings, label: 'Settings', icon: <IcSettings /> },
+    { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
   ];
 
   return (
@@ -147,7 +153,7 @@ function AdminSidebarComponent({ user }) {
           textTransform: 'uppercase',
         }}
       >
-        Admin Panel
+        Administración
       </div>
       <div className="sidebar-section" style={{ paddingTop: 4 }}>
         {items.map((it) => (
@@ -158,7 +164,7 @@ function AdminSidebarComponent({ user }) {
         ))}
       </div>
       <div className="sidebar-footer">
-        <div className="user-chip">
+        <Link className="user-chip" to={routes.settings} aria-label="Abrir ajustes">
           <div
             className="user-avatar"
             style={{ background: 'rgba(167,139,250,0.2)', color: '#A78BFA' }}
@@ -174,9 +180,9 @@ function AdminSidebarComponent({ user }) {
           </div>
           <div className="user-info">
             <div className="user-name">{user.username}</div>
-            <div className="user-role">Administrator</div>
+            <div className="user-role">Administrador</div>
           </div>
-        </div>
+        </Link>
       </div>
     </div>
   );
@@ -190,6 +196,7 @@ const sidebarItemPropType = PropTypes.shape({
 });
 
 const sidebarUserPropType = PropTypes.shape({
+  id: PropTypes.string,
   profileImageAssetId: PropTypes.string,
   role: PropTypes.string,
   username: PropTypes.string,

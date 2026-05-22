@@ -39,7 +39,7 @@ describe("route guards", () => {
       </AuthContext.Provider>
     );
 
-    expect(screen.getByText("Cargando sesion...")).toBeInTheDocument();
+    expect(screen.getByText("Cargando sesión...")).toBeInTheDocument();
   });
 
   it("renders protected content when the session is active", () => {
@@ -103,7 +103,7 @@ describe("route guards", () => {
       </AuthContext.Provider>
     );
 
-    expect(screen.getByText("Cargando sesion...")).toBeInTheDocument();
+    expect(screen.getByText("Cargando sesión...")).toBeInTheDocument();
   });
 
   it("renders role-protected content for an allowed role", () => {

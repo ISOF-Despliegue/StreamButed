@@ -1,23 +1,40 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
-import { IcMusic } from '../../components/icons/Icons';
+import { IcMusic, IcPlay } from '../../components/icons/Icons';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { FilePicker } from '../../components/ui/FilePicker';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InlineState } from '../../components/ui/InlineState';
 import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
-import { getAssetUrl, mediaService } from '../../services/mediaService';
+import {
+  getAssetUrl,
+  getUploadFileHelperText,
+  getUploadFileNameError,
+  mediaService,
+} from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
 import { formatDate } from '../../utils/formatters';
+import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return toUserFacingMessage(error.message);
   }
 
   return 'No se pudo completar la solicitud.';
+}
+
+function getCatalogStatusLabel(status) {
+  return status === 'RETIRADO' ? 'Retirado' : 'Publicado';
+}
+
+function getArtistPlayableTrack(track, username) {
+  return {
+    ...track,
+    artist: track.artist ?? track.artistName ?? username ?? 'Artista',
+  };
 }
 
 function formatMetricNumber(value) {
@@ -28,11 +45,11 @@ const TRACK_GENRES = [
   'Pop',
   'Rock',
   'Hip-Hop',
-  'Electronica',
+  'Electrónica',
   'Regional',
-  'Reggaeton',
+  'Reguetón',
   'Jazz',
-  'Clasica',
+  'Clásica',
   'Indie',
   'Otro',
 ];
@@ -59,20 +76,30 @@ const ALLOWED_AUDIO_TYPES = new Set([
   'audio/x-m4a',
   'video/mp4',
 ]);
+const AUDIO_FILE_HELPER = `MP3, WAV, FLAC, OGG, WEBM, M4A o MP4 - máximo 200 MB. ${getUploadFileHelperText('mi-cancion-01.mp3')}`;
+const IMAGE_FILE_HELPER = `JPG, PNG o WEBP - máximo 5 MB. ${getUploadFileHelperText('portada-01.png')}`;
 
 function normalizeText(value) {
   return (value ?? '').trim();
 }
 
+function hasEmptyTrackFields({ title, genre, audioFile, coverFile }) {
+  return !normalizeText(title) || !normalizeText(genre) || !audioFile || !coverFile;
+}
+
 function validateCoverImage(file) {
-  if (!file) return 'Portada requerida por Catalog.';
-  if (file.type && !ALLOWED_IMAGE_TYPES.has(file.type)) return 'Formato de imagen invalido. Usa JPG, PNG o WEBP.';
-  if (file.size > MAX_IMAGE_SIZE_BYTES) return 'La imagen supera el maximo de 5 MB.';
+  if (!file) return 'Selecciona una portada.';
+  const fileNameError = getUploadFileNameError(file, 'portada-01.png');
+  if (fileNameError) return fileNameError;
+  if (file.type && !ALLOWED_IMAGE_TYPES.has(file.type)) return 'Formato de imagen inválido. Usa JPG, PNG o WEBP.';
+  if (file.size > MAX_IMAGE_SIZE_BYTES) return 'La imagen supera el máximo de 5 MB.';
   return '';
 }
 
 function validateAudio(file) {
   if (!file) return 'Audio requerido.';
+  const fileNameError = getUploadFileNameError(file, 'mi-cancion-01.mp3');
+  if (fileNameError) return fileNameError;
   
   // Infer type from extension if file.type is empty
   let fileType = file.type;
@@ -91,9 +118,9 @@ function validateAudio(file) {
   }
   
   if (!fileType || !ALLOWED_AUDIO_TYPES.has(fileType)) {
-    return 'Formato de audio invalido. Usa MP3, WAV, FLAC, OGG o WEBM.';
+    return 'Formato de audio inválido. Usa MP3, WAV, FLAC, OGG, WEBM, M4A o MP4.';
   }
-  if (file.size > MAX_AUDIO_SIZE_BYTES) return 'El audio supera el maximo de 200 MB.';
+  if (file.size > MAX_AUDIO_SIZE_BYTES) return 'El audio supera el máximo de 200 MB.';
   return '';
 }
 
@@ -185,15 +212,15 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
     <div className="page-inner">
       <div className="page-header">
         <div className="artist-view-badge">Artista</div>
-        <div className="page-title">Dashboard</div>
+        <div className="page-title">Panel</div>
         <div className="page-subtitle">Bienvenido, {user.username}</div>
       </div>
 
-      {isLoading && <InlineState title="Cargando catalogo de artista..." />}
+      {isLoading && <InlineState title="Cargando tu música..." />}
       {error && (
         <InlineState
-          title="Preparando perfil de artista"
-          message="Catalog puede tardar unos segundos en crear el artista despues de la promocion por RabbitMQ."
+          title="Estamos preparando tu perfil de artista"
+          message="Tu perfil estará listo en unos segundos. Intenta de nuevo en un momento."
           onRetry={loadCatalog}
         />
       )}
@@ -202,17 +229,17 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
         <>
           <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 24 }}>
             <div className="stat-card"><div className="stat-card-label">Pistas publicadas</div><div className="stat-card-value">{tracks.length}</div></div>
-            <div className="stat-card"><div className="stat-card-label">Albums</div><div className="stat-card-value">{albums.length}</div></div>
+            <div className="stat-card"><div className="stat-card-label">Álbumes</div><div className="stat-card-value">{albums.length}</div></div>
             <div className="stat-card"><div className="stat-card-label">Reproducciones</div><div className="stat-card-value">{formatMetricNumber(analyticsSummary?.totalPlays)}</div></div>
             <div className="stat-card">
               <div className="stat-card-label">Promedio diario</div>
               <div className="stat-card-value">{formatMetricNumber(analyticsSummary?.averageDailyPlays)}</div>
-              <div className="stat-card-delta">{formatMetricNumber(analyticsSummary?.averageDailyUniqueListeners)} oyentes unicos</div>
+              <div className="stat-card-delta">{formatMetricNumber(analyticsSummary?.averageDailyUniqueListeners)} oyentes únicos</div>
             </div>
           </div>
           {analyticsError && (
             <div className="confirm-dialog-warning" style={{ marginBottom: 18 }}>
-              Analytics no esta disponible temporalmente: {analyticsError}
+              Las estadísticas no están disponibles temporalmente: {analyticsError}
             </div>
           )}
 
@@ -222,10 +249,10 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
               <button className="btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate(routes.artistTracks)}>Ver todas</button>
             </div>
             {tracks.length === 0 ? (
-              <InlineState title="Aun no tienes pistas" message="Sube audio y portada para crear tu primera pista real." />
+              <InlineState title="Aún no tienes pistas" message="Sube una canción con su portada para empezar tu catálogo." />
             ) : (
               <table className="track-list">
-                <thead><tr><th style={{ width: 40 }}>#</th><th>Titulo</th><th>Genero</th><th className="track-duration-col">Duracion</th></tr></thead>
+                <thead><tr><th style={{ width: 40 }}>#</th><th>Título</th><th>Género</th><th className="track-duration-col">Duración</th></tr></thead>
                 <tbody>
                   {tracks.slice(0, 6).map((track, index) => (
                     <TrackRow
@@ -244,12 +271,12 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
           {analyticsSummary?.topTracks?.length > 0 && (
             <div className="section">
               <div className="section-header">
-                <div className="section-title">Top canciones</div>
-                <button className="btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate(routes.artistAnalytics)}>Ver analiticas</button>
+                <div className="section-title">Canciones principales</div>
+                <button className="btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate(routes.artistAnalytics)}>Ver analíticas</button>
               </div>
               <div className="table-wrap">
                 <table className="data-table">
-                  <thead><tr><th>Cancion</th><th>Reproducciones</th><th>Oyentes unicos</th></tr></thead>
+                  <thead><tr><th>Canción</th><th>Reproducciones</th><th>Oyentes únicos</th></tr></thead>
                   <tbody>
                     {analyticsSummary.topTracks.map(track => (
                       <tr key={track.trackId}>
@@ -275,7 +302,7 @@ ArtistDashboardPage.propTypes = {
   user: artistUserPropType.isRequired,
 };
 
-export function MyTracksPage({ user, toast }) {
+export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = undefined }) {
   const navigate = useNavigate();
   const [tracks, setTracks] = useState([]);
   const [albums, setAlbums] = useState([]);
@@ -327,11 +354,11 @@ export function MyTracksPage({ user, toast }) {
   return (
     <div className="page-inner">
       <div className="my-tracks-header">
-        <div className="page-title">Mis Pistas</div>
+        <div className="page-title">Mis pistas</div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn-ghost" onClick={() => navigate(routes.artistAlbums)}>Albums</button>
-          <button className="btn-ghost" onClick={() => navigate(routes.artistUpload)}>+ Subir Pista</button>
-          <button className="btn-primary" onClick={() => navigate(routes.artistAlbumNew)}>+ Crear Album</button>
+          <button className="btn-ghost" onClick={() => navigate(routes.artistAlbums)}>Álbumes</button>
+          <button className="btn-ghost" onClick={() => navigate(routes.artistUpload)}>+ Subir pista</button>
+          <button className="btn-primary" onClick={() => navigate(routes.artistAlbumNew)}>+ Crear álbum</button>
         </div>
       </div>
 
@@ -344,12 +371,17 @@ export function MyTracksPage({ user, toast }) {
             <InlineState title="Sin pistas publicadas" />
           ) : (
             <table className="data-table">
-              <thead><tr><th>Titulo</th><th>Genero</th><th>Album</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Título</th><th>Género</th><th>Álbum</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
               <tbody>
                 {tracks.map(track => (
                   <tr key={track.trackId}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button
+                        className={`artist-track-play-button${currentTrack?.trackId === track.trackId ? ' active' : ''}`}
+                        type="button"
+                        onClick={() => onPlayTrack?.(getArtistPlayableTrack(track, user.username))}
+                        aria-label={`Reproducir ${track.title}`}
+                      >
                         <div className="track-thumb">
                           {track.coverAssetId ? (
                             <img src={getAssetUrl(track.coverAssetId)} alt={`Portada de ${track.title}`} />
@@ -358,11 +390,12 @@ export function MyTracksPage({ user, toast }) {
                           )}
                         </div>
                         <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{track.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Pista publicada</div></div>
-                      </div>
+                        <span className="artist-play-inline" aria-hidden="true"><IcPlay /></span>
+                      </button>
                     </td>
-                    <td style={{ color: 'var(--t2)' }}>{track.genre || 'Sin genero'}</td>
-                    <td style={{ color: 'var(--t2)' }}>{track.albumId && albumTitleById.has(track.albumId) ? albumTitleById.get(track.albumId) : 'Single'}</td>
-                    <td style={{ color: 'var(--t2)' }}>{track.status}</td>
+                    <td style={{ color: 'var(--t2)' }}>{track.genre || 'Sin género'}</td>
+                    <td style={{ color: 'var(--t2)' }}>{track.albumId && albumTitleById.has(track.albumId) ? albumTitleById.get(track.albumId) : 'Sencillo'}</td>
+                    <td style={{ color: 'var(--t2)' }}>{getCatalogStatusLabel(track.status)}</td>
                     <td style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -380,7 +413,7 @@ export function MyTracksPage({ user, toast }) {
       <ConfirmDialog
         open={Boolean(trackToRetire)}
         title="Retirar pista"
-        message={`Esta accion retirara "${trackToRetire?.title ?? 'esta pista'}" del catalogo. Los oyentes ya no podran reproducirla desde la app.`}
+        message={`Esta acción retirará "${trackToRetire?.title ?? 'esta pista'}". Los oyentes ya no podrán reproducirla desde la app.`}
         confirmLabel="Retirar pista"
         isLoading={isRetiringTrack}
         onConfirm={retire}
@@ -391,11 +424,13 @@ export function MyTracksPage({ user, toast }) {
 }
 
 MyTracksPage.propTypes = {
+  currentTrack: artistTrackPropType,
+  onPlayTrack: PropTypes.func,
   toast: PropTypes.func.isRequired,
   user: artistUserPropType.isRequired,
 };
 
-export function MyAlbumsPage({ user, toast }) {
+export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = undefined }) {
   const navigate = useNavigate();
   const [albums, setAlbums] = useState([]);
   const [tracks, setTracks] = useState([]);
@@ -432,7 +467,7 @@ export function MyAlbumsPage({ user, toast }) {
     try {
       setIsRetiringAlbum(true);
       await catalogService.retireAlbum(albumToRetire.albumId);
-      toast('Album retirado');
+      toast('Álbum retirado');
       setAlbumToRetire(null);
       await loadAlbums();
     } catch (err) {
@@ -446,54 +481,94 @@ export function MyAlbumsPage({ user, toast }) {
     navigate(routes.artistUploadForAlbum(albumId));
   };
 
-  const countTracks = (albumId) => tracks.filter(track => track.albumId === albumId).length;
+  const getAlbumTracks = (albumId) => tracks.filter(track => track.albumId === albumId);
+  const countTracks = (albumId) => getAlbumTracks(albumId).length;
+  const playAlbumTrack = (album, track) => {
+    const albumTracks = getAlbumTracks(album.albumId).map(item => getArtistPlayableTrack(item, user.username));
+    onPlayTrack?.(
+      getArtistPlayableTrack(track, user.username),
+      albumTracks,
+      album.albumId
+    );
+  };
 
   return (
     <div className="page-inner">
       <div className="my-tracks-header">
-        <div className="page-title">Mis Albums</div>
+        <div className="page-title">Mis álbumes</div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-ghost" onClick={() => navigate(routes.artistTracks)}>Pistas</button>
-          <button className="btn-primary" onClick={() => navigate(routes.artistAlbumNew)}>+ Crear Album</button>
+          <button className="btn-primary" onClick={() => navigate(routes.artistAlbumNew)}>+ Crear álbum</button>
         </div>
       </div>
 
-      {isLoading && <InlineState title="Cargando albums..." />}
-      {error && <InlineState title="No se pudieron cargar tus albums" message={error} onRetry={loadAlbums} />}
+      {isLoading && <InlineState title="Cargando álbumes..." />}
+      {error && <InlineState title="No se pudieron cargar tus álbumes" message={error} onRetry={loadAlbums} />}
 
       {!isLoading && !error && (
         <div className="table-wrap">
           {albums.length === 0 ? (
-            <InlineState title="Sin albums publicados" message="Crea un album y luego agrega canciones desde esta misma vista." />
+            <InlineState title="Sin álbumes publicados" message="Crea un álbum y luego agrega canciones desde esta misma vista." />
           ) : (
             <table className="data-table">
-              <thead><tr><th>Album</th><th>Pistas</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Álbum</th><th>Pistas</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
               <tbody>
-                {albums.map(album => (
+                {albums.map(album => {
+                  const albumTracks = getAlbumTracks(album.albumId);
+                  const firstAlbumTrack = albumTracks[0];
+
+                  return (
                   <tr key={album.albumId}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div className="track-thumb">
-                          {album.coverAssetId ? (
-                            <img src={getAssetUrl(album.coverAssetId)} alt={`Portada de ${album.title}`} />
-                          ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
-                          )}
+                      <div className="artist-album-cell">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div className="track-thumb">
+                            {album.coverAssetId ? (
+                              <img src={getAssetUrl(album.coverAssetId)} alt={`Portada de ${album.title}`} />
+                            ) : (
+                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+                            )}
+                          </div>
+                          <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Álbum publicado</div></div>
                         </div>
-                        <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Album publicado</div></div>
+                        {albumTracks.length > 0 && (
+                          <div className="artist-album-track-list" aria-label={`Pistas de ${album.title}`}>
+                            {albumTracks.map(track => (
+                              <button
+                                className={`artist-album-track-chip${currentTrack?.trackId === track.trackId ? ' active' : ''}`}
+                                key={track.trackId}
+                                type="button"
+                                onClick={() => playAlbumTrack(album, track)}
+                                aria-label={`Reproducir ${track.title}`}
+                              >
+                                <IcPlay />
+                                <span>{track.title}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td style={{ color: 'var(--t2)' }}>{countTracks(album.albumId)}</td>
-                    <td style={{ color: 'var(--t2)' }}>{album.status}</td>
+                    <td style={{ color: 'var(--t2)' }}>{getCatalogStatusLabel(album.status)}</td>
                     <td style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }} onClick={() => addTrackToAlbum(album.albumId)}>Agregar cancion</button>
+                        <button
+                          className="btn-ghost"
+                          disabled={!firstAlbumTrack}
+                          style={{ padding: '5px 12px', fontSize: 12 }}
+                          onClick={() => firstAlbumTrack && playAlbumTrack(album, firstAlbumTrack)}
+                        >
+                          Reproducir
+                        </button>
+                        <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }} onClick={() => addTrackToAlbum(album.albumId)}>Agregar canción</button>
                         <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setAlbumToRetire(album)}>Retirar</button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           )}
@@ -501,9 +576,9 @@ export function MyAlbumsPage({ user, toast }) {
       )}
       <ConfirmDialog
         open={Boolean(albumToRetire)}
-        title="Retirar album"
-        message={`Esta accion retirara "${albumToRetire?.title ?? 'este album'}" del catalogo y afectara su disponibilidad para los oyentes.`}
-        confirmLabel="Retirar album"
+        title="Retirar álbum"
+        message={`Esta acción retirará "${albumToRetire?.title ?? 'este álbum'}" y afectará su disponibilidad para los oyentes.`}
+        confirmLabel="Retirar álbum"
         isLoading={isRetiringAlbum}
         onConfirm={retire}
         onCancel={() => setAlbumToRetire(null)}
@@ -513,6 +588,8 @@ export function MyAlbumsPage({ user, toast }) {
 }
 
 MyAlbumsPage.propTypes = {
+  currentTrack: artistTrackPropType,
+  onPlayTrack: PropTypes.func,
   toast: PropTypes.func.isRequired,
   user: artistUserPropType.isRequired,
 };
@@ -616,10 +693,11 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
 
-    if (!normalizedTitle) return setError('Titulo requerido.');
-    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El titulo no puede superar 220 caracteres.');
-    if (!normalizedGenre) return setError('Genero requerido.');
-    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El genero no puede superar 80 caracteres.');
+    if (hasEmptyTrackFields({ title, genre, audioFile, coverFile })) {
+      return setError('Todos los campos son obligatorios.');
+    }
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
+    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     const audioError = validateAudio(audioFile);
     if (audioError) return setError(audioError);
@@ -653,7 +731,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
       setGenre('');
       setAudioFile(null);
       setCoverFile(null);
-      toast(albumId ? 'Cancion agregada al album' : 'Pista publicada');
+      toast(albumId ? 'Canción agregada al álbum' : 'Pista publicada');
       if (!isAlbumLocked) {
         onUploadAlbumConsumed?.();
       }
@@ -666,28 +744,28 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
 
   return (
     <div className="page-inner">
-      <div className="page-header"><div className="page-title">{isAlbumLocked ? 'Agregar cancion al album' : 'Upload Single'}</div></div>
+      <div className="page-header"><div className="page-title">{isAlbumLocked ? 'Agregar canción al álbum' : 'Subir canción'}</div></div>
 
       <div className="settings-card" style={{ maxWidth: 760 }}>
         <div className="settings-card-title">Audio</div>
         <div className="form-group-mb">
-          <label className="form-label" htmlFor="upload-track-title">Track Title</label>
+          <label className="form-label" htmlFor="upload-track-title">Título de la canción</label>
           <input
             id="upload-track-title"
             value={title}
             onChange={event => setTitle(event.target.value)}
-            placeholder="Enter track title"
+            placeholder="Título de la canción"
             maxLength={TRACK_TITLE_MAX_LENGTH}
           />
         </div>
         <div className="form-group-mb">
-          <label className="form-label" htmlFor="upload-track-genre">Genero</label>
+          <label className="form-label" htmlFor="upload-track-genre">Género</label>
           <input
             id="upload-track-genre"
             list="track-genres"
             value={genre}
             onChange={event => setGenre(event.target.value)}
-            placeholder="Rock, Pop, Electronica..."
+            placeholder="Rock, Pop, Electrónica..."
             maxLength={GENRE_MAX_LENGTH}
           />
           <datalist id="track-genres">
@@ -696,17 +774,17 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         </div>
         {isAlbumLocked ? (
           <div className="form-group-mb">
-            <div className="form-label">Album destino</div>
+            <div className="form-label">Álbum destino</div>
             <div style={{ fontSize: 14, color: 'var(--t1)' }}>
-              {lockedAlbum?.title ?? 'Cargando album...'}
+              {lockedAlbum?.title ?? 'Cargando álbum...'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-              Esta cancion se agregara directamente a este album.
+              Esta canción se agregará directamente a este álbum.
             </div>
           </div>
         ) : (
           <div className="form-group-mb">
-            <label className="form-label" htmlFor="upload-track-album">Album destino</label>
+            <label className="form-label" htmlFor="upload-track-album">Álbum destino</label>
             <select id="upload-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
               <option value="">Publicar como single</option>
               {albums.map(album => (
@@ -714,34 +792,34 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
               ))}
             </select>
             <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-              {albums.length ? 'Puedes publicarla como single o agregarla a un album existente.' : 'Crea un album para poder asociar canciones desde aqui.'}
+              {albums.length ? 'Puedes publicarla como single o agregarla a un álbum existente.' : 'Crea un álbum para poder asociar canciones desde aquí.'}
             </div>
           </div>
         )}
         <div className="form-group-mb">
-          <div className="form-label">Audio file</div>
+          <div className="form-label">Archivo de audio</div>
           <FilePicker
             accept={AUDIO_ACCEPT}
             file={audioFile}
             onChange={handleAudioChange}
-            helperText="MP3, WAV, FLAC, OGG, WEBM, M4A o MP4 - max 200 MB"
+            helperText={AUDIO_FILE_HELPER}
             buttonLabel="Seleccionar archivo"
           />
         </div>
         <div className="form-group-mb">
-          <div className="form-label">Cover image</div>
+          <div className="form-label">Portada</div>
           <FilePicker
             accept="image/png,image/jpeg,image/webp"
             file={coverFile}
             onChange={handleCoverChange}
-            helperText="JPG, PNG o WEBP - max 5 MB"
+            helperText={IMAGE_FILE_HELPER}
             buttonLabel="Seleccionar archivo"
           />
           {coverPreviewUrl && (
             <div style={{ marginTop: 10 }}>
               <img
                 src={coverPreviewUrl}
-                alt="Previsualizacion de portada"
+                alt="Previsualización de portada"
                 style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
               />
             </div>
@@ -749,7 +827,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={handlePublish} disabled={isSubmitting}>
-          {isSubmitting ? 'Publicando...' : 'Publish Single'}
+          {isSubmitting ? 'Publicando...' : 'Publicar canción'}
         </button>
       </div>
     </div>
@@ -809,10 +887,11 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
 
-    if (!normalizedTitle) return setError('Titulo de la cancion requerido.');
-    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El titulo de la cancion no puede superar 220 caracteres.');
-    if (!normalizedGenre) return setError('Genero requerido.');
-    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El genero no puede superar 80 caracteres.');
+    if (hasEmptyTrackFields({ title, genre, audioFile, coverFile })) {
+      return setError('Todos los campos son obligatorios.');
+    }
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título de la canción no puede superar 220 caracteres.');
+    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     const audioError = validateAudio(audioFile);
     if (audioError) return setError(audioError);
@@ -838,7 +917,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
       setAudioFile(null);
       setCoverFile(null);
       onTrackCreated?.(createdTrack);
-      toast('Cancion agregada al album');
+      toast('Canción agregada al álbum');
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -848,54 +927,54 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
 
   return (
     <div className="settings-card" style={{ maxWidth: 760 }}>
-      <div className="settings-card-title">Agregar cancion a {album.title}</div>
+      <div className="settings-card-title">Agregar canción a {album.title}</div>
       <div className="form-group-mb">
-        <label className="form-label" htmlFor="album-created-track-title">Titulo de la cancion</label>
+        <label className="form-label" htmlFor="album-created-track-title">Título de la canción</label>
         <input
           id="album-created-track-title"
           value={title}
           onChange={event => setTitle(event.target.value)}
-          placeholder="Titulo de la cancion"
+          placeholder="Título de la canción"
           maxLength={TRACK_TITLE_MAX_LENGTH}
           disabled={isSubmitting}
         />
       </div>
       <div className="form-group-mb">
-        <label className="form-label" htmlFor="album-created-track-genre">Genero</label>
+        <label className="form-label" htmlFor="album-created-track-genre">Género</label>
         <input
           id="album-created-track-genre"
           list="track-genres"
           value={genre}
           onChange={event => setGenre(event.target.value)}
-          placeholder="Rock, Pop, Electronica..."
+          placeholder="Rock, Pop, Electrónica..."
           maxLength={GENRE_MAX_LENGTH}
           disabled={isSubmitting}
         />
       </div>
       <div className="form-group-mb">
-        <div className="form-label">Audio file</div>
+        <div className="form-label">Archivo de audio</div>
         <FilePicker
           accept={AUDIO_ACCEPT}
           file={audioFile}
           onChange={handleAudioChange}
-          helperText="MP3, WAV, FLAC, OGG, WEBM, M4A o MP4 - max 200 MB"
+          helperText={AUDIO_FILE_HELPER}
           buttonLabel="Seleccionar archivo"
         />
       </div>
       <div className="form-group-mb">
-        <div className="form-label">Portada de la cancion</div>
+        <div className="form-label">Portada de la canción</div>
         <FilePicker
           accept="image/png,image/jpeg,image/webp"
           file={coverFile}
           onChange={handleCoverChange}
-          helperText="JPG, PNG o WEBP - max 5 MB"
+          helperText={IMAGE_FILE_HELPER}
           buttonLabel="Seleccionar archivo"
         />
         {coverPreviewUrl && (
           <div style={{ marginTop: 10 }}>
             <img
               src={coverPreviewUrl}
-              alt="Previsualizacion de portada de la cancion"
+              alt="Previsualización de portada de la canción"
               style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
             />
           </div>
@@ -903,7 +982,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
       </div>
       {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
       <button className="btn-primary" onClick={handleCreateTrack} disabled={isSubmitting}>
-        {isSubmitting ? 'Agregando...' : 'Agregar cancion'}
+        {isSubmitting ? 'Agregando...' : 'Agregar canción'}
       </button>
     </div>
   );
@@ -954,8 +1033,8 @@ export function CreateAlbumPage({ toast }) {
 
   const handleCreate = async () => {
     const normalizedTitle = normalizeText(title);
-    if (!normalizedTitle) return setError('Titulo requerido.');
-    if (normalizedTitle.length > ALBUM_TITLE_MAX_LENGTH) return setError('El titulo no puede superar 220 caracteres.');
+    if (!normalizedTitle || !coverFile) return setError('Todos los campos son obligatorios.');
+    if (normalizedTitle.length > ALBUM_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
     const coverError = validateCoverImage(coverFile);
     if (coverError) return setError(coverError);
 
@@ -973,7 +1052,7 @@ export function CreateAlbumPage({ toast }) {
       setCoverFile(null);
       setCreatedAlbum(album);
       setCreatedTracks([]);
-      toast('Album creado');
+      toast('Álbum creado');
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -1005,17 +1084,17 @@ export function CreateAlbumPage({ toast }) {
         <div className="page-header album-created-header">
           <div>
             <div className="page-title">Agregar canciones</div>
-            <div className="page-subtitle">Album: {createdAlbum.title}</div>
+            <div className="page-subtitle">Álbum: {createdAlbum.title}</div>
           </div>
           <div
-            aria-label="Crear otro album"
+            aria-label="Crear otro álbum"
             className={`create-another-album-action${isCreateAnotherOpen ? ' is-open' : ''}`}
             role="group"
           >
             <button
               className="btn-icon create-another-album-plus"
               type="button"
-              aria-label="Mostrar crear otro album"
+              aria-label="Mostrar crear otro álbum"
               onMouseDown={(event) => event.preventDefault()}
               onMouseEnter={() => setIsCreateAnotherOpen(true)}
               onFocus={() => setIsCreateAnotherOpen(true)}
@@ -1032,7 +1111,7 @@ export function CreateAlbumPage({ toast }) {
                 onBlur={closeCreateAnotherIfFocusLeaves}
                 onClick={resetForAnotherAlbum}
               >
-                Crear otro album
+                Crear otro álbum
               </button>
             )}
           </div>
@@ -1048,7 +1127,7 @@ export function CreateAlbumPage({ toast }) {
             maxWidth: 760,
           }}
         >
-          Album "{createdAlbum.title}" creado. Ahora puedes agregar canciones con portada propia.
+          Álbum "{createdAlbum.title}" creado. Ahora puedes agregar canciones con portada propia.
         </div>
 
         <AddTrackToAlbumForm
@@ -1062,7 +1141,7 @@ export function CreateAlbumPage({ toast }) {
           <div className="settings-card-title">Canciones agregadas</div>
           {createdTracks.length === 0 ? (
             <div style={{ fontSize: 14, color: 'var(--t2)' }}>
-              Aun no has agregado canciones a este album.
+              Aún no has agregado canciones a este álbum.
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
@@ -1113,33 +1192,33 @@ export function CreateAlbumPage({ toast }) {
 
   return (
     <div className="page-inner">
-      <div className="page-header"><div className="page-title">Create Album</div></div>
+      <div className="page-header"><div className="page-title">Crear álbum</div></div>
       <div className="settings-card" style={{ maxWidth: 760 }}>
-        <div className="settings-card-title">Album Info</div>
+        <div className="settings-card-title">Información del álbum</div>
         <div className="form-group-mb">
-          <label className="form-label" htmlFor="create-album-title">Album Title</label>
+          <label className="form-label" htmlFor="create-album-title">Título del álbum</label>
           <input
             id="create-album-title"
             value={title}
             onChange={event => setTitle(event.target.value)}
-            placeholder="Enter album title"
+            placeholder="Título del álbum"
             maxLength={ALBUM_TITLE_MAX_LENGTH}
           />
         </div>
         <div className="form-group-mb">
-          <div className="form-label">Cover image</div>
+          <div className="form-label">Portada</div>
           <FilePicker
             accept="image/png,image/jpeg,image/webp"
             file={coverFile}
             onChange={handleCoverChange}
-            helperText="JPG, PNG o WEBP - max 5 MB"
+            helperText={IMAGE_FILE_HELPER}
             buttonLabel="Seleccionar archivo"
           />
           {coverPreviewUrl && (
             <div style={{ marginTop: 10 }}>
               <img
                 src={coverPreviewUrl}
-                alt="Previsualizacion de portada del album"
+                alt="Previsualización de portada del álbum"
                 style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
               />
             </div>
@@ -1147,7 +1226,7 @@ export function CreateAlbumPage({ toast }) {
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={handleCreate} disabled={isSubmitting}>
-          {isSubmitting ? 'Creando...' : 'Publicar Album'}
+          {isSubmitting ? 'Creando...' : 'Publicar álbum'}
         </button>
       </div>
 
@@ -1204,10 +1283,9 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
 
-    if (!normalizedTitle) return setError('Titulo requerido.');
-    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El titulo no puede superar 220 caracteres.');
-    if (!normalizedGenre) return setError('Genero requerido.');
-    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El genero no puede superar 80 caracteres.');
+    if (!normalizedTitle || !normalizedGenre) return setError('Todos los campos son obligatorios.');
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
+    if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     return {
       title: normalizedTitle,
@@ -1263,48 +1341,48 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
       <div className="page-inner">
         <div className="breadcrumb">
         <button className="breadcrumb-link" onClick={onCancel} type="button">
-          Mis Pistas
+          Mis pistas
         </button>
-        <span>/</span><span>Editar Pista</span>
+        <span>/</span><span>Editar pista</span>
       </div>
-      <div className="page-header"><div className="page-title">Edit Track</div></div>
+      <div className="page-header"><div className="page-title">Editar pista</div></div>
       <div className="settings-card" style={{ maxWidth: 700 }}>
         <div className="form-group-mb">
-          <label className="form-label" htmlFor="edit-track-title">Title</label>
+          <label className="form-label" htmlFor="edit-track-title">Título</label>
           <input id="edit-track-title" value={title} onChange={event => setTitle(event.target.value)} maxLength={TRACK_TITLE_MAX_LENGTH} />
         </div>
         <div className="form-group-mb">
-          <label className="form-label" htmlFor="edit-track-genre">Genero</label>
+          <label className="form-label" htmlFor="edit-track-genre">Género</label>
           <input id="edit-track-genre" list="edit-track-genres" value={genre} onChange={event => setGenre(event.target.value)} maxLength={GENRE_MAX_LENGTH} />
           <datalist id="edit-track-genres">
             {TRACK_GENRES.map(option => <option key={option} value={option} />)}
           </datalist>
         </div>
         <div className="form-group-mb">
-          <label className="form-label" htmlFor="edit-track-album">Album</label>
+          <label className="form-label" htmlFor="edit-track-album">Álbum</label>
           <select id="edit-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
-            <option value="">Single / sin album</option>
+            <option value="">Sencillo / sin álbum</option>
             {albums.map(album => (
               <option key={album.albumId} value={album.albumId}>{album.title}</option>
             ))}
           </select>
         </div>
         <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
-          Audio y portada se editan subiendo nuevos assets a Media en una futura mejora.
+          La edición de audio y portada estará disponible próximamente.
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-          <button className="btn-danger" onClick={() => setPendingAction({ type: 'retire' })} disabled={isSubmitting}>Retirar Track</button>
+          <button className="btn-danger" onClick={() => setPendingAction({ type: 'retire' })} disabled={isSubmitting}>Retirar pista</button>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-            <button className="btn-primary" onClick={requestSave} disabled={isSubmitting}>Save Changes</button>
+            <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+            <button className="btn-primary" onClick={requestSave} disabled={isSubmitting}>Guardar cambios</button>
           </div>
         </div>
       </div>
       <ConfirmDialog
         open={pendingAction?.type === 'save'}
         title="Guardar cambios"
-        message={`Confirma que deseas actualizar la informacion de "${track.title}". Los cambios se veran reflejados en el catalogo.`}
+        message={`Confirma que deseas actualizar la información de "${track.title}".`}
         confirmLabel="Guardar cambios"
         tone="primary"
         isLoading={isSubmitting}
@@ -1314,7 +1392,7 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
       <ConfirmDialog
         open={pendingAction?.type === 'retire'}
         title="Retirar pista"
-        message={`Esta accion retirara "${track.title}" del catalogo. Los oyentes ya no podran reproducirla desde la app.`}
+        message={`Esta acción retirará "${track.title}". Los oyentes ya no podrán reproducirla desde la app.`}
         confirmLabel="Retirar pista"
         isLoading={isSubmitting}
         onConfirm={retire}
@@ -1359,12 +1437,12 @@ export function ArtistAnalyticsPage({ user }) {
     <div className="page-inner">
       <div className="page-header">
         <div className="artist-view-badge">Artista</div>
-        <div className="page-title">Analiticas</div>
+        <div className="page-title">Analíticas</div>
         <div className="page-subtitle">Rendimiento de tus canciones publicadas.</div>
       </div>
 
-      {isLoading && <InlineState title="Cargando analiticas..." />}
-      {error && <InlineState title="No se pudieron cargar las analiticas" message={error} onRetry={loadAnalytics} />}
+      {isLoading && <InlineState title="Cargando analíticas..." />}
+      {error && <InlineState title="No se pudieron cargar las analíticas" message={error} onRetry={loadAnalytics} />}
 
       {!isLoading && !error && summary && (
         <>
@@ -1374,25 +1452,25 @@ export function ArtistAnalyticsPage({ user }) {
               <div className="stat-card-value">{formatMetricNumber(summary.totalPlays)}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-card-label">Promedio plays/dia</div>
+              <div className="stat-card-label">Promedio diario</div>
               <div className="stat-card-value">{formatMetricNumber(summary.averageDailyPlays)}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-card-label">Oyentes unicos/dia</div>
+              <div className="stat-card-label">Oyentes únicos al día</div>
               <div className="stat-card-value">{formatMetricNumber(summary.averageDailyUniqueListeners)}</div>
             </div>
           </div>
 
           <div className="section">
             <div className="section-header">
-              <div className="section-title">Top 5 canciones</div>
+              <div className="section-title">5 canciones principales</div>
             </div>
             {summary.topTracks.length === 0 ? (
-              <InlineState title="Aun no hay reproducciones registradas" />
+              <InlineState title="Aún no hay reproducciones registradas" />
             ) : (
               <div className="table-wrap">
                 <table className="data-table">
-                  <thead><tr><th>Cancion</th><th>Reproducciones</th><th>Oyentes unicos</th></tr></thead>
+                  <thead><tr><th>Canción</th><th>Reproducciones</th><th>Oyentes únicos</th></tr></thead>
                   <tbody>
                     {summary.topTracks.map(track => (
                       <tr key={track.trackId}>
@@ -1409,14 +1487,14 @@ export function ArtistAnalyticsPage({ user }) {
 
           <div className="section">
             <div className="section-header">
-              <div className="section-title">Desglose por cancion</div>
+              <div className="section-title">Desglose por canción</div>
             </div>
             {summary.tracks.length === 0 ? (
-              <InlineState title="Sin canciones con metricas" />
+              <InlineState title="Sin canciones con métricas" />
             ) : (
               <div className="table-wrap">
                 <table className="data-table">
-                  <thead><tr><th>Cancion</th><th>Reproducciones</th><th>Oyentes unicos</th></tr></thead>
+                  <thead><tr><th>Canción</th><th>Reproducciones</th><th>Oyentes únicos</th></tr></thead>
                   <tbody>
                     {summary.tracks.map(track => (
                       <tr key={track.trackId}>
@@ -1439,3 +1517,5 @@ export function ArtistAnalyticsPage({ user }) {
 ArtistAnalyticsPage.propTypes = {
   user: artistUserPropType.isRequired,
 };
+
+

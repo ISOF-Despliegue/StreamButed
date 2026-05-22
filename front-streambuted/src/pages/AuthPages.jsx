@@ -1,23 +1,28 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { toUserFacingMessage } from '../utils/userFacingMessages';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_MAX_LENGTH = 320;
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 50;
 const PASSWORD_MIN_LENGTH = 8;
-const PASSWORD_MAX_LENGTH = 128;
+const PASSWORD_MAX_LENGTH = 15;
 const PASSWORD_UPPERCASE = /[A-Z]/;
 const PASSWORD_DIGIT = /\d/;
 const PASSWORD_SPECIAL = /[^A-Za-z0-9]/;
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return getFriendlyErrorMessage(error.message);
   }
 
   return 'No se pudo completar la solicitud.';
+}
+
+function getFriendlyErrorMessage(message) {
+  return toUserFacingMessage(message);
 }
 
 function isObject(value) {
@@ -56,7 +61,7 @@ function formatRemainingBanTime(seconds) {
 
   const days = Math.floor(totalHours / 24);
   const hours = totalHours % 24;
-  const dayText = days === 1 ? '1 dia' : `${days} dias`;
+  const dayText = days === 1 ? '1 día' : `${days} días`;
   if (hours === 0) {
     return dayText;
   }
@@ -71,27 +76,27 @@ function getBannedAccountMessage(error) {
   }
 
   if (payload.banType === 'PERMANENT' || !payload.bannedUntil) {
-    return 'La cuenta se encuentra baneada permanentemente.';
+    return 'La cuenta se encuentra suspendida permanentemente.';
   }
 
-  return `La cuenta se encuentra baneada. Se reactivara en ${formatRemainingBanTime(payload.remainingSeconds)}.`;
+  return `La cuenta se encuentra suspendida. Se reactivará en ${formatRemainingBanTime(payload.remainingSeconds)}.`;
 }
 
 function validatePasswordRules(password) {
   if (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
-    return 'El password debe tener entre 8 y 128 caracteres.';
+    return 'La contraseña debe tener entre 8 y 15 caracteres.';
   }
 
   if (!PASSWORD_UPPERCASE.test(password)) {
-    return 'El password debe incluir al menos una mayuscula.';
+    return 'La contraseña debe incluir al menos una mayúscula.';
   }
 
   if (!PASSWORD_DIGIT.test(password)) {
-    return 'El password debe incluir al menos un numero.';
+    return 'La contraseña debe incluir al menos un número.';
   }
 
   if (!PASSWORD_SPECIAL.test(password)) {
-    return 'El password debe incluir al menos un simbolo especial.';
+    return 'La contraseña debe incluir al menos un símbolo especial.';
   }
 
   return '';
@@ -119,11 +124,10 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
 
     setBannedMessage('');
 
-    if (!normalizedEmail) return setError('Email requerido.');
-    if (normalizedEmail.length > EMAIL_MAX_LENGTH) return setError('Email supera 320 caracteres.');
-    if (!EMAIL_PATTERN.test(normalizedEmail)) return setError('Email invalido.');
-    if (!password) return setError('Password requerido.');
-    if (password.length > PASSWORD_MAX_LENGTH) return setError('Password supera 128 caracteres.');
+    if (!normalizedEmail || !password) return setError('Todos los campos son obligatorios.');
+    if (normalizedEmail.length > EMAIL_MAX_LENGTH) return setError('El correo supera 320 caracteres.');
+    if (!EMAIL_PATTERN.test(normalizedEmail)) return setError('Correo inválido.');
+    if (password.length > PASSWORD_MAX_LENGTH) return setError('La contraseña debe tener entre 8 y 15 caracteres.');
 
     setError('');
     setIsSubmitting(true);
@@ -150,15 +154,15 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
         <div className="auth-logo">
           <div className="auth-logo-mark">S</div>
         </div>
-        <div className="auth-title">Welcome to StreamButed</div>
-        <div className="auth-sub">Sign in with your backend account</div>
+        <div className="auth-title">Bienvenido a StreamButed</div>
+        <div className="auth-sub">Inicia sesión para escuchar y compartir música.</div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="login-email">Email</label>
+          <label className="form-label" htmlFor="login-email">Correo</label>
           <input
             id="login-email"
             type="email"
-            placeholder="Enter your email"
+            placeholder="Ingresa tu correo"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
@@ -167,11 +171,11 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="login-password">Password</label>
+          <label className="form-label" htmlFor="login-password">Contraseña</label>
           <input
             id="login-password"
             type="password"
-            placeholder="Enter your password"
+            placeholder="Ingresa tu contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
@@ -182,7 +186,7 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
 
         {(error || externalError) && (
           <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {error || externalError}
+            {error || getFriendlyErrorMessage(externalError)}
           </div>
         )}
 
@@ -192,7 +196,7 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
           onClick={handleLogin}
           disabled={isSubmitting}
         >
-          {isSubmitting ? 'Signing in...' : 'Sign In'}
+          {isSubmitting ? 'Entrando...' : 'Iniciar sesión'}
         </button>
 
         <button
@@ -201,20 +205,20 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
           type="button"
           onClick={onGoogleLogin}
         >
-          Continue with Google
+          Continuar con Google
         </button>
 
         <div className="auth-footer">
-          Don&apos;t have an account?{' '}
+          ¿No tienes cuenta?{' '}
           <button className="auth-link" onClick={onRegister} type="button">
-            Sign up
+            Regístrate
           </button>
         </div>
       </div>
 
       <ConfirmDialog
         open={Boolean(bannedMessage)}
-        title="Cuenta baneada"
+        title="Cuenta suspendida"
         message={bannedMessage}
         confirmLabel="Entendido"
         onConfirm={() => setBannedMessage('')}
@@ -253,23 +257,23 @@ export function RegisterPage({
     const normalizedEmail = form.email.trim();
     const normalizedUsername = form.username.trim();
 
-    if (!normalizedEmail || !normalizedUsername || !form.password) {
-      return setError('Todos los campos son requeridos.');
+    if (!normalizedEmail || !normalizedUsername || !form.password || !form.confirm) {
+      return setError('Todos los campos son obligatorios.');
     }
 
     if (normalizedEmail.length > EMAIL_MAX_LENGTH) {
-      return setError('El email no puede superar 320 caracteres.');
+      return setError('El correo no puede superar 320 caracteres.');
     }
 
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
-      return setError('Email invalido.');
+      return setError('Correo inválido.');
     }
 
     if (
       normalizedUsername.length < USERNAME_MIN_LENGTH ||
       normalizedUsername.length > USERNAME_MAX_LENGTH
     ) {
-      return setError('El username debe tener entre 3 y 50 caracteres.');
+      return setError('El nombre de usuario debe tener entre 3 y 50 caracteres.');
     }
 
     const passwordError = validatePasswordRules(form.password);
@@ -278,7 +282,7 @@ export function RegisterPage({
     }
 
     if (form.password !== form.confirm) {
-      return setError('Los passwords no coinciden.');
+      return setError('Las contraseñas no coinciden.');
     }
 
     setError('');
@@ -292,7 +296,7 @@ export function RegisterPage({
       });
       setVerification(response);
       setVerificationCode('');
-      setNotice(`Codigo enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
+      setNotice(`Código enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -304,8 +308,12 @@ export function RegisterPage({
     if (!verification) return;
 
     const normalizedCode = verificationCode.trim();
+    if (!normalizedCode) {
+      return setError('Todos los campos son obligatorios.');
+    }
+
     if (!/^\d{6}$/.test(normalizedCode)) {
-      return setError('Ingresa el codigo de 6 digitos.');
+      return setError('Ingresa el código de 6 dígitos.');
     }
 
     setError('');
@@ -338,7 +346,7 @@ export function RegisterPage({
       });
       setVerification(response);
       setVerificationCode('');
-      setNotice(`Nuevo codigo enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
+      setNotice(`Nuevo código enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -359,7 +367,7 @@ export function RegisterPage({
       });
       setVerification(null);
       setVerificationCode('');
-      setNotice('Verificacion cancelada.');
+      setNotice('Verificación cancelada.');
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -374,11 +382,11 @@ export function RegisterPage({
         <div className="auth-logo">
           <div className="auth-logo-mark">S</div>
         </div>
-        <div className="auth-title">Create your account</div>
+        <div className="auth-title">Crea tu cuenta</div>
         <div className="auth-sub">
           {isVerifyingRegistration
-            ? 'Enter the code sent to your email'
-            : 'New accounts start as listeners'}
+            ? 'Ingresa el código enviado a tu correo'
+            : '¡Regístrate como oyente en StreamButed!'}
         </div>
 
         {!isVerifyingRegistration && (['email', 'username', 'password', 'confirm']).map((key, index) => {
@@ -391,12 +399,12 @@ export function RegisterPage({
             inputType = 'email';
           }
           const placeholders = [
-            'Enter your email',
-            'Choose a username',
-            'Create a password',
-            'Confirm your password',
+            'Ingresa tu correo',
+            'Elige un nombre de usuario',
+            'Crea una contraseña',
+            'Confirma tu contraseña',
           ];
-          const labels = ['Email', 'Username', 'Password', 'Confirm password'];
+          const labels = ['Correo', 'Nombre de usuario', 'Contraseña', 'Confirmar contraseña'];
           let maxLength = PASSWORD_MAX_LENGTH;
           if (key === 'email') {
             maxLength = EMAIL_MAX_LENGTH;
@@ -426,7 +434,7 @@ export function RegisterPage({
         {isVerifyingRegistration && (
           <>
             <div className="form-group">
-              <label className="form-label" htmlFor="register-code">Codigo de verificacion</label>
+              <label className="form-label" htmlFor="register-code">Código de verificación</label>
               <input
                 id="register-code"
                 value={verificationCode}
@@ -454,7 +462,7 @@ export function RegisterPage({
 
         {(error || externalError) && (
           <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {error || externalError}
+            {error || getFriendlyErrorMessage(externalError)}
           </div>
         )}
 
@@ -466,7 +474,7 @@ export function RegisterPage({
               onClick={handleVerify}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Verificando...' : 'Verificar codigo'}
+              {isSubmitting ? 'Verificando...' : 'Verificar código'}
             </button>
             <button
               className="btn-ghost"
@@ -475,7 +483,7 @@ export function RegisterPage({
               onClick={handleResend}
               disabled={isResending || isSubmitting}
             >
-              {isResending ? 'Enviando...' : 'Solicitar nuevo codigo'}
+              {isResending ? 'Enviando...' : 'Solicitar nuevo código'}
             </button>
             <button
               className="btn-ghost"
@@ -484,7 +492,7 @@ export function RegisterPage({
               onClick={handleCancel}
               disabled={isCancelling || isSubmitting}
             >
-              {isCancelling ? 'Cancelando...' : 'Cancelar verificacion'}
+              {isCancelling ? 'Cancelando...' : 'Cancelar verificación'}
             </button>
           </>
         ) : (
@@ -494,14 +502,14 @@ export function RegisterPage({
             onClick={handleCreate}
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Sending code...' : 'Create Account'}
+            {isSubmitting ? 'Enviando código...' : 'Crear cuenta'}
           </button>
         )}
 
         <div className="auth-footer">
-          Already have an account?{' '}
+          ¿Ya tienes cuenta?{' '}
           <button className="auth-link" onClick={onBack} type="button">
-            Sign in
+            Inicia sesión
           </button>
         </div>
       </div>
@@ -517,7 +525,7 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
 
   const handleSubmit = async () => {
     if (!password || !confirmPassword) {
-      return setError('Completa ambos campos de password.');
+      return setError('Todos los campos son obligatorios.');
     }
 
     const passwordError = validatePasswordRules(password);
@@ -526,7 +534,7 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
     }
 
     if (password !== confirmPassword) {
-      return setError('Los passwords no coinciden.');
+      return setError('Las contraseñas no coinciden.');
     }
 
     setError('');
@@ -549,11 +557,11 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
         </div>
         <div className="auth-title">Completa tu registro</div>
         <div className="auth-sub">
-          Define un password para poder entrar tambien con email y password.
+          Define una contraseña para poder entrar también con correo y contraseña.
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="google-setup-email">Email</label>
+          <label className="form-label" htmlFor="google-setup-email">Correo</label>
           <input
             id="google-setup-email"
             type="email"
@@ -564,11 +572,11 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="google-setup-password">Password</label>
+          <label className="form-label" htmlFor="google-setup-password">Contraseña</label>
           <input
             id="google-setup-password"
             type="password"
-            placeholder="Crea tu password"
+            placeholder="Crea tu contraseña"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
@@ -577,11 +585,11 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="google-setup-confirm">Confirmar password</label>
+          <label className="form-label" htmlFor="google-setup-confirm">Confirmar contraseña</label>
           <input
             id="google-setup-confirm"
             type="password"
-            placeholder="Confirma tu password"
+            placeholder="Confirma tu contraseña"
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && handleSubmit()}
@@ -591,12 +599,12 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
         </div>
 
         <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 14 }}>
-          Debe incluir una mayuscula, un numero y un simbolo especial.
+          Debe incluir una mayúscula, un número y un símbolo especial.
         </div>
 
         {(error || externalError) && (
           <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {error || externalError}
+            {error || getFriendlyErrorMessage(externalError)}
           </div>
         )}
 
@@ -606,7 +614,7 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
           onClick={handleSubmit}
           disabled={isSubmitting}
         >
-          {isSubmitting ? 'Guardando...' : 'Guardar password'}
+          {isSubmitting ? 'Guardando...' : 'Guardar contraseña'}
         </button>
       </div>
     </div>
@@ -634,3 +642,4 @@ GooglePasswordSetupPage.propTypes = {
   externalError: PropTypes.string,
   onSubmit: PropTypes.func.isRequired,
 };
+

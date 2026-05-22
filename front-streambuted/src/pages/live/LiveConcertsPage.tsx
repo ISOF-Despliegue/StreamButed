@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLive } from "../../hooks/useLive";
 import { apiRequest } from "../../services/apiClient";
 import type { UserRole } from "../../types/user.types";
+import { toUserFacingMessage } from "../../utils/userFacingMessages";
 
 export interface LiveRoom {
   id: string;
@@ -34,7 +35,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
       setError(null);
 
       if (!token) {
-        throw new Error("No se encontró token JWT en AuthContext.");
+        throw new Error("No pudimos validar tu sesión. Inicia sesión nuevamente.");
       }
 
       const data = await apiRequest<LiveRoom[] | { data?: LiveRoom[]; rooms?: LiveRoom[] }>(
@@ -43,7 +44,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
       );
       setRooms(Array.isArray(data) ? data : data.data || data.rooms || []);
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Error al cargar conciertos");
+      setError(fetchError instanceof Error ? toUserFacingMessage(fetchError.message) : "No se pudieron cargar los conciertos");
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
   useEffect(() => {
     if (!token) {
       setLoading(false);
-      setError("No se encontró token JWT en AuthContext.");
+      setError("No pudimos validar tu sesión. Inicia sesión nuevamente.");
       return;
     }
 
@@ -82,7 +83,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
 
           {canStart && onStartBroadcast && (
             <button onClick={onStartBroadcast} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#000", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              {artist.state === "live" ? "Ver mi Live" : "Iniciar concierto"}
+              {artist.state === "live" ? "Ver mi transmisión" : "Iniciar concierto"}
             </button>
           )}
         </div>
@@ -90,7 +91,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
 
       {artist.state === "live" && (
         <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid #EF4444", borderRadius: 8, padding: 14, color: "#F2EDE6", fontSize: 14, marginBottom: 16 }}>
-          Estás transmitiendo ahora: <strong>{artist.title}</strong>. Puedes volver a Do Live sin perder la transmisión.
+          Estás transmitiendo ahora: <strong>{artist.title}</strong>. Puedes volver a tu transmisión sin perderla.
         </div>
       )}
 
@@ -105,7 +106,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
       {!loading && !error && activeRooms.length === 0 && (
         <div style={{ textAlign: "center", padding: 80, color: "#524E5A" }}>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#9994A0" }}>No hay conciertos en vivo ahora</div>
-          <div style={{ fontSize: 13, marginTop: 6 }}>Vuelve más tarde o{canStart ? " inicia el tuyo" : " espera a que un artista comience"}</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Vuelve más tarde o{canStart ? " inicia tu propio concierto" : " espera a que un artista comience un concierto"}</div>
         </div>
       )}
 

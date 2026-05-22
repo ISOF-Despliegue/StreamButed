@@ -7,6 +7,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
+  showCancel = true,
   tone = 'danger',
   isLoading = false,
   disabled = false,
@@ -64,9 +65,11 @@ export function ConfirmDialog({
         {message && <p className="confirm-dialog-message" id={messageId}>{message}</p>}
         {children && <div className="confirm-dialog-body">{children}</div>}
         <div className="confirm-dialog-actions">
-          <button className="btn-ghost" type="button" onClick={onCancel} disabled={isLoading}>
-            {cancelLabel}
-          </button>
+          {showCancel && (
+            <button className="btn-ghost" type="button" onClick={onCancel} disabled={isLoading}>
+              {cancelLabel}
+            </button>
+          )}
           <button
             className={confirmClassName}
             type="button"
@@ -91,6 +94,7 @@ ConfirmDialog.propTypes = {
   onCancel: PropTypes.func.isRequired,
   onConfirm: PropTypes.func.isRequired,
   open: PropTypes.bool.isRequired,
+  showCancel: PropTypes.bool,
   title: PropTypes.string.isRequired,
   tone: PropTypes.oneOf(['danger', 'primary']),
 };

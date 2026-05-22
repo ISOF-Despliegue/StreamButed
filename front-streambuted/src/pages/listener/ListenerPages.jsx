@@ -9,13 +9,18 @@ import { getAssetUrl } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
 import { browserLogger } from '../../utils/browserLogger';
 import { formatDate } from '../../utils/formatters';
+import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return toUserFacingMessage(error.message);
   }
 
-  return 'No se pudo cargar la informacion.';
+  return 'No se pudo cargar la información.';
+}
+
+function getCatalogStatusLabel(status) {
+  return status === 'RETIRADO' ? 'Retirado' : 'Publicado';
 }
 
 function InlineState({ title, message }) {
@@ -90,7 +95,7 @@ async function getAlbumTitlesById(tracks, knownAlbums = []) {
 function withAlbumContext(tracks, albumTitlesById) {
   return tracks.map(track => ({
     ...track,
-    albumTitle: track.albumId && albumTitlesById[track.albumId] ? albumTitlesById[track.albumId] : 'Single',
+    albumTitle: track.albumId && albumTitlesById[track.albumId] ? albumTitlesById[track.albumId] : 'Sencillo',
   }));
 }
 
@@ -98,20 +103,19 @@ export function HomePage() {
   return (
     <div className="page-inner">
       <div className="page-header">
-        <div className="page-title">Home</div>
+        <div className="page-title">Inicio</div>
         <div className="page-subtitle">
-          Catalog, Identity y Media ya se consumen desde Gateway. Usa Search para consultar contenido real.
+          Explora música, artistas y álbumes publicados en StreamButed.
         </div>
       </div>
 
       <div className="settings-card" style={{ maxWidth: 760 }}>
-        <div className="settings-card-title">Catalogo conectado</div>
+        <div className="settings-card-title">Descubre música nueva</div>
         <p style={{ color: 'var(--t2)', fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>
-          Esta pantalla ya no muestra albums o canciones mock. Cuando el backend agregue endpoints de
-          recomendaciones, home podra poblarse con datos productivos.
+          Busca canciones, visita perfiles de artistas y reproduce álbumes completos desde un solo lugar.
         </p>
         <Link className="btn-primary" to={routes.search}>
-          Buscar en Catalog
+          Buscar música
         </Link>
       </div>
     </div>
@@ -191,7 +195,7 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
           <span className="search-icon"><IcSearch /></span>
           <input
             type="text"
-            placeholder="Busca canciones, artistas, albums..."
+            placeholder="Busca canciones, artistas, álbumes..."
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
@@ -200,14 +204,14 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
       <div className="page-inner" style={{ paddingTop: 24 }}>
         {!query.trim() && (
           <InlineState
-            title="Busca en el catalogo real"
-            message="La busqueda llama GET /api/v1/catalog/search por Gateway."
+            title="Busca en StreamButed"
+            message="Encuentra canciones, artistas y álbumes por nombre."
           />
         )}
 
-        {isLoading && <InlineState title="Buscando..." message="Consultando Catalog Service." />}
+        {isLoading && <InlineState title="Buscando..." message="Estamos revisando la música disponible." />}
         {error && <InlineState title="No se pudo buscar" message={error} />}
-        {isEmpty && <InlineState title="Sin resultados" message="Catalog no devolvio artistas, albums ni pistas para esta busqueda." />}
+        {isEmpty && <InlineState title="Sin resultados" message="No encontramos coincidencias para esta búsqueda." />}
 
         {results.artists.length > 0 && (
           <div className="section">
@@ -245,10 +249,10 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
             <table className="track-list" style={{ width: '100%' }}>
               <thead><tr>
                 <th style={{ width: 40 }}>#</th>
-                <th>Titulo</th>
-                <th>Genero</th>
-                <th>Album</th>
-                <th className="track-duration-col">Duracion</th>
+                <th>Título</th>
+                <th>Género</th>
+                <th>Álbum</th>
+                <th className="track-duration-col">Duración</th>
               </tr></thead>
               <tbody>
                 {results.tracks.map((track, index) => (
@@ -259,7 +263,7 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
                     isPlaying={currentTrack?.trackId === track.trackId}
                     onPlay={() => onPlayTrack(track)}
                     onArtistClick={artistId => navigate(routes.artistProfile(artistId))}
-                    metaText={track.genre || 'Sin genero'}
+                    metaText={track.genre || 'Sin género'}
                     contextText={track.albumTitle}
                   />
                 ))}
@@ -271,7 +275,7 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
         {results.albums.length > 0 && (
           <div className="section">
             <div className="section-header">
-              <div className="section-title">Albums</div>
+              <div className="section-title">Álbumes</div>
             </div>
             <div className="album-grid">
               {results.albums.map(album => (
@@ -331,19 +335,19 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
   }, [albumId]);
 
   if (!albumId) {
-    return <div className="page-inner"><InlineState title="Album no seleccionado" /></div>;
+    return <div className="page-inner"><InlineState title="Álbum no seleccionado" /></div>;
   }
 
   if (isLoading) {
-    return <div className="page-inner"><InlineState title="Cargando album..." /></div>;
+    return <div className="page-inner"><InlineState title="Cargando álbum..." /></div>;
   }
 
   if (error) {
-    return <div className="page-inner"><InlineState title="No se pudo cargar el album" message={error} /></div>;
+    return <div className="page-inner"><InlineState title="No se pudo cargar el álbum" message={error} /></div>;
   }
 
   if (!album) {
-    return <div className="page-inner"><InlineState title="Album no encontrado" /></div>;
+    return <div className="page-inner"><InlineState title="Álbum no encontrado" /></div>;
   }
 
   return (
@@ -357,7 +361,7 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
           )}
         </div>
         <div className="album-hero-info">
-          <div className="album-hero-type">Album</div>
+          <div className="album-hero-type">Álbum</div>
           <div className="album-hero-title">{album.title}</div>
           <div className="album-hero-meta">
             <button
@@ -368,7 +372,7 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
               {album.artist || 'Artista'}
             </button>
             <span className="dot-sep" />
-            <span>{album.status}</span>
+            <span>{getCatalogStatusLabel(album.status)}</span>
             <span className="dot-sep" />
             <span>{formatDate(album.createdAt)}</span>
           </div>
@@ -381,9 +385,9 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
           <table className="track-list">
             <thead><tr>
               <th style={{ width: 40 }}>#</th>
-              <th>Titulo</th>
-              <th>Genero</th>
-              <th className="track-duration-col">Duracion</th>
+              <th>Título</th>
+              <th>Género</th>
+              <th className="track-duration-col">Duración</th>
             </tr></thead>
             <tbody>
               {tracks.map((track, index) => (
@@ -408,7 +412,7 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
   );
 }
 
-export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack }) {
+export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentTrack }) {
   const navigate = useNavigate();
   const [artist, setArtist] = useState(null);
   const [tracks, setTracks] = useState([]);
@@ -462,24 +466,41 @@ export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack }) {
     return <div className="page-inner"><InlineState title="Artista no encontrado" /></div>;
   }
 
+  const isOwnArtistProfile =
+    currentUser?.role === 'artist' && currentUser.id === (artist.artistId ?? artistId);
+  const resolvedDisplayName =
+    isOwnArtistProfile && currentUser?.username
+      ? currentUser.username
+      : artist.displayName;
+  const resolvedBiography =
+    isOwnArtistProfile && currentUser?.bio
+      ? currentUser.bio
+      : artist.biography;
+  const resolvedProfileImageAssetId =
+    isOwnArtistProfile && currentUser?.profileImageAssetId
+      ? currentUser.profileImageAssetId
+      : artist.profileImageAssetId;
+
   return (
     <div>
-      <div className="artist-banner">
-        <div className="artist-banner-gradient" />
-      </div>
       <div className="artist-info-row">
         <div className="artist-avatar-lg">
-          {artist.profileImageAssetId ? (
-            <img src={getAssetUrl(artist.profileImageAssetId)} alt={`Foto de ${artist.displayName}`} />
+          {resolvedProfileImageAssetId ? (
+            <img src={getAssetUrl(resolvedProfileImageAssetId)} alt={`Foto de ${resolvedDisplayName}`} />
           ) : (
-            artist.displayName[0]?.toUpperCase()
+            resolvedDisplayName[0]?.toUpperCase()
           )}
         </div>
-        <div>
+        <div className="artist-info-main">
           <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 4 }}>Artista</div>
-          <div className="artist-name-lg">{artist.displayName}</div>
-          <div className="artist-stats">{artist.biography || 'Sin biografia publicada.'}</div>
+          <div className="artist-name-lg">{resolvedDisplayName}</div>
+          <div className="artist-stats">{resolvedBiography || 'Sin biografía publicada.'}</div>
         </div>
+        {isOwnArtistProfile && (
+          <Link className="artist-profile-edit-btn" to={routes.settings}>
+            Editar
+          </Link>
+        )}
       </div>
 
       <div style={{ padding: '0 32px 40px' }}>
@@ -491,18 +512,18 @@ export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack }) {
             <table className="track-list">
               <thead><tr>
                 <th style={{ width: 40 }}>#</th>
-                <th>Titulo</th>
-                <th>Genero</th>
-                <th className="track-duration-col">Duracion</th>
+                <th>Título</th>
+                <th>Género</th>
+                <th className="track-duration-col">Duración</th>
               </tr></thead>
               <tbody>
                 {tracks.map((track, index) => (
                   <TrackRow
                     key={track.trackId}
-                    track={{ ...track, artist: artist.displayName }}
+                    track={{ ...track, artist: resolvedDisplayName }}
                     index={index}
                     isPlaying={currentTrack?.trackId === track.trackId}
-                    onPlay={() => onPlayTrack({ ...track, artist: artist.displayName })}
+                    onPlay={() => onPlayTrack({ ...track, artist: resolvedDisplayName })}
                   />
                 ))}
               </tbody>
@@ -512,16 +533,16 @@ export function ArtistProfilePage({ artistId, onPlayTrack, currentTrack }) {
 
         <div className="section">
           <div className="section-header">
-            <div className="section-title">Discografia</div>
+            <div className="section-title">Discografía</div>
           </div>
           {albums.length === 0 ? (
-            <InlineState title="Sin albums publicados" />
+            <InlineState title="Sin álbumes publicados" />
           ) : (
             <div className="album-grid">
               {albums.map(album => (
                 <AlbumCard
                   key={album.albumId}
-                  album={{ ...album, artist: artist.displayName }}
+                  album={{ ...album, artist: resolvedDisplayName }}
                   onClick={() => navigate(routes.album(album.albumId))}
                 />
               ))}
@@ -571,6 +592,11 @@ AlbumDetailPage.propTypes = {
 
 ArtistProfilePage.propTypes = {
   artistId: PropTypes.string,
+  currentUser: PropTypes.shape({
+    id: PropTypes.string,
+    role: PropTypes.string,
+  }),
   currentTrack: listenerTrackPropType,
   onPlayTrack: PropTypes.func.isRequired,
 };
+

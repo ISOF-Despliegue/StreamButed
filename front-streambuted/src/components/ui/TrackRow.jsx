@@ -12,7 +12,7 @@ export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaT
   if (meta === undefined) {
     meta = track.plays !== undefined
       ? formatNumber(track.plays)
-      : track.genre || track.status || 'Catalogo';
+      : track.genre || track.status || 'Sin datos';
   }
 
   return (
