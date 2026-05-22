@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GooglePasswordSetupPage, LoginPage, RegisterPage } from "./AuthPages";
 
@@ -46,17 +46,36 @@ describe("LoginPage", () => {
     render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
 
     await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Correo requerido.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son obligatorios.");
 
     await user.type(screen.getByPlaceholderText("Ingresa tu correo"), "invalid-email");
+    await user.type(screen.getByPlaceholderText("Ingresa tu contraseña"), "SecurePass1!");
     await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Correo inválido.");
     expect(onLogin).not.toHaveBeenCalled();
   });
 
-  it("shows backend login errors", async () => {
+  it("rejects passwords longer than 15 characters on login", async () => {
     const user = userEvent.setup();
-    const onLogin = jest.fn().mockRejectedValue(new Error("Credenciales inválidas."));
+    const onLogin = jest.fn();
+
+    render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Ingresa tu correo"), "listener@example.com");
+    const passwordInput = screen.getByLabelText("Contraseña");
+    expect(passwordInput).toHaveAttribute("maxlength", "15");
+    fireEvent.change(passwordInput, { target: { value: "SecurePass12345!" } });
+    await user.click(screen.getByRole("button", { name: /Iniciar sesi.n/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /8 y 15 caracteres/
+    );
+    expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  it("translates backend login errors", async () => {
+    const user = userEvent.setup();
+    const onLogin = jest.fn().mockRejectedValue(new Error("Invalid email or password"));
 
     render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
 
@@ -64,7 +83,7 @@ describe("LoginPage", () => {
     await user.type(screen.getByPlaceholderText("Ingresa tu contraseña"), "SecurePass1!");
     await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Credenciales inválidas.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("El correo o la contraseña son incorrectos.");
   });
 
   it("shows banned account errors in an app dialog", async () => {
@@ -219,6 +238,37 @@ describe("RegisterPage", () => {
     });
   });
 
+  it("translates backend verification code errors", async () => {
+    const user = userEvent.setup();
+    const onVerifyRegistration = jest.fn().mockRejectedValue(new Error("Verification code is incorrect"));
+
+    render(
+      <RegisterPage
+        onStartRegistration={jest.fn().mockResolvedValue({
+          attemptId: "attempt-1",
+          email: "new@example.com",
+          status: "pending",
+          expiresInSeconds: 900,
+          message: "Verification code sent.",
+        })}
+        onVerifyRegistration={onVerifyRegistration}
+        onResendCode={jest.fn()}
+        onCancelVerification={jest.fn()}
+        onBack={jest.fn()}
+      />
+    );
+
+    await user.type(screen.getByPlaceholderText("Ingresa tu correo"), "new@example.com");
+    await user.type(screen.getByPlaceholderText("Elige un nombre de usuario"), "newuser");
+    await user.type(screen.getByPlaceholderText("Crea una contraseña"), "SecurePass1!");
+    await user.type(screen.getByPlaceholderText("Confirma tu contraseña"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    await user.type(await screen.findByLabelText("Código de verificación"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verificar código" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("El código de verificación es incorrecto.");
+  });
+
   it("can request a new code and cancel verification", async () => {
     const user = userEvent.setup();
     const onResendCode = jest.fn().mockResolvedValue({
@@ -338,6 +388,36 @@ describe("RegisterPage", () => {
     expect(onStartRegistration).not.toHaveBeenCalled();
   });
 
+  it("rejects passwords longer than 15 characters during registration", async () => {
+    const user = userEvent.setup();
+    const onStartRegistration = jest.fn();
+
+    render(
+      <RegisterPage
+        onStartRegistration={onStartRegistration}
+        onVerifyRegistration={jest.fn()}
+        onResendCode={jest.fn()}
+        onCancelVerification={jest.fn()}
+        onBack={jest.fn()}
+      />
+    );
+
+    await user.type(screen.getByPlaceholderText("Ingresa tu correo"), "new@example.com");
+    await user.type(screen.getByPlaceholderText("Elige un nombre de usuario"), "newuser");
+    const passwordInput = screen.getByLabelText("Contraseña");
+    const confirmInput = screen.getByLabelText("Confirmar contraseña");
+    expect(passwordInput).toHaveAttribute("maxlength", "15");
+    expect(confirmInput).toHaveAttribute("maxlength", "15");
+    fireEvent.change(passwordInput, { target: { value: "SecurePass12345!" } });
+    fireEvent.change(confirmInput, { target: { value: "SecurePass12345!" } });
+    await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /8 y 15 caracteres/
+    );
+    expect(onStartRegistration).not.toHaveBeenCalled();
+  });
+
   it("validates required fields, username length and code format", async () => {
     const user = userEvent.setup();
     const onStartRegistration = jest.fn();
@@ -354,7 +434,7 @@ describe("RegisterPage", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son requeridos.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son obligatorios.");
 
     await user.type(screen.getByPlaceholderText("Ingresa tu correo"), "new@example.com");
     await user.type(screen.getByPlaceholderText("Elige un nombre de usuario"), "ab");
@@ -459,7 +539,7 @@ describe("GooglePasswordSetupPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Guardar contraseña" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Completa ambos campos de contraseña."
+      "Todos los campos son obligatorios."
     );
 
     await user.type(screen.getByPlaceholderText("Crea tu contraseña"), "SecurePass1!");

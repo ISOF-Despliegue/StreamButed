@@ -70,6 +70,8 @@ function renderWithRouter(ui: React.ReactNode) {
 
 describe("artist upload forms", () => {
   beforeEach(() => {
+    jest.clearAllMocks();
+
     jest.mocked(mediaService.uploadAudio).mockResolvedValue({
       assetId: "audio-1",
       assetType: "AUDIO",
@@ -163,6 +165,18 @@ describe("artist upload forms", () => {
     expect(mediaService.uploadAudio).not.toHaveBeenCalled();
   });
 
+  it("shows one required-fields error when publishing a track with missing fields", async () => {
+    const user = userEvent.setup();
+
+    render(<UploadSinglePage toast={jest.fn()} user={{ id: "artist-1" }} />);
+
+    await user.click(screen.getByRole("button", { name: "Publicar canción" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son obligatorios.");
+    expect(mediaService.uploadAudio).not.toHaveBeenCalled();
+    expect(catalogService.createTrack).not.toHaveBeenCalled();
+  });
+
   it("uploads cover before creating an album", async () => {
     const user = userEvent.setup();
     const { container } = render(<CreateAlbumPage toast={jest.fn()} />);
@@ -179,6 +193,18 @@ describe("artist upload forms", () => {
         coverAssetId: "cover-1",
       });
     });
+  });
+
+  it("shows one required-fields error when creating an album with missing fields", async () => {
+    const user = userEvent.setup();
+
+    render(<CreateAlbumPage toast={jest.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Publicar álbum" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son obligatorios.");
+    expect(mediaService.uploadCatalogImage).not.toHaveBeenCalled();
+    expect(catalogService.createAlbum).not.toHaveBeenCalled();
   });
 
   it("creates the album first and then adds tracks with their own cover asset", async () => {
@@ -268,6 +294,32 @@ describe("artist upload forms", () => {
     await waitFor(() => {
       expect(catalogService.createTrackInAlbum).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("shows one required-fields error when adding a song to an album with missing fields", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.createAlbum).mockResolvedValue({
+      albumId: "album-1",
+      title: "Album con canciones",
+      coverAssetId: "album-cover-1",
+      artistId: "artist-1",
+      status: "PUBLICADO",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    } as never);
+
+    const { container } = render(<CreateAlbumPage toast={jest.fn()} />);
+    const albumCoverInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    await user.type(screen.getByPlaceholderText("Título del álbum"), "Album con canciones");
+    await user.upload(albumCoverInput, new File(["cover"], "album-cover.png", { type: "image/png" }));
+    await user.click(screen.getByRole("button", { name: "Publicar álbum" }));
+
+    await screen.findByText('Álbum "Album con canciones" creado. Ahora puedes agregar canciones con portada propia.');
+    await user.click(screen.getByRole("button", { name: "Agregar canción" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son obligatorios.");
+    expect(catalogService.createTrackInAlbum).not.toHaveBeenCalled();
   });
 
   it("expands create another album action and returns to fresh album form", async () => {
@@ -395,6 +447,83 @@ describe("artist upload forms", () => {
     expect(await screen.findByAltText("Portada de Album")).toHaveAttribute(
       "src",
       "http://localhost/api/v1/media/assets/album-cover-1"
+    );
+  });
+
+  it("plays tracks from artist track and album tables", async () => {
+    const user = userEvent.setup();
+    const singleTrack = {
+      trackId: "track-1",
+      artistId: "artist-1",
+      albumId: null,
+      title: "Song",
+      genre: "Rock",
+      audioAssetId: "audio-1",
+      coverAssetId: "track-cover-1",
+      status: "PUBLICADO",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const albumTrack = {
+      trackId: "track-2",
+      artistId: "artist-1",
+      albumId: "album-1",
+      title: "Lado B",
+      genre: "Pop",
+      audioAssetId: "audio-2",
+      coverAssetId: "track-cover-2",
+      status: "PUBLICADO",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const album = {
+      albumId: "album-1",
+      artistId: "artist-1",
+      title: "Album",
+      coverAssetId: "album-cover-1",
+      status: "PUBLICADO",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    jest.mocked(catalogService.listArtistTracks).mockResolvedValue([singleTrack, albumTrack] as never);
+    jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([album] as never);
+
+    const onPlayTrack = jest.fn();
+    const tracksPage = renderWithRouter(
+      <MyTracksPage
+        currentTrack={null}
+        onPlayTrack={onPlayTrack}
+        user={{ id: "artist-1", username: "Ada" }}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Reproducir Song" }));
+
+    expect(onPlayTrack).toHaveBeenCalledWith(expect.objectContaining({
+      artist: "Ada",
+      trackId: "track-1",
+    }));
+
+    tracksPage.unmount();
+
+    const onPlayAlbumTrack = jest.fn();
+    renderWithRouter(
+      <MyAlbumsPage
+        currentTrack={null}
+        onPlayTrack={onPlayAlbumTrack}
+        user={{ id: "artist-1", username: "Ada" }}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Reproducir Lado B" }));
+
+    expect(onPlayAlbumTrack).toHaveBeenCalledWith(
+      expect.objectContaining({ artist: "Ada", trackId: "track-2" }),
+      [expect.objectContaining({ trackId: "track-2" })],
+      "album-1"
     );
   });
 });

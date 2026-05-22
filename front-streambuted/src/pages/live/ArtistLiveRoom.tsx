@@ -38,7 +38,6 @@ export function ArtistLiveRoom() {
             EN VIVO
           </span>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#524E5A" }}>Estado: {connectionState}</span>
       </div>
 
       <div style={{ flex: 1, display: "flex", gap: 24, padding: 24 }}>

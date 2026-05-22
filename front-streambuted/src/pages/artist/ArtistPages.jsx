@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
-import { IcMusic } from '../../components/icons/Icons';
+import { IcMusic, IcPlay } from '../../components/icons/Icons';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { FilePicker } from '../../components/ui/FilePicker';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -16,10 +16,11 @@ import {
 } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
 import { formatDate } from '../../utils/formatters';
+import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return toUserFacingMessage(error.message);
   }
 
   return 'No se pudo completar la solicitud.';
@@ -27,6 +28,13 @@ function getErrorMessage(error) {
 
 function getCatalogStatusLabel(status) {
   return status === 'RETIRADO' ? 'Retirado' : 'Publicado';
+}
+
+function getArtistPlayableTrack(track, username) {
+  return {
+    ...track,
+    artist: track.artist ?? track.artistName ?? username ?? 'Artista',
+  };
 }
 
 function formatMetricNumber(value) {
@@ -73,6 +81,10 @@ const IMAGE_FILE_HELPER = `JPG, PNG o WEBP - máximo 5 MB. ${getUploadFileHelper
 
 function normalizeText(value) {
   return (value ?? '').trim();
+}
+
+function hasEmptyTrackFields({ title, genre, audioFile, coverFile }) {
+  return !normalizeText(title) || !normalizeText(genre) || !audioFile || !coverFile;
 }
 
 function validateCoverImage(file) {
@@ -290,7 +302,7 @@ ArtistDashboardPage.propTypes = {
   user: artistUserPropType.isRequired,
 };
 
-export function MyTracksPage({ user, toast }) {
+export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = undefined }) {
   const navigate = useNavigate();
   const [tracks, setTracks] = useState([]);
   const [albums, setAlbums] = useState([]);
@@ -364,7 +376,12 @@ export function MyTracksPage({ user, toast }) {
                 {tracks.map(track => (
                   <tr key={track.trackId}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button
+                        className={`artist-track-play-button${currentTrack?.trackId === track.trackId ? ' active' : ''}`}
+                        type="button"
+                        onClick={() => onPlayTrack?.(getArtistPlayableTrack(track, user.username))}
+                        aria-label={`Reproducir ${track.title}`}
+                      >
                         <div className="track-thumb">
                           {track.coverAssetId ? (
                             <img src={getAssetUrl(track.coverAssetId)} alt={`Portada de ${track.title}`} />
@@ -373,7 +390,8 @@ export function MyTracksPage({ user, toast }) {
                           )}
                         </div>
                         <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{track.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Pista publicada</div></div>
-                      </div>
+                        <span className="artist-play-inline" aria-hidden="true"><IcPlay /></span>
+                      </button>
                     </td>
                     <td style={{ color: 'var(--t2)' }}>{track.genre || 'Sin género'}</td>
                     <td style={{ color: 'var(--t2)' }}>{track.albumId && albumTitleById.has(track.albumId) ? albumTitleById.get(track.albumId) : 'Sencillo'}</td>
@@ -406,11 +424,13 @@ export function MyTracksPage({ user, toast }) {
 }
 
 MyTracksPage.propTypes = {
+  currentTrack: artistTrackPropType,
+  onPlayTrack: PropTypes.func,
   toast: PropTypes.func.isRequired,
   user: artistUserPropType.isRequired,
 };
 
-export function MyAlbumsPage({ user, toast }) {
+export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = undefined }) {
   const navigate = useNavigate();
   const [albums, setAlbums] = useState([]);
   const [tracks, setTracks] = useState([]);
@@ -461,7 +481,16 @@ export function MyAlbumsPage({ user, toast }) {
     navigate(routes.artistUploadForAlbum(albumId));
   };
 
-  const countTracks = (albumId) => tracks.filter(track => track.albumId === albumId).length;
+  const getAlbumTracks = (albumId) => tracks.filter(track => track.albumId === albumId);
+  const countTracks = (albumId) => getAlbumTracks(albumId).length;
+  const playAlbumTrack = (album, track) => {
+    const albumTracks = getAlbumTracks(album.albumId).map(item => getArtistPlayableTrack(item, user.username));
+    onPlayTrack?.(
+      getArtistPlayableTrack(track, user.username),
+      albumTracks,
+      album.albumId
+    );
+  };
 
   return (
     <div className="page-inner">
@@ -484,18 +513,40 @@ export function MyAlbumsPage({ user, toast }) {
             <table className="data-table">
               <thead><tr><th>Álbum</th><th>Pistas</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
               <tbody>
-                {albums.map(album => (
+                {albums.map(album => {
+                  const albumTracks = getAlbumTracks(album.albumId);
+                  const firstAlbumTrack = albumTracks[0];
+
+                  return (
                   <tr key={album.albumId}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div className="track-thumb">
-                          {album.coverAssetId ? (
-                            <img src={getAssetUrl(album.coverAssetId)} alt={`Portada de ${album.title}`} />
-                          ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
-                          )}
+                      <div className="artist-album-cell">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div className="track-thumb">
+                            {album.coverAssetId ? (
+                              <img src={getAssetUrl(album.coverAssetId)} alt={`Portada de ${album.title}`} />
+                            ) : (
+                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+                            )}
+                          </div>
+                          <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Álbum publicado</div></div>
                         </div>
-                        <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Álbum publicado</div></div>
+                        {albumTracks.length > 0 && (
+                          <div className="artist-album-track-list" aria-label={`Pistas de ${album.title}`}>
+                            {albumTracks.map(track => (
+                              <button
+                                className={`artist-album-track-chip${currentTrack?.trackId === track.trackId ? ' active' : ''}`}
+                                key={track.trackId}
+                                type="button"
+                                onClick={() => playAlbumTrack(album, track)}
+                                aria-label={`Reproducir ${track.title}`}
+                              >
+                                <IcPlay />
+                                <span>{track.title}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td style={{ color: 'var(--t2)' }}>{countTracks(album.albumId)}</td>
@@ -503,12 +554,21 @@ export function MyAlbumsPage({ user, toast }) {
                     <td style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          className="btn-ghost"
+                          disabled={!firstAlbumTrack}
+                          style={{ padding: '5px 12px', fontSize: 12 }}
+                          onClick={() => firstAlbumTrack && playAlbumTrack(album, firstAlbumTrack)}
+                        >
+                          Reproducir
+                        </button>
                         <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }} onClick={() => addTrackToAlbum(album.albumId)}>Agregar canción</button>
                         <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setAlbumToRetire(album)}>Retirar</button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           )}
@@ -528,6 +588,8 @@ export function MyAlbumsPage({ user, toast }) {
 }
 
 MyAlbumsPage.propTypes = {
+  currentTrack: artistTrackPropType,
+  onPlayTrack: PropTypes.func,
   toast: PropTypes.func.isRequired,
   user: artistUserPropType.isRequired,
 };
@@ -631,9 +693,10 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
 
-    if (!normalizedTitle) return setError('Título requerido.');
+    if (hasEmptyTrackFields({ title, genre, audioFile, coverFile })) {
+      return setError('Todos los campos son obligatorios.');
+    }
     if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
-    if (!normalizedGenre) return setError('Género requerido.');
     if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     const audioError = validateAudio(audioFile);
@@ -824,9 +887,10 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
 
-    if (!normalizedTitle) return setError('Título de la canción requerido.');
+    if (hasEmptyTrackFields({ title, genre, audioFile, coverFile })) {
+      return setError('Todos los campos son obligatorios.');
+    }
     if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título de la canción no puede superar 220 caracteres.');
-    if (!normalizedGenre) return setError('Género requerido.');
     if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     const audioError = validateAudio(audioFile);
@@ -969,7 +1033,7 @@ export function CreateAlbumPage({ toast }) {
 
   const handleCreate = async () => {
     const normalizedTitle = normalizeText(title);
-    if (!normalizedTitle) return setError('Título requerido.');
+    if (!normalizedTitle || !coverFile) return setError('Todos los campos son obligatorios.');
     if (normalizedTitle.length > ALBUM_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
     const coverError = validateCoverImage(coverFile);
     if (coverError) return setError(coverError);
@@ -1219,9 +1283,8 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
 
-    if (!normalizedTitle) return setError('Título requerido.');
+    if (!normalizedTitle || !normalizedGenre) return setError('Todos los campos son obligatorios.');
     if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
-    if (!normalizedGenre) return setError('Género requerido.');
     if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     return {
@@ -1454,3 +1517,5 @@ export function ArtistAnalyticsPage({ user }) {
 ArtistAnalyticsPage.propTypes = {
   user: artistUserPropType.isRequired,
 };
+
+

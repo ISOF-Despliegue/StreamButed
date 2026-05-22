@@ -1,23 +1,28 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { toUserFacingMessage } from '../utils/userFacingMessages';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_MAX_LENGTH = 320;
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 50;
 const PASSWORD_MIN_LENGTH = 8;
-const PASSWORD_MAX_LENGTH = 128;
+const PASSWORD_MAX_LENGTH = 15;
 const PASSWORD_UPPERCASE = /[A-Z]/;
 const PASSWORD_DIGIT = /\d/;
 const PASSWORD_SPECIAL = /[^A-Za-z0-9]/;
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return getFriendlyErrorMessage(error.message);
   }
 
   return 'No se pudo completar la solicitud.';
+}
+
+function getFriendlyErrorMessage(message) {
+  return toUserFacingMessage(message);
 }
 
 function isObject(value) {
@@ -79,7 +84,7 @@ function getBannedAccountMessage(error) {
 
 function validatePasswordRules(password) {
   if (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
-    return 'La contraseña debe tener entre 8 y 128 caracteres.';
+    return 'La contraseña debe tener entre 8 y 15 caracteres.';
   }
 
   if (!PASSWORD_UPPERCASE.test(password)) {
@@ -119,11 +124,10 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
 
     setBannedMessage('');
 
-    if (!normalizedEmail) return setError('Correo requerido.');
+    if (!normalizedEmail || !password) return setError('Todos los campos son obligatorios.');
     if (normalizedEmail.length > EMAIL_MAX_LENGTH) return setError('El correo supera 320 caracteres.');
     if (!EMAIL_PATTERN.test(normalizedEmail)) return setError('Correo inválido.');
-    if (!password) return setError('Contraseña requerida.');
-    if (password.length > PASSWORD_MAX_LENGTH) return setError('La contraseña supera 128 caracteres.');
+    if (password.length > PASSWORD_MAX_LENGTH) return setError('La contraseña debe tener entre 8 y 15 caracteres.');
 
     setError('');
     setIsSubmitting(true);
@@ -182,7 +186,7 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
 
         {(error || externalError) && (
           <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {error || externalError}
+            {error || getFriendlyErrorMessage(externalError)}
           </div>
         )}
 
@@ -253,8 +257,8 @@ export function RegisterPage({
     const normalizedEmail = form.email.trim();
     const normalizedUsername = form.username.trim();
 
-    if (!normalizedEmail || !normalizedUsername || !form.password) {
-      return setError('Todos los campos son requeridos.');
+    if (!normalizedEmail || !normalizedUsername || !form.password || !form.confirm) {
+      return setError('Todos los campos son obligatorios.');
     }
 
     if (normalizedEmail.length > EMAIL_MAX_LENGTH) {
@@ -304,6 +308,10 @@ export function RegisterPage({
     if (!verification) return;
 
     const normalizedCode = verificationCode.trim();
+    if (!normalizedCode) {
+      return setError('Todos los campos son obligatorios.');
+    }
+
     if (!/^\d{6}$/.test(normalizedCode)) {
       return setError('Ingresa el código de 6 dígitos.');
     }
@@ -378,7 +386,7 @@ export function RegisterPage({
         <div className="auth-sub">
           {isVerifyingRegistration
             ? 'Ingresa el código enviado a tu correo'
-            : 'Todas las cuentas nuevas empiezan como oyentes'}
+            : '¡Regístrate como oyente en StreamButed!'}
         </div>
 
         {!isVerifyingRegistration && (['email', 'username', 'password', 'confirm']).map((key, index) => {
@@ -454,7 +462,7 @@ export function RegisterPage({
 
         {(error || externalError) && (
           <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {error || externalError}
+            {error || getFriendlyErrorMessage(externalError)}
           </div>
         )}
 
@@ -517,7 +525,7 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
 
   const handleSubmit = async () => {
     if (!password || !confirmPassword) {
-      return setError('Completa ambos campos de contraseña.');
+      return setError('Todos los campos son obligatorios.');
     }
 
     const passwordError = validatePasswordRules(password);
@@ -596,7 +604,7 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
 
         {(error || externalError) && (
           <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-            {error || externalError}
+            {error || getFriendlyErrorMessage(externalError)}
           </div>
         )}
 
@@ -634,3 +642,4 @@ GooglePasswordSetupPage.propTypes = {
   externalError: PropTypes.string,
   onSubmit: PropTypes.func.isRequired,
 };
+

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLive } from "../../hooks/useLive";
 import { apiRequest } from "../../services/apiClient";
 import type { UserRole } from "../../types/user.types";
+import { toUserFacingMessage } from "../../utils/userFacingMessages";
 
 export interface LiveRoom {
   id: string;
@@ -43,7 +44,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
       );
       setRooms(Array.isArray(data) ? data : data.data || data.rooms || []);
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "No se pudieron cargar los conciertos");
+      setError(fetchError instanceof Error ? toUserFacingMessage(fetchError.message) : "No se pudieron cargar los conciertos");
     } finally {
       setLoading(false);
     }
@@ -105,7 +106,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
       {!loading && !error && activeRooms.length === 0 && (
         <div style={{ textAlign: "center", padding: 80, color: "#524E5A" }}>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#9994A0" }}>No hay conciertos en vivo ahora</div>
-          <div style={{ fontSize: 13, marginTop: 6 }}>Vuelve más tarde o{canStart ? " inicia el tuyo" : " espera a que un artista comience"}</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Vuelve más tarde o{canStart ? " inicia tu propio concierto" : " espera a que un artista comience un concierto"}</div>
         </div>
       )}
 

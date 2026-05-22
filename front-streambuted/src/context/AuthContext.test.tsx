@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "../hooks/useAuth";
+import { SESSION_TERMINATED_EVENT } from "../services/apiClient";
 import { authTokenStore } from "../services/authTokenStore";
 import { authService } from "../services/authService";
 import { userService } from "../services/userService";
@@ -323,6 +324,25 @@ describe("AuthContext", () => {
     await waitFor(() => expect(screen.getByText("access-token")).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "logout" }));
+
+    await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
+    expect(screen.getByText("no-token")).toBeInTheDocument();
+  });
+
+  it("clears the session when the app receives a forced logout event", async () => {
+    const user = userEvent.setup();
+
+    render(<AuthProvider><LoginHarness /></AuthProvider>);
+
+    await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "login" }));
+    await waitFor(() => expect(screen.getByText("access-token")).toBeInTheDocument());
+
+    window.dispatchEvent(
+      new CustomEvent(SESSION_TERMINATED_EVENT, {
+        detail: { code: "ACCOUNT_BANNED" },
+      })
+    );
 
     await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
     expect(screen.getByText("no-token")).toBeInTheDocument();

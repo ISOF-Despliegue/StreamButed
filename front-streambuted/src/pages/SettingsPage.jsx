@@ -13,10 +13,11 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import LogoutButton from '../components/layout/LogoutButton';
 import { browserLogger } from '../utils/browserLogger';
 import { reloadCurrentPage } from '../utils/navigation';
+import { toUserFacingMessage } from '../utils/userFacingMessages';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return toUserFacingMessage(error.message);
   }
 
   return 'No se pudo completar la solicitud.';
@@ -37,6 +38,14 @@ async function waitForArtistProfile(artistId) {
   }
 
   return null;
+}
+
+function buildArtistProfileSyncPayload(user) {
+  return {
+    displayName: user.username,
+    biography: user.bio ?? null,
+    profileImageAssetId: user.profileImageAssetId ?? null,
+  };
 }
 
 export function SettingsPage({
@@ -123,7 +132,7 @@ export function SettingsPage({
     const normalizedUsername = username.trim();
     const normalizedBio = bio.trim();
 
-    if (!normalizedUsername) return setError('Nombre de usuario requerido.');
+    if (!normalizedUsername) return setError('Todos los campos son obligatorios.');
     if (normalizedUsername.length < 3 || normalizedUsername.length > 50) {
       return setError('El nombre de usuario debe tener entre 3 y 50 caracteres.');
     }
@@ -205,11 +214,18 @@ export function SettingsPage({
 
       const artist = await waitForArtistProfile(promotedUser.id);
       if (artist) {
+        try {
+          await catalogService.updateArtist(
+            promotedUser.id,
+            buildArtistProfileSyncPayload(promotedUser)
+          );
+        } catch (catalogError) {
+          browserLogger.warn('Artist profile was created, but initial public profile sync failed.', catalogError);
+        }
         setPromotionMessage('Perfil de artista listo.');
         toast('Modo artista activado');
         setShowPromotionModal(false);
         setTermsAccepted(false);
-        reloadPage();
       } else {
         setPromotionMessage('Tu perfil de artista aún se está preparando. Reintenta en unos segundos.');
         setShowPromotionModal(false);
@@ -286,11 +302,6 @@ export function SettingsPage({
         </button>
       </div>
 
-      <div className="settings-card" style={{ maxWidth: 600, marginTop: 24 }}>
-        <div className="settings-card-title">Cuenta</div>
-        <LogoutButton onLogout={onRequestLogout} />
-      </div>
-
       {user.role === 'listener' && (
         <div className="settings-card" style={{ maxWidth: 600, marginTop: 24 }}>
           <div className="settings-card-title">Convertirte en artista</div>
@@ -308,6 +319,10 @@ export function SettingsPage({
           )}
         </div>
       )}
+
+      <div className="settings-logout-row" style={{ maxWidth: 600 }}>
+        <LogoutButton onLogout={onRequestLogout} />
+      </div>
 
       <ConfirmDialog
         open={showSaveConfirmation}

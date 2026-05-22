@@ -4,12 +4,13 @@ import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
 import { userService } from '../../services/userService';
 import { formatDate } from '../../utils/formatters';
+import { toUserFacingMessage } from '../../utils/userFacingMessages';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InlineState } from '../../components/ui/InlineState';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return toUserFacingMessage(error.message);
   }
 
   return 'No se pudo completar la solicitud.';

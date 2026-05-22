@@ -1,4 +1,4 @@
-import { IcMusic } from '../icons/Icons';
+import { IcMusic, IcPlay } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import PropTypes from 'prop-types';
 
@@ -13,7 +13,9 @@ export function AlbumCard({ album, onClick }) {
         ) : (
           <div style={{ fontSize: 28, color: 'var(--t3)' }}><IcMusic /></div>
         )}
-        <div className="play-overlay" style={{ color: '#fff', fontSize: 32 }}>Reproducir</div>
+        <div className="play-overlay" aria-hidden="true">
+          <span className="album-play-icon"><IcPlay /></span>
+        </div>
       </div>
       <div className="album-card-title">{album.title}</div>
       <div className="album-card-artist">{artistName}</div>

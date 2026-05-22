@@ -108,7 +108,7 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("reloads after the artist profile becomes available", async () => {
+  it("syncs the public artist profile after the artist profile becomes available", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     const toast = jest.fn();
     const reloadSpy = jest.fn();
@@ -128,7 +128,12 @@ describe("SettingsPage", () => {
       await jest.advanceTimersByTimeAsync(700);
     });
 
-    await waitFor(() => expect(reloadSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(catalogService.updateArtist).toHaveBeenCalledWith("listener-1", {
+      displayName: "listener",
+      biography: null,
+      profileImageAssetId: null,
+    }));
+    expect(reloadSpy).not.toHaveBeenCalled();
     expect(toast).toHaveBeenCalledWith("Modo artista activado");
   });
   it("validates the profile form before opening the confirmation dialog", async () => {
@@ -139,7 +144,7 @@ describe("SettingsPage", () => {
     const usernameInput = screen.getByLabelText("Nombre de usuario");
     await user.clear(usernameInput);
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Nombre de usuario requerido.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son obligatorios.");
 
     await user.type(usernameInput, "ab");
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));

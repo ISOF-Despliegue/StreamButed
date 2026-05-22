@@ -3,7 +3,7 @@ import { Link, NavLink } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import {
   IcHome, IcSearch, IcLib, IcSettings,
-  IcDashboard, IcTracks, IcUpload, IcChart, IcMusic,
+  IcDashboard, IcUpload, IcChart, IcMusic,
   IcOverview, IcReport, IcShield,
 } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
@@ -42,7 +42,7 @@ function MainSidebarComponent({ user }) {
     user.role === 'artist'
       ? [
           { to: routes.artistDashboard, end: true, label: 'Panel', icon: <IcDashboard /> },
-          { to: routes.artistTracks, label: 'Mis pistas', icon: <IcTracks /> },
+          { to: routes.artistTracks, label: 'Mis pistas', icon: <span className="nav-note-icon" aria-hidden="true">♩</span> },
           { to: routes.artistAlbums, label: 'Álbumes', icon: <IcMusic /> },
           { to: routes.artistAnalytics, label: 'Analíticas', icon: <IcChart /> },
           { to: routes.artistUpload, label: 'Subir +', icon: <IcUpload /> },

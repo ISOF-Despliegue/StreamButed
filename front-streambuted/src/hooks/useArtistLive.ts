@@ -3,6 +3,7 @@ import { Device } from "mediasoup-client";
 import type { Producer, Transport, TransportOptions } from "mediasoup-client/types";
 import type { Socket } from "socket.io-client";
 import { browserLogger } from "../utils/browserLogger";
+import { toUserFacingMessage } from "../utils/userFacingMessages";
 
 export type ArtistLiveState =
   | "idle"
@@ -48,7 +49,7 @@ function emitAsync<T>(
     const handleError = ({ message }: { message: string }) => {
       globalThis.clearTimeout(timeout);
       socket.off(resultEvent, handleResult);
-      reject(new Error(message));
+      reject(new Error(toUserFacingMessage(message)));
     };
 
     socket.once(resultEvent, handleResult);
@@ -274,7 +275,7 @@ export function useArtistLive(socket: Socket | null): UseArtistLiveReturn {
         setState("live");
       } catch (liveError) {
         const message = liveError instanceof Error ? liveError.message : String(liveError);
-        setError(message);
+        setError(toUserFacingMessage(message));
         setState("error");
 
         if (roomIdRef.current && socket) {

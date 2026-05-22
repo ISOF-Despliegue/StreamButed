@@ -14,7 +14,8 @@ export function BottomPlayer({
   onSeek,
   onNext,
   onPrevious,
-  onToggleShuffle
+  onToggleShuffle,
+  onToggleRepeat
 }) {
   if (!track) return (
     <div className="bottom-player">
@@ -72,7 +73,6 @@ export function BottomPlayer({
           </button>
           <button
             className="btn-icon"
-            disabled={!playback.canUseAlbumControls}
             title="Pista anterior"
             onClick={onPrevious}
           >
@@ -83,13 +83,19 @@ export function BottomPlayer({
           </button>
           <button
             className="btn-icon"
-            disabled={!playback.canUseAlbumControls}
             title="Siguiente pista"
             onClick={onNext}
           >
             <IcSkipFwd />
           </button>
-          <button className="btn-icon" disabled title="Repetir"><IcRepeat /></button>
+          <button
+            className={`btn-icon${playback.repeatEnabled ? ' active' : ''}`}
+            title="Repetir"
+            aria-pressed={playback.repeatEnabled}
+            onClick={onToggleRepeat}
+          >
+            <IcRepeat />
+          </button>
         </div>
         <div className="player-progress">
           <span className="progress-time">{formatDuration(playback.positionSeconds)}</span>
@@ -121,6 +127,7 @@ BottomPlayer.propTypes = {
   onPrevious: PropTypes.func.isRequired,
   onSeek: PropTypes.func.isRequired,
   onTogglePlay: PropTypes.func.isRequired,
+  onToggleRepeat: PropTypes.func.isRequired,
   onToggleShuffle: PropTypes.func.isRequired,
   playback: PropTypes.shape({
     canUseAlbumControls: PropTypes.bool,
@@ -129,6 +136,7 @@ BottomPlayer.propTypes = {
     isLoading: PropTypes.bool,
     isPlaying: PropTypes.bool,
     positionSeconds: PropTypes.number,
+    repeatEnabled: PropTypes.bool,
     shuffleEnabled: PropTypes.bool,
   }).isRequired,
   setVolume: PropTypes.func.isRequired,

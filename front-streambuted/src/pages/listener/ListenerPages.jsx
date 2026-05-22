@@ -9,10 +9,11 @@ import { getAssetUrl } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
 import { browserLogger } from '../../utils/browserLogger';
 import { formatDate } from '../../utils/formatters';
+import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
-    return error.message;
+    return toUserFacingMessage(error.message);
   }
 
   return 'No se pudo cargar la información.';
@@ -467,21 +468,33 @@ export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentT
 
   const isOwnArtistProfile =
     currentUser?.role === 'artist' && currentUser.id === (artist.artistId ?? artistId);
+  const resolvedDisplayName =
+    isOwnArtistProfile && currentUser?.username
+      ? currentUser.username
+      : artist.displayName;
+  const resolvedBiography =
+    isOwnArtistProfile && currentUser?.bio
+      ? currentUser.bio
+      : artist.biography;
+  const resolvedProfileImageAssetId =
+    isOwnArtistProfile && currentUser?.profileImageAssetId
+      ? currentUser.profileImageAssetId
+      : artist.profileImageAssetId;
 
   return (
     <div>
       <div className="artist-info-row">
         <div className="artist-avatar-lg">
-          {artist.profileImageAssetId ? (
-            <img src={getAssetUrl(artist.profileImageAssetId)} alt={`Foto de ${artist.displayName}`} />
+          {resolvedProfileImageAssetId ? (
+            <img src={getAssetUrl(resolvedProfileImageAssetId)} alt={`Foto de ${resolvedDisplayName}`} />
           ) : (
-            artist.displayName[0]?.toUpperCase()
+            resolvedDisplayName[0]?.toUpperCase()
           )}
         </div>
         <div className="artist-info-main">
           <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 4 }}>Artista</div>
-          <div className="artist-name-lg">{artist.displayName}</div>
-          <div className="artist-stats">{artist.biography || 'Sin biografía publicada.'}</div>
+          <div className="artist-name-lg">{resolvedDisplayName}</div>
+          <div className="artist-stats">{resolvedBiography || 'Sin biografía publicada.'}</div>
         </div>
         {isOwnArtistProfile && (
           <Link className="artist-profile-edit-btn" to={routes.settings}>
@@ -507,10 +520,10 @@ export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentT
                 {tracks.map((track, index) => (
                   <TrackRow
                     key={track.trackId}
-                    track={{ ...track, artist: artist.displayName }}
+                    track={{ ...track, artist: resolvedDisplayName }}
                     index={index}
                     isPlaying={currentTrack?.trackId === track.trackId}
-                    onPlay={() => onPlayTrack({ ...track, artist: artist.displayName })}
+                    onPlay={() => onPlayTrack({ ...track, artist: resolvedDisplayName })}
                   />
                 ))}
               </tbody>
@@ -520,7 +533,7 @@ export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentT
 
         <div className="section">
           <div className="section-header">
-            <div className="section-title">Discografia</div>
+            <div className="section-title">Discografía</div>
           </div>
           {albums.length === 0 ? (
             <InlineState title="Sin álbumes publicados" />
@@ -529,7 +542,7 @@ export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentT
               {albums.map(album => (
                 <AlbumCard
                   key={album.albumId}
-                  album={{ ...album, artist: artist.displayName }}
+                  album={{ ...album, artist: resolvedDisplayName }}
                   onClick={() => navigate(routes.album(album.albumId))}
                 />
               ))}
@@ -586,3 +599,4 @@ ArtistProfilePage.propTypes = {
   currentTrack: listenerTrackPropType,
   onPlayTrack: PropTypes.func.isRequired,
 };
+

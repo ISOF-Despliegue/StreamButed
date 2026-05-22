@@ -3,6 +3,7 @@ import { Device } from "mediasoup-client";
 import type { Consumer, ConsumerOptions, Transport, TransportOptions } from "mediasoup-client/types";
 import type { Socket } from "socket.io-client";
 import { browserLogger } from "../utils/browserLogger";
+import { toUserFacingMessage } from "../utils/userFacingMessages";
 
 export type ListenerLiveState = "idle" | "joining" | "watching" | "ended" | "error";
 
@@ -30,7 +31,7 @@ function emitAsync<T>(
 
     const handleError = ({ message }: { message: string }) => {
       socket.off(resultEvent, handleResult);
-      reject(new Error(message));
+      reject(new Error(toUserFacingMessage(message)));
     };
 
     socket.once(resultEvent, handleResult);
@@ -192,7 +193,7 @@ export function useListenerLive(socket: Socket | null): UseListenerLiveReturn {
       } catch (joinError) {
         const message = joinError instanceof Error ? joinError.message : String(joinError);
         isJoiningRef.current = false;
-        setError(message);
+        setError(toUserFacingMessage(message));
         setState("error");
         cleanupResources();
       }
