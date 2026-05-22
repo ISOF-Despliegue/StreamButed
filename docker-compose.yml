@@ -132,7 +132,7 @@ services:
       DB_USERNAME: ${POSTGRES_IDENTITY_APP_USER:-streambuted_identity_app}
       DB_PASSWORD: ${POSTGRES_IDENTITY_APP_PASSWORD:-${POSTGRES_PASSWORD:?missing}}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      DB_DDL_AUTO: ${DB_DDL_AUTO:-update}
+      DB_DDL_AUTO: ${DB_DDL_AUTO:-validate}
       REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-true}
       JWT_ISSUER: ${JWT_ISSUER:-http://identity-service:8081}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-streambuted-api}

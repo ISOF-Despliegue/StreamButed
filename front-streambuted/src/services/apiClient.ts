@@ -238,6 +238,7 @@ export async function apiRequest<T>(
 
   let response: Response;
   let attemptedRefresh = false;
+  let parsedErrorBody: unknown = undefined;
   try {
     response = await sendApiRequest(normalizedPath, options, token);
   } catch (error) {
@@ -246,8 +247,8 @@ export async function apiRequest<T>(
   }
 
   if (response.status === 403) {
-    const forbiddenBody = await parseErrorBody(response);
-    const bannedPayload = extractBannedPayload(forbiddenBody);
+    parsedErrorBody = await parseErrorBody(response);
+    const bannedPayload = extractBannedPayload(parsedErrorBody);
 
     if (bannedPayload) {
       terminateSession(bannedPayload);
@@ -270,7 +271,7 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    const errorBody = await parseErrorBody(response);
+    const errorBody = parsedErrorBody ?? await parseErrorBody(response);
     const bannedPayload = extractBannedPayload(errorBody);
     if (bannedPayload) {
       terminateSession(bannedPayload);
