@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
 import { userService } from '../../services/userService';
 import { formatDate } from '../../utils/formatters';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
+import { includesSearchTerm } from '../../utils/searchText';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InlineState } from '../../components/ui/InlineState';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { useSearchController } from '../../hooks/useSearchController';
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
@@ -176,6 +179,8 @@ const MODERATION_TABS = [
   ['users', 'Cuentas'],
 ];
 
+const ADMIN_MODERATION_LIMIT = 10;
+
 const DURATION_UNITS = [
   ['HOURS', 'Horas'],
   ['DAYS', 'Días'],
@@ -220,6 +225,67 @@ function getRoleLabel(role) {
   if (role === 'admin') return 'Administrador';
   if (role === 'artist') return 'Artista';
   return 'Oyente';
+}
+
+function filterModerationItems(items, searchTerm, getSearchValues) {
+  if (!searchTerm) {
+    return items;
+  }
+
+  return items.filter(item => (
+    getSearchValues(item).some(value => includesSearchTerm(String(value ?? ''), searchTerm))
+  ));
+}
+
+function getTrackSearchValues(track) {
+  return [
+    track.title,
+    track.artistName,
+    track.albumTitle ?? 'Sencillo',
+    track.genre,
+    getCatalogStatusLabel(track.status),
+  ];
+}
+
+function getAlbumSearchValues(album) {
+  return [
+    album.title,
+    album.artistName,
+    album.trackCount,
+    getCatalogStatusLabel(album.status),
+  ];
+}
+
+function getUserSearchValues(user) {
+  return [
+    user.username,
+    user.email,
+    getRoleLabel(user.role),
+    user.role,
+    user.isActive ? 'Activa' : 'Inactiva',
+    getBanStatusLabel(user.banStatus),
+  ];
+}
+
+function getSearchPlaceholder(activeTab) {
+  if (activeTab === 'tracks') {
+    return 'Buscar canciones';
+  }
+
+  if (activeTab === 'albums') {
+    return 'Buscar albumes';
+  }
+
+  return 'Buscar cuentas';
+}
+
+function getDisplayPagination(basePagination, filteredCount, dataCount, hasSearchTerm) {
+  return {
+    ...basePagination,
+    dataCount,
+    limit: ADMIN_MODERATION_LIMIT,
+    total: hasSearchTerm ? filteredCount : basePagination.total,
+  };
 }
 
 function getBanConfirmationMessage(draft) {
@@ -424,12 +490,17 @@ export function AdminModerationPage({ toast }) {
   const [tracks, setTracks] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [users, setUsers] = useState([]);
-  const [pagination, setPagination] = useState({ dataCount: 0, limit: 50, offset: 0, total: 0 });
+  const [pagination, setPagination] = useState({ dataCount: 0, limit: ADMIN_MODERATION_LIMIT, offset: 0, total: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [confirmation, setConfirmation] = useState(null);
+  const [moderationSearchTerm, setModerationSearchTerm] = useState('');
+  const searchController = useSearchController({
+    onClear: useCallback(() => setModerationSearchTerm(''), []),
+    onSearch: useCallback(searchTerm => setModerationSearchTerm(searchTerm), []),
+  });
   const [banDraft, setBanDraft] = useState({
     user: null,
     banType: 'TEMPORARY',
@@ -445,20 +516,20 @@ export function AdminModerationPage({ toast }) {
 
     try {
       if (activeTab === 'tracks') {
-        const response = await catalogService.listAdminTracks({ includeRetired: true, limit: 50, offset: 0 });
+        const response = await catalogService.listAdminTracks({ includeRetired: true, limit: ADMIN_MODERATION_LIMIT, offset: 0 });
         setTracks(response.data);
         setPagination({ ...response.pagination, dataCount: response.data.length });
         return;
       }
 
       if (activeTab === 'albums') {
-        const response = await catalogService.listAdminAlbums({ includeRetired: true, limit: 50, offset: 0 });
+        const response = await catalogService.listAdminAlbums({ includeRetired: true, limit: ADMIN_MODERATION_LIMIT, offset: 0 });
         setAlbums(response.data);
         setPagination({ ...response.pagination, dataCount: response.data.length });
         return;
       }
 
-      const response = await userService.listAdminUsers({ limit: 50, offset: 0 });
+      const response = await userService.listAdminUsers({ limit: ADMIN_MODERATION_LIMIT, offset: 0 });
       setUsers(response.data);
       setPagination({ ...response.pagination, dataCount: response.data.length });
     } catch (err) {
@@ -471,6 +542,45 @@ export function AdminModerationPage({ toast }) {
   useEffect(() => {
     void loadModerationItems();
   }, [loadModerationItems]);
+
+  const filteredTracks = useMemo(
+    () => filterModerationItems(tracks, moderationSearchTerm, getTrackSearchValues),
+    [moderationSearchTerm, tracks]
+  );
+  const visibleTracks = useMemo(
+    () => filteredTracks.slice(0, ADMIN_MODERATION_LIMIT),
+    [filteredTracks]
+  );
+  const trackPagination = useMemo(
+    () => getDisplayPagination(pagination, filteredTracks.length, visibleTracks.length, Boolean(moderationSearchTerm)),
+    [filteredTracks.length, moderationSearchTerm, pagination, visibleTracks.length]
+  );
+
+  const filteredAlbums = useMemo(
+    () => filterModerationItems(albums, moderationSearchTerm, getAlbumSearchValues),
+    [albums, moderationSearchTerm]
+  );
+  const visibleAlbums = useMemo(
+    () => filteredAlbums.slice(0, ADMIN_MODERATION_LIMIT),
+    [filteredAlbums]
+  );
+  const albumPagination = useMemo(
+    () => getDisplayPagination(pagination, filteredAlbums.length, visibleAlbums.length, Boolean(moderationSearchTerm)),
+    [filteredAlbums.length, moderationSearchTerm, pagination, visibleAlbums.length]
+  );
+
+  const filteredUsers = useMemo(
+    () => filterModerationItems(users, moderationSearchTerm, getUserSearchValues),
+    [moderationSearchTerm, users]
+  );
+  const visibleUsers = useMemo(
+    () => filteredUsers.slice(0, ADMIN_MODERATION_LIMIT),
+    [filteredUsers]
+  );
+  const userPagination = useMemo(
+    () => getDisplayPagination(pagination, filteredUsers.length, visibleUsers.length, Boolean(moderationSearchTerm)),
+    [filteredUsers.length, moderationSearchTerm, pagination, visibleUsers.length]
+  );
 
   const retireTrack = async (track) => {
     setIsActionLoading(true);
@@ -601,20 +711,30 @@ export function AdminModerationPage({ toast }) {
         <div className="page-subtitle">Gestión operativa de canciones, álbumes y cuentas de la plataforma.</div>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-        {MODERATION_TABS.map(([value, label]) => (
-          <button
-            key={value}
-            className={`filter-btn${activeTab === value ? ' active' : ''}`}
-            onClick={() => {
-              setActiveTab(value);
-              setBanDraft((current) => ({ ...current, user: null }));
-            }}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {MODERATION_TABS.map(([value, label]) => (
+            <button
+              key={value}
+              className={`filter-btn${activeTab === value ? ' active' : ''}`}
+              onClick={() => {
+                setActiveTab(value);
+                setBanDraft((current) => ({ ...current, user: null }));
+              }}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <SearchInput
+          cooldownUntil={searchController.cooldownUntil}
+          placeholder={getSearchPlaceholder(activeTab)}
+          value={searchController.searchValue}
+          onChange={searchController.setSearchValue}
+          onSubmit={searchController.submitSearch}
+        />
       </div>
 
       {isLoading && <InlineState title="Cargando moderación..." />}
@@ -623,11 +743,11 @@ export function AdminModerationPage({ toast }) {
 
       {!isLoading && !error && activeTab === 'tracks' && (
         <ModerationTable
-          emptyTitle="No hay canciones registradas"
+          emptyTitle={moderationSearchTerm ? 'Sin canciones para esta busqueda' : 'No hay canciones registradas'}
           headers={['Canción', 'Artista', 'Álbum', 'Estado', 'Fecha', 'Acción']}
           label="canciones"
-          pagination={pagination}
-          rows={tracks.map(track => ({
+          pagination={trackPagination}
+          rows={visibleTracks.map(track => ({
             key: track.trackId,
             cells: [
               <div key="track-title">
@@ -650,11 +770,11 @@ export function AdminModerationPage({ toast }) {
 
       {!isLoading && !error && activeTab === 'albums' && (
         <ModerationTable
-          emptyTitle="No hay álbumes registrados"
+          emptyTitle={moderationSearchTerm ? 'Sin albumes para esta busqueda' : 'No hay álbumes registrados'}
           headers={['Álbum', 'Artista', 'Canciones', 'Estado', 'Fecha', 'Acción']}
           label="álbumes"
-          pagination={pagination}
-          rows={albums.map(album => ({
+          pagination={albumPagination}
+          rows={visibleAlbums.map(album => ({
             key: album.albumId,
             cells: [
               <span key="album-title" style={{ fontWeight: 600, color: 'var(--t1)' }}>{album.title}</span>,
@@ -683,11 +803,11 @@ export function AdminModerationPage({ toast }) {
           />
 
           <ModerationTable
-            emptyTitle="No hay cuentas registradas"
+            emptyTitle={moderationSearchTerm ? 'Sin cuentas para esta busqueda' : 'No hay cuentas registradas'}
             headers={['Cuenta', 'Rol', 'Estado', 'Suspensión', 'Alta', 'Acción']}
             label="cuentas"
-            pagination={pagination}
-            rows={users.map(user => ({
+            pagination={userPagination}
+            rows={visibleUsers.map(user => ({
               key: user.id,
               cells: [
                 <div key="user-identity">

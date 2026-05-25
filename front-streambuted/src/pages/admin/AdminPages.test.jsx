@@ -35,7 +35,7 @@ jest.mock("../../services/userService", () => ({
 
 const pagination = {
   dataCount: 1,
-  limit: 50,
+  limit: 10,
   offset: 0,
   total: 1,
 };
@@ -174,6 +174,81 @@ describe("AdminPages", () => {
 
     await waitFor(() => expect(catalogService.retireTrack).toHaveBeenCalledWith("track-1"));
     expect(toast).toHaveBeenCalledWith("Canción retirada.");
+  });
+
+  it("requests and renders only 10 moderation rows", async () => {
+    const manyTracks = Array.from({ length: 12 }, (_, index) => ({
+      trackId: `track-${index + 1}`,
+      title: `Cancion ${index + 1}`,
+      genre: "Rock",
+      artistName: "Ada",
+      albumTitle: null,
+      status: "PUBLICADO",
+      createdAt: "2026-05-20T12:00:00Z",
+    }));
+    jest.mocked(catalogService.listAdminTracks).mockResolvedValueOnce({
+      data: manyTracks,
+      pagination: {
+        dataCount: 12,
+        limit: 10,
+        offset: 0,
+        total: 12,
+      },
+    });
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    expect(await screen.findByText("Cancion 1")).toBeInTheDocument();
+    expect(screen.getByText("Cancion 10")).toBeInTheDocument();
+    expect(screen.queryByText("Cancion 11")).not.toBeInTheDocument();
+    expect(catalogService.listAdminTracks).toHaveBeenCalledWith({
+      includeRetired: true,
+      limit: 10,
+      offset: 0,
+    });
+  });
+
+  it("filters admin moderation locally with manual short searches", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.listAdminTracks).mockResolvedValueOnce({
+      data: [
+        {
+          trackId: "track-1",
+          title: "Luna",
+          genre: "Rock",
+          artistName: "Ada",
+          albumTitle: null,
+          status: "PUBLICADO",
+          createdAt: "2026-05-20T12:00:00Z",
+        },
+        {
+          trackId: "track-2",
+          title: "Sol",
+          genre: "Pop",
+          artistName: "Beto",
+          albumTitle: "Dia",
+          status: "PUBLICADO",
+          createdAt: "2026-05-20T12:00:00Z",
+        },
+      ],
+      pagination: {
+        dataCount: 2,
+        limit: 10,
+        offset: 0,
+        total: 2,
+      },
+    });
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    expect(await screen.findByText("Luna")).toBeInTheDocument();
+    jest.mocked(catalogService.listAdminTracks).mockClear();
+
+    await user.type(screen.getByPlaceholderText("Buscar canciones"), "be{Enter}");
+
+    expect(screen.getByText("Sol")).toBeInTheDocument();
+    expect(screen.queryByText("Luna")).not.toBeInTheDocument();
+    expect(catalogService.listAdminTracks).not.toHaveBeenCalled();
   });
 
   it("loads albums and retires an album through the in-app confirmation", async () => {
