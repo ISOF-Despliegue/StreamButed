@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { IcHeart, IcPlus } from '../icons/Icons';
 import { libraryService } from '../../services/libraryService';
+import { emitPlaylistUpdated, subscribeToLibraryEvents } from '../../services/libraryEvents';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 export function TrackLibraryActions({
@@ -32,6 +33,39 @@ export function TrackLibraryActions({
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [isPlaylistMenuOpen]);
 
+  useEffect(() => (
+    subscribeToLibraryEvents((event) => {
+      if (event.type === 'playlist-created') {
+        setPlaylists((current) => {
+          if (current.some((playlist) => playlist.playlistId === event.playlist.playlistId)) {
+            return current.map((playlist) => (
+              playlist.playlistId === event.playlist.playlistId ? event.playlist : playlist
+            ));
+          }
+
+          return [...current, event.playlist];
+        });
+        return;
+      }
+
+      if (event.type === 'playlist-deleted') {
+        setPlaylists((current) => current.filter((playlist) => playlist.playlistId !== event.playlistId));
+        return;
+      }
+
+      if (event.type === 'playlist-updated' && event.playlist && !event.playlist.isSystem) {
+        setPlaylists((current) => current.map((playlist) => (
+          playlist.playlistId === event.playlist.playlistId
+            ? {
+              ...playlist,
+              ...event.playlist,
+            }
+            : playlist
+        )));
+      }
+    })
+  ), []);
+
   const openPlaylistMenu = async () => {
     if (!trackId) return;
 
@@ -55,7 +89,8 @@ export function TrackLibraryActions({
 
     setIsAddingToPlaylist(true);
     try {
-      await libraryService.addTrackToPlaylist(playlistId, trackId);
+      const updatedPlaylist = await libraryService.addTrackToPlaylist(playlistId, trackId);
+      emitPlaylistUpdated(updatedPlaylist);
       toast?.('Canción agregada a la playlist');
       setIsPlaylistMenuOpen(false);
     } catch (error) {

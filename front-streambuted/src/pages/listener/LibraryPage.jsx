@@ -8,7 +8,14 @@ import { InlineState } from '../../components/ui/InlineState';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { useSearchController } from '../../hooks/useSearchController';
+import { browserLogger } from '../../utils/browserLogger';
 import { libraryService } from '../../services/libraryService';
+import {
+  emitPlaylistCreated,
+  emitPlaylistDeleted,
+  emitPlaylistUpdated,
+  subscribeToLibraryEvents,
+} from '../../services/libraryEvents';
 import { getAssetUrl, getUploadFileHelperText, mediaService } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
 import { getTrackIdentifier } from '../../utils/playbackQueue';
@@ -91,9 +98,78 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
     }
   }, []);
 
+  const refreshLikedSongs = useCallback(async () => {
+    try {
+      const likedSongs = await libraryService.getLikedSongs();
+      setLibrary((current) => (current ? { ...current, likedSongs } : current));
+    } catch (error) {
+      browserLogger.warn('Failed to refresh liked songs library section.', error);
+    }
+  }, []);
+
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary]);
+
+  useEffect(() => (
+    subscribeToLibraryEvents((event) => {
+      if (event.type === 'liked-songs-changed') {
+        void refreshLikedSongs();
+        return;
+      }
+
+      if (event.type === 'playlist-created') {
+        setLibrary((current) => (
+          current
+            ? { ...current, playlists: [...current.playlists, event.playlist] }
+            : current
+        ));
+        return;
+      }
+
+      if (event.type === 'playlist-deleted') {
+        setLibrary((current) => (
+          current
+            ? {
+              ...current,
+              playlists: current.playlists.filter((playlist) => playlist.playlistId !== event.playlistId),
+            }
+            : current
+        ));
+        return;
+      }
+
+      if (event.type === 'playlist-updated' && event.playlist) {
+        if (event.playlist.isSystem) {
+          setLibrary((current) => (
+            current
+              ? {
+                ...current,
+                likedSongs: {
+                  ...current.likedSongs,
+                  ...event.playlist,
+                },
+              }
+              : current
+          ));
+          return;
+        }
+
+        setLibrary((current) => (
+          current
+            ? {
+              ...current,
+              playlists: current.playlists.map((playlist) => (
+                playlist.playlistId === event.playlist.playlistId
+                  ? { ...playlist, ...event.playlist }
+                  : playlist
+              )),
+            }
+            : current
+        ));
+      }
+    })
+  ), [refreshLikedSongs]);
 
   useEffect(() => {
     if (!playlistCoverFile) {
@@ -118,15 +194,15 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
       const coverUpload = playlistCoverFile
         ? await mediaService.uploadPlaylistCover(playlistCoverFile)
         : null;
-      await libraryService.createPlaylist({
+      const createdPlaylist = await libraryService.createPlaylist({
         name,
         coverAssetId: coverUpload?.assetId ?? null,
       });
+      emitPlaylistCreated(createdPlaylist);
       setPlaylistName('');
       setPlaylistCoverFile(null);
       setIsCreateDialogOpen(false);
       toast('Playlist creada');
-      await loadLibrary();
     } catch (err) {
       toast(getErrorMessage(err));
     } finally {
@@ -142,9 +218,9 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
     setIsUpdatingLikedCover(true);
     try {
       const upload = await mediaService.uploadPlaylistCover(file);
-      await libraryService.updatePlaylist(library.likedSongs.playlistId, { coverAssetId: upload.assetId });
+      const updatedLikedSongs = await libraryService.updatePlaylist(library.likedSongs.playlistId, { coverAssetId: upload.assetId });
+      emitPlaylistUpdated(updatedLikedSongs);
       toast('Portada actualizada');
-      await loadLibrary();
     } catch (err) {
       toast(getErrorMessage(err));
     } finally {
@@ -157,9 +233,9 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
 
     try {
       await libraryService.deletePlaylist(playlistToDelete.playlistId);
+      emitPlaylistDeleted(playlistToDelete.playlistId);
       toast('Playlist eliminada');
       setPlaylistToDelete(null);
-      await loadLibrary();
     } catch (err) {
       toast(getErrorMessage(err));
     }
@@ -314,23 +390,54 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   const [error, setError] = useState('');
   const [playlistTrackSearchTerm, setPlaylistTrackSearchTerm] = useState('');
 
-  const loadPlaylist = useCallback(async () => {
+  const loadPlaylist = useCallback(async ({ silent = false } = {}) => {
     if (!playlistId) return;
 
-    setIsLoading(true);
-    setError('');
+    if (!silent) {
+      setIsLoading(true);
+      setError('');
+    }
     try {
       setPlaylist(await libraryService.getPlaylist(playlistId));
     } catch (err) {
-      setError(getErrorMessage(err));
+      if (silent) {
+        browserLogger.warn(`Failed to silently refresh playlist ${playlistId}.`, err);
+      } else {
+        setError(getErrorMessage(err));
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, [playlistId]);
 
   useEffect(() => {
     void loadPlaylist();
   }, [loadPlaylist]);
+
+  useEffect(() => (
+    subscribeToLibraryEvents((event) => {
+      if (event.type === 'liked-songs-changed' && playlist?.isSystem) {
+        void loadPlaylist({ silent: true });
+        return;
+      }
+
+      if (event.type === 'playlist-updated' && event.playlist?.playlistId === playlistId) {
+        if (Array.isArray(event.playlist.tracks)) {
+          setPlaylist(event.playlist);
+          return;
+        }
+
+        setPlaylist((current) => (current ? { ...current, ...event.playlist } : current));
+        return;
+      }
+
+      if (event.type === 'playlist-deleted' && event.playlistId === playlistId) {
+        void loadPlaylist({ silent: true });
+      }
+    })
+  ), [loadPlaylist, playlist?.isSystem, playlistId]);
 
   const playlistTrackSearchController = useSearchController({
     onClear: useCallback(() => setPlaylistTrackSearchTerm(''), []),
@@ -343,7 +450,9 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
     setIsAddingCurrent(true);
     try {
-      setPlaylist(await libraryService.addTrackToPlaylist(playlistId, trackId));
+      const updatedPlaylist = await libraryService.addTrackToPlaylist(playlistId, trackId);
+      setPlaylist(updatedPlaylist);
+      emitPlaylistUpdated(updatedPlaylist);
       toast('Cancion agregada a la playlist');
     } catch (err) {
       toast(getErrorMessage(err));
@@ -356,7 +465,9 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     if (!playlistId) return;
 
     try {
-      setPlaylist(await libraryService.removeTrackFromPlaylist(playlistId, trackId));
+      const updatedPlaylist = await libraryService.removeTrackFromPlaylist(playlistId, trackId);
+      setPlaylist(updatedPlaylist);
+      emitPlaylistUpdated(updatedPlaylist);
       toast('Cancion quitada de la playlist');
     } catch (err) {
       toast(getErrorMessage(err));
@@ -373,6 +484,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       const upload = await mediaService.uploadPlaylistCover(file);
       const updated = await libraryService.updatePlaylist(playlistId, { coverAssetId: upload.assetId });
       setPlaylist(current => (current ? { ...current, coverAssetId: updated.coverAssetId } : current));
+      emitPlaylistUpdated(updated);
       toast('Portada actualizada');
     } catch (err) {
       toast(getErrorMessage(err));
