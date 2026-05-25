@@ -146,4 +146,18 @@ export const mediaService = {
       body: formData,
     });
   },
+
+  uploadPlaylistCover(file: File): Promise<AssetUploadResponse> {
+    assertFile(file, "Selecciona una imagen de portada.");
+    assertUploadFileName(file, "portada-01.png");
+    assertAcceptedFile(file, IMAGE_TYPES, MAX_CATALOG_IMAGE_BYTES, "La portada");
+
+    const formData = fileFormData(file);
+    formData.set("usage", "PLAYLIST_COVER");
+
+    return apiRequest<AssetUploadResponse>("/media/images", {
+      method: "POST",
+      body: formData,
+    });
+  },
 };

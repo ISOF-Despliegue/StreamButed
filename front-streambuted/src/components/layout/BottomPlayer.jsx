@@ -1,7 +1,10 @@
-import { IcMusic, IcHeart, IcShuffle, IcSkipBack, IcPlay, IcPause, IcSkipFwd, IcRepeat, IcVolume } from '../icons/Icons';
+import { useEffect, useRef, useState } from 'react';
+import { IcMusic, IcHeart, IcPlus, IcShuffle, IcSkipBack, IcPlay, IcPause, IcSkipFwd, IcRepeat, IcVolume } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
+import { libraryService } from '../../services/libraryService';
 import { ProgressBar } from '../ui/ProgressBar';
 import { formatDuration } from '../../utils/formatters';
+import { toUserFacingMessage } from '../../utils/userFacingMessages';
 import PropTypes from 'prop-types';
 
 export function BottomPlayer({
@@ -15,8 +18,65 @@ export function BottomPlayer({
   onNext,
   onPrevious,
   onToggleShuffle,
-  onToggleRepeat
+  onToggleRepeat,
+  isLiked = false,
+  isLikeLoading = false,
+  onToggleLike = undefined,
+  toast = undefined
 }) {
+  const [isPlaylistMenuOpen, setIsPlaylistMenuOpen] = useState(false);
+  const [playlists, setPlaylists] = useState([]);
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  const [isAddingToPlaylist, setIsAddingToPlaylist] = useState(false);
+  const playlistMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!isPlaylistMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!playlistMenuRef.current?.contains(event.target)) {
+        setIsPlaylistMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isPlaylistMenuOpen]);
+
+  const trackId = track?.trackId || track?.id;
+
+  const openPlaylistMenu = async () => {
+    if (!trackId) return;
+
+    const nextOpen = !isPlaylistMenuOpen;
+    setIsPlaylistMenuOpen(nextOpen);
+    if (!nextOpen || playlists.length > 0 || isLoadingPlaylists) return;
+
+    setIsLoadingPlaylists(true);
+    try {
+      setPlaylists(await libraryService.listPlaylists());
+    } catch (error) {
+      toast?.(toUserFacingMessage(error instanceof Error ? error.message : 'No se pudieron cargar tus playlists.'));
+    } finally {
+      setIsLoadingPlaylists(false);
+    }
+  };
+
+  const addToPlaylist = async (playlistId) => {
+    if (!trackId || isAddingToPlaylist) return;
+
+    setIsAddingToPlaylist(true);
+    try {
+      await libraryService.addTrackToPlaylist(playlistId, trackId);
+      toast?.('Cancion agregada a la playlist');
+      setIsPlaylistMenuOpen(false);
+    } catch (error) {
+      toast?.(toUserFacingMessage(error instanceof Error ? error.message : 'No se pudo agregar la cancion.'));
+    } finally {
+      setIsAddingToPlaylist(false);
+    }
+  };
+
   if (!track) return (
     <div className="bottom-player">
       <div className="player-track" style={{ color: 'var(--t3)', fontSize: 13 }}>
@@ -57,7 +117,55 @@ export function BottomPlayer({
           </button>
           <div className="player-track-artist">{artistName}</div>
         </div>
-        <button className="btn-icon" style={{ marginLeft: 8 }}><IcHeart /></button>
+        <button
+          aria-label={isLiked ? 'Quitar de canciones que te gustan' : 'Guardar en canciones que te gustan'}
+          aria-pressed={isLiked}
+          className={`btn-icon${isLiked ? ' active' : ''}`}
+          disabled={isLikeLoading || !onToggleLike}
+          onClick={onToggleLike}
+          style={{ marginLeft: 8 }}
+          title={isLiked ? 'Quitar me gusta' : 'Me gusta'}
+          type="button"
+        >
+          <IcHeart />
+        </button>
+        <div className="player-playlist-menu-wrap" ref={playlistMenuRef}>
+          <button
+            aria-expanded={isPlaylistMenuOpen}
+            aria-label="Agregar a playlist"
+            className="btn-icon"
+            disabled={!trackId || isLoadingPlaylists}
+            onClick={openPlaylistMenu}
+            style={{ marginLeft: 2 }}
+            title="Agregar a playlist"
+            type="button"
+          >
+            <IcPlus />
+          </button>
+          {isPlaylistMenuOpen && (
+            <div className="player-playlist-menu" role="menu">
+              <div className="player-playlist-menu-title">Agregar a playlist</div>
+              {isLoadingPlaylists ? (
+                <div className="player-playlist-menu-empty">Cargando...</div>
+              ) : playlists.length === 0 ? (
+                <div className="player-playlist-menu-empty">No tienes playlists privadas.</div>
+              ) : (
+                playlists.map((playlist) => (
+                  <button
+                    className="player-playlist-option"
+                    disabled={isAddingToPlaylist}
+                    key={playlist.playlistId}
+                    onClick={() => addToPlaylist(playlist.playlistId)}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {playlist.name}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="player-center">
@@ -123,9 +231,12 @@ export function BottomPlayer({
 
 BottomPlayer.propTypes = {
   onExpand: PropTypes.func.isRequired,
+  isLiked: PropTypes.bool,
+  isLikeLoading: PropTypes.bool,
   onNext: PropTypes.func.isRequired,
   onPrevious: PropTypes.func.isRequired,
   onSeek: PropTypes.func.isRequired,
+  onToggleLike: PropTypes.func,
   onTogglePlay: PropTypes.func.isRequired,
   onToggleRepeat: PropTypes.func.isRequired,
   onToggleShuffle: PropTypes.func.isRequired,
@@ -140,6 +251,7 @@ BottomPlayer.propTypes = {
     shuffleEnabled: PropTypes.bool,
   }).isRequired,
   setVolume: PropTypes.func.isRequired,
+  toast: PropTypes.func,
   track: PropTypes.shape({
     artist: PropTypes.string,
     artistName: PropTypes.string,

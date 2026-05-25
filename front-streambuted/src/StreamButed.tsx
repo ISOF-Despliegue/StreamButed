@@ -33,6 +33,7 @@ import {
   AlbumDetailPage,
   ArtistProfilePage,
 } from "./pages/listener/ListenerPages";
+import { LibraryPage, PlaylistDetailPage } from "./pages/listener/LibraryPage";
 import {
   ArtistDashboardPage,
   MyTracksPage,
@@ -55,6 +56,7 @@ import { routePatterns, routes } from "./routes/appRoutes";
 import { useAuth } from "./hooks/useAuth";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
+import { libraryService } from "./services/libraryService";
 import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
 import { authService } from "./services/authService";
 import { browserLogger } from "./utils/browserLogger";
@@ -91,6 +93,12 @@ type PlaybackState = {
   canUseAlbumControls: boolean;
   repeatEnabled: boolean;
   shuffleEnabled: boolean;
+};
+
+type CurrentTrackLikeState = {
+  trackId: string | null;
+  isLiked: boolean;
+  isLoading: boolean;
 };
 
 const EMPTY_QUEUE: PlaybackQueueState = {
@@ -148,7 +156,9 @@ type PlaybackControllerHandle = {
 type PlaybackControllerProps = Readonly<{
   user: CurrentUser;
   currentTrack: AppTrack | null;
+  currentTrackLikeState: CurrentTrackLikeState;
   playbackQueue: PlaybackQueueState;
+  onToggleCurrentTrackLike: () => void;
   setCurrentTrack: (track: AppTrack | null) => void;
   setPlaybackQueue: Dispatch<SetStateAction<PlaybackQueueState>>;
   toast: (msg: string) => void;
@@ -156,7 +166,16 @@ type PlaybackControllerProps = Readonly<{
 
 const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControllerProps>(
   function PlaybackController(
-    { user, currentTrack, playbackQueue, setCurrentTrack, setPlaybackQueue, toast },
+    {
+      user,
+      currentTrack,
+      currentTrackLikeState,
+      playbackQueue,
+      onToggleCurrentTrackLike,
+      setCurrentTrack,
+      setPlaybackQueue,
+      toast,
+    },
     ref
   ) {
     const [isPlaying, setIsPlaying] = useState(false);
@@ -691,19 +710,23 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
     return (
       <>
         {expandedPlayerNode}
-        <BottomPlayer
-          track={currentTrack}
-          onExpand={() => setExpandedPlayer(true)}
-          volume={volume}
-          setVolume={setVolume}
+      <BottomPlayer
+        track={currentTrack}
+        onExpand={() => setExpandedPlayer(true)}
+        volume={volume}
+        setVolume={setVolume}
           playback={playbackState}
           onTogglePlay={handleTogglePlay}
           onSeek={handleSeek}
           onNext={handleNextTrack}
-          onPrevious={handlePreviousTrack}
-          onToggleShuffle={handleToggleShuffle}
-          onToggleRepeat={handleToggleRepeat}
-        />
+        onPrevious={handlePreviousTrack}
+        onToggleShuffle={handleToggleShuffle}
+        onToggleRepeat={handleToggleRepeat}
+        isLiked={currentTrackLikeState.isLiked}
+        isLikeLoading={currentTrackLikeState.isLoading}
+        onToggleLike={onToggleCurrentTrackLike}
+        toast={toast}
+      />
         <audio
           ref={audioRef}
           preload="metadata"
@@ -792,6 +815,34 @@ function ArtistProfileRoute({ currentTrack, currentUser, onPlayTrack }: ArtistPr
       currentUser={currentUser}
       currentTrack={currentTrack}
       onPlayTrack={onPlayTrack}
+    />
+  );
+}
+
+type PlaylistDetailRouteProps = Readonly<{
+  currentTrack: AppTrack | null;
+  onPlayTrack: (track: AppTrack, tracks: AppTrack[], playlistId: string) => void;
+  toast: (msg: string) => void;
+}>;
+
+function PlaylistDetailRoute({ currentTrack, onPlayTrack, toast }: PlaylistDetailRouteProps) {
+  const { playlistId } = useParams();
+
+  if (!playlistId) {
+    return (
+      <NotAvailableState
+        title="Playlist no seleccionada"
+        message="No encontramos la playlist que intentas abrir."
+      />
+    );
+  }
+
+  return (
+    <PlaylistDetailPage
+      playlistId={playlistId}
+      currentTrack={currentTrack}
+      onPlayTrack={onPlayTrack}
+      toast={toast}
     />
   );
 }
@@ -938,6 +989,11 @@ export default function StreamButed() {
   } = useAuth();
 
   const [currentTrack, setCurrentTrack] = useState<AppTrack | null>(null);
+  const [currentTrackLikeState, setCurrentTrackLikeState] = useState<CurrentTrackLikeState>({
+    trackId: null,
+    isLiked: false,
+    isLoading: false,
+  });
   const [playbackQueue, setPlaybackQueue] = useState<PlaybackQueueState>(EMPTY_QUEUE);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
@@ -963,6 +1019,77 @@ export default function StreamButed() {
     },
     []
   );
+
+  useEffect(() => {
+    if (!user || user.role === "admin") {
+      setCurrentTrackLikeState({ trackId: null, isLiked: false, isLoading: false });
+      return undefined;
+    }
+
+    const trackId = getTrackIdentifier(currentTrack);
+    if (!trackId) {
+      setCurrentTrackLikeState({ trackId: null, isLiked: false, isLoading: false });
+      return undefined;
+    }
+
+    let mounted = true;
+    setCurrentTrackLikeState({ trackId, isLiked: false, isLoading: true });
+
+    libraryService
+      .getTrackLikeStatus(trackId)
+      .then((status) => {
+        if (mounted) {
+          setCurrentTrackLikeState({
+            trackId,
+            isLiked: status.isLiked,
+            isLoading: false,
+          });
+        }
+      })
+      .catch((error) => {
+        browserLogger.warn("Failed to load like status for current track.", error);
+        if (mounted) {
+          setCurrentTrackLikeState({ trackId, isLiked: false, isLoading: false });
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentTrack, user]);
+
+  const toggleCurrentTrackLike = useCallback(async () => {
+    const trackId = getTrackIdentifier(currentTrack);
+    if (!trackId || currentTrackLikeState.isLoading) {
+      return;
+    }
+
+    setCurrentTrackLikeState((state) => ({
+      ...state,
+      trackId,
+      isLoading: true,
+    }));
+
+    try {
+      const status = currentTrackLikeState.isLiked
+        ? await libraryService.unlikeTrack(trackId)
+        : await libraryService.likeTrack(trackId);
+      setCurrentTrackLikeState({
+        trackId,
+        isLiked: status.isLiked,
+        isLoading: false,
+      });
+      toast(status.isLiked ? "Agregada a tus me gusta" : "Quitada de tus me gusta");
+    } catch (error) {
+      browserLogger.error("Failed to toggle track like.", error);
+      setCurrentTrackLikeState((state) => ({
+        ...state,
+        trackId,
+        isLoading: false,
+      }));
+      toast(toUserFacingMessage(error instanceof Error ? error.message : "No se pudo actualizar me gusta."));
+    }
+  }, [currentTrack, currentTrackLikeState.isLiked, currentTrackLikeState.isLoading, toast]);
 
   const resetNavigation = useCallback((nextUser: CurrentUser | null) => {
     playbackControllerRef.current?.reset();
@@ -1229,9 +1356,20 @@ export default function StreamButed() {
             <Route
               path={routes.library}
               element={
-                <NotAvailableState
-                  title="Biblioteca"
-                  message="Muy pronto podrás guardar tus canciones y álbumes favoritos aquí."
+                <LibraryPage
+                  currentTrack={currentTrack}
+                  onPlayCollectionTrack={playAlbumTrack}
+                  toast={toast}
+                />
+              }
+            />
+            <Route
+              path={routePatterns.libraryPlaylist}
+              element={
+                <PlaylistDetailRoute
+                  currentTrack={currentTrack}
+                  onPlayTrack={playAlbumTrack}
+                  toast={toast}
                 />
               }
             />
@@ -1354,7 +1492,9 @@ export default function StreamButed() {
         ref={playbackControllerRef}
         user={user}
         currentTrack={currentTrack}
+        currentTrackLikeState={currentTrackLikeState}
         playbackQueue={playbackQueue}
+        onToggleCurrentTrackLike={toggleCurrentTrackLike}
         setCurrentTrack={setCurrentTrack}
         setPlaybackQueue={setPlaybackQueue}
         toast={toast}

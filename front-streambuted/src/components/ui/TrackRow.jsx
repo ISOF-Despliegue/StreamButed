@@ -3,7 +3,7 @@ import { getAssetUrl } from '../../services/mediaService';
 import { formatDuration, formatNumber } from '../../utils/formatters';
 import PropTypes from 'prop-types';
 
-export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaText, contextText }) {
+export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaText, contextText, actions }) {
   const trackId = track.trackId || track.id;
   const artistName = track.artist || track.artistName || 'Artista';
   const duration = track.durationSeconds ?? track.duration;
@@ -45,11 +45,17 @@ export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaT
       <td style={{ color: 'var(--t3)', fontSize: 13 }}>{meta}</td>
       {contextText !== undefined && <td style={{ color: 'var(--t3)', fontSize: 13 }}>{contextText}</td>}
       <td className="track-duration-cell"><span className="track-duration">{trackId ? formatDuration(duration) : '--:--'}</span></td>
+      {actions !== undefined && (
+        <td className="track-actions-cell" onClick={event => event.stopPropagation()}>
+          {actions}
+        </td>
+      )}
     </tr>
   );
 }
 
 TrackRow.propTypes = {
+  actions: PropTypes.node,
   contextText: PropTypes.string,
   index: PropTypes.number.isRequired,
   isPlaying: PropTypes.bool,
