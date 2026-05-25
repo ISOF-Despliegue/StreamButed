@@ -212,6 +212,46 @@ describe("BottomPlayer", () => {
     expect(libraryService.addTrackToPlaylist).toHaveBeenCalledWith("playlist-1", "track-1");
   });
 
+  it("shows a specific message when the song is already in the selected playlist", async () => {
+    const user = userEvent.setup();
+    const toast = jest.fn();
+    jest.mocked(libraryService.listPlaylists).mockResolvedValue([
+      {
+        playlistId: "playlist-1",
+        name: "Ruta",
+        coverAssetId: null,
+        isSystem: false,
+        systemKey: null,
+        trackCount: 1,
+        createdAt: "2026-05-25T00:00:00Z",
+        updatedAt: "2026-05-25T00:00:00Z",
+      },
+    ]);
+    jest.mocked(libraryService.addTrackToPlaylist).mockRejectedValue(
+      new Error("This song is already in that playlist.")
+    );
+
+    render(
+      <BottomPlayer
+        track={track}
+        onExpand={jest.fn()}
+        volume={70}
+        setVolume={jest.fn()}
+        playback={basePlayback}
+        onTogglePlay={jest.fn()}
+        onSeek={jest.fn()}
+        onNext={jest.fn()}
+        onPrevious={jest.fn()}
+        toast={toast}
+      />
+    );
+
+    await user.click(screen.getByTitle("Agregar a playlist"));
+    await user.click(await screen.findByRole("menuitem", { name: "Ruta" }));
+
+    expect(toast).toHaveBeenCalledWith("Esta canción ya se encuentra en esa playlist.");
+  });
+
   it("does not refetch playlists when an empty playlist list has already loaded", async () => {
     const user = userEvent.setup();
     render(

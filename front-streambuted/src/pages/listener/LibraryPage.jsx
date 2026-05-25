@@ -26,12 +26,12 @@ import { toUserFacingMessage } from '../../utils/userFacingMessages';
 const PLAYLIST_NAME_MAX_LENGTH = 20;
 const PLAYLIST_IMAGE_HELPER = `JPG, PNG o WEBP - maximo 5 MB. ${getUploadFileHelperText('portada-01.png')}`;
 
-function getErrorMessage(error) {
+function getErrorMessage(error, fallback = 'No se pudo completar la solicitud.') {
   if (error instanceof Error) {
     return toUserFacingMessage(error.message);
   }
 
-  return 'No se pudo cargar la biblioteca.';
+  return fallback;
 }
 
 function toPlayableTrack(track) {
@@ -62,7 +62,7 @@ function PlaylistSummaryCard({ playlist, onOpen, onDelete }) {
         <div>
           <div className="library-playlist-title">{playlist.name}</div>
           <div className="library-playlist-meta">
-            {playlist.trackCount} {playlist.trackCount === 1 ? 'cancion' : 'canciones'}
+            {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
           </div>
         </div>
       </button>
@@ -86,6 +86,12 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   const [playlistCoverPreviewUrl, setPlaylistCoverPreviewUrl] = useState('');
   const [playlistToDelete, setPlaylistToDelete] = useState(null);
 
+  const resetCreateDialog = useCallback(() => {
+    setIsCreateDialogOpen(false);
+    setPlaylistName('');
+    setPlaylistCoverFile(null);
+  }, []);
+
   const loadLibrary = useCallback(async () => {
     setIsLoading(true);
     setError('');
@@ -93,7 +99,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
     try {
       setLibrary(await libraryService.getLibrary());
     } catch (err) {
-      setError(getErrorMessage(err));
+      setError(getErrorMessage(err, 'No se pudo cargar la biblioteca.'));
     } finally {
       setIsLoading(false);
     }
@@ -191,6 +197,11 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   const createPlaylist = async () => {
     const name = playlistName.trim();
     if (!name || isCreating) return;
+    if (library?.playlists?.some((playlist) => playlist.name === name)) {
+      resetCreateDialog();
+      toast('Ya existe una playlist con ese nombre.');
+      return;
+    }
 
     setIsCreating(true);
     try {
@@ -205,12 +216,11 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
       if (createdPlaylistSummary) {
         emitPlaylistCreated(createdPlaylistSummary);
       }
-      setPlaylistName('');
-      setPlaylistCoverFile(null);
-      setIsCreateDialogOpen(false);
+      resetCreateDialog();
       toast('Playlist creada');
     } catch (err) {
-      toast(getErrorMessage(err));
+      resetCreateDialog();
+      toast(getErrorMessage(err, 'No se pudo crear la playlist.'));
     } finally {
       setIsCreating(false);
     }
@@ -243,7 +253,8 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
       toast('Playlist eliminada');
       setPlaylistToDelete(null);
     } catch (err) {
-      toast(getErrorMessage(err));
+      setPlaylistToDelete(null);
+      toast(getErrorMessage(err, 'No se pudo eliminar la playlist.'));
     }
   };
 
@@ -275,7 +286,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
                 <div className="album-hero-type">Playlist</div>
                 <div className="library-liked-title">Canciones que te gustan</div>
                 <div className="library-liked-meta">
-                  {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'cancion guardada' : 'canciones guardadas'}
+                  {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'canción guardada' : 'canciones guardadas'}
                 </div>
               </div>
             </button>
@@ -337,9 +348,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
         onConfirm={createPlaylist}
         onCancel={() => {
           if (isCreating) return;
-          setIsCreateDialogOpen(false);
-          setPlaylistName('');
-          setPlaylistCoverFile(null);
+          resetCreateDialog();
         }}
       >
         <div className="form-group">
@@ -409,7 +418,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       if (silent) {
         browserLogger.warn(`Failed to silently refresh playlist ${playlistId}.`, err);
       } else {
-        setError(getErrorMessage(err));
+        setError(getErrorMessage(err, 'No se pudo cargar la playlist.'));
       }
     } finally {
       if (!silent) {
@@ -460,9 +469,9 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       const updatedPlaylist = await libraryService.addTrackToPlaylist(playlistId, trackId);
       setPlaylist(updatedPlaylist);
       emitPlaylistUpdated(updatedPlaylist);
-      toast('Cancion agregada a la playlist');
+      toast('Canción agregada a la playlist');
     } catch (err) {
-      toast(getErrorMessage(err));
+      toast(getErrorMessage(err, 'No se pudo agregar la canción a la playlist.'));
     } finally {
       setIsAddingCurrent(false);
     }
@@ -475,9 +484,9 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       const updatedPlaylist = await libraryService.removeTrackFromPlaylist(playlistId, trackId);
       setPlaylist(updatedPlaylist);
       emitPlaylistUpdated(updatedPlaylist);
-      toast('Cancion quitada de la playlist');
+      toast('Canción quitada de la playlist');
     } catch (err) {
-      toast(getErrorMessage(err));
+      toast(getErrorMessage(err, 'No se pudo quitar la canción de la playlist.'));
     }
   };
 
@@ -494,7 +503,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       emitPlaylistUpdated(updated);
       toast('Portada actualizada');
     } catch (err) {
-      toast(getErrorMessage(err));
+      toast(getErrorMessage(err, 'No se pudo actualizar la portada de la playlist.'));
     } finally {
       setIsUpdatingCover(false);
     }
@@ -540,7 +549,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           <div>
             <div className="page-title">{playlist.name}</div>
             <div className="page-subtitle">
-              {playlist.trackCount} {playlist.trackCount === 1 ? 'cancion' : 'canciones'}
+              {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
             </div>
           </div>
         </div>
@@ -581,7 +590,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           title={isSystemPlaylist ? 'Aun no has dado me gusta a canciones' : 'Playlist vacia'}
           message={isSystemPlaylist
             ? 'Usa el corazon del reproductor para guardarlas aqui.'
-            : 'Reproduce una cancion y agregala desde este detalle.'}
+            : 'Reproduce una canción y agrégala desde este detalle.'}
         />
       ) : (
         <>
