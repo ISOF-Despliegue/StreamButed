@@ -47,7 +47,7 @@ describe("ListenerPages", () => {
           albumId: "album-legacy",
           artistId: "artist-1",
           title: "Unknown album",
-          artistName: null,
+          artistName: "Artista",
           coverAssetId: null,
           plays: 0,
         },
@@ -86,7 +86,8 @@ describe("ListenerPages", () => {
     );
 
     expect(await screen.findByText("Álbum legado")).toBeInTheDocument();
-    expect(await screen.findByText("Ada")).toBeInTheDocument();
+    expect(await screen.findAllByText("Ada")).toHaveLength(2);
+    expect(screen.queryByText("Artista")).not.toBeInTheDocument();
     expect(screen.getByText("0 reproducciones")).toBeInTheDocument();
     expect(catalogService.getAlbum).toHaveBeenCalledWith("album-legacy");
     expect(container.querySelector('img[src="https://assets/cover-legacy"]')).not.toBeNull();
