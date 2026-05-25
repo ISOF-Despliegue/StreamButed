@@ -110,6 +110,10 @@ function formatMetricNumber(value) {
   return new Intl.NumberFormat('es-MX').format(Number(value ?? 0));
 }
 
+function hasGenericArtistName(artistName) {
+  return !artistName || artistName === 'Unknown artist' || artistName === 'Artista';
+}
+
 async function resolveDiscoverySummary(summary) {
   const [topAlbums, topArtists] = await Promise.all([
     Promise.all(
@@ -139,10 +143,7 @@ async function resolveDiscoverySummary(summary) {
             }
           }
 
-          if (
-            (!resolvedAlbum.artistName || resolvedAlbum.artistName === 'Unknown artist') &&
-            resolvedAlbum.artistId
-          ) {
+          if (hasGenericArtistName(resolvedAlbum.artistName) && resolvedAlbum.artistId) {
             try {
               const catalogArtist = await catalogService.getArtist(resolvedAlbum.artistId);
               resolvedAlbum = {

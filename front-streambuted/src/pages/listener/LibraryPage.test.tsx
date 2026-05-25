@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { LibraryPage, PlaylistDetailPage } from "./LibraryPage";
 import { libraryService } from "../../services/libraryService";
 import { mediaService } from "../../services/mediaService";
@@ -28,6 +28,12 @@ jest.mock("../../services/mediaService", () => ({
 
 function renderWithRouter(ui: ReactNode) {
   return render(<MemoryRouter>{ui}</MemoryRouter>);
+}
+
+function LocationProbe() {
+  const location = useLocation();
+
+  return <div data-testid="location">{location.pathname}</div>;
 }
 
 const librarySummary = {
@@ -152,19 +158,29 @@ describe("LibraryPage", () => {
     expect(toast).toHaveBeenCalledWith("Playlist creada");
   });
 
-  it("keeps liked songs out of the library landing view", async () => {
+  it("opens liked songs from the cover/title area without rendering the detail on the landing view", async () => {
+    const user = userEvent.setup();
+
     renderWithRouter(
-      <LibraryPage
-        currentTrack={null}
-        onPlayCollectionTrack={jest.fn()}
-        toast={jest.fn()}
-      />
+      <>
+        <LocationProbe />
+        <LibraryPage
+          currentTrack={null}
+          onPlayCollectionTrack={jest.fn()}
+          toast={jest.fn()}
+        />
+      </>
     );
 
     await screen.findByText("Canciones que te gustan");
     expect(screen.queryByText("Quedate")).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Buscar en tus me gusta")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ver playlist" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Abrir playlist Canciones que te gustan" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/library/playlists/liked-1");
+    });
   });
 
   it("filters liked songs inside the playlist detail with the reusable local search behavior", async () => {
@@ -182,6 +198,8 @@ describe("LibraryPage", () => {
 
     await screen.findByText("Quedate");
     expect(screen.getByText("Sol eterno")).toBeInTheDocument();
+    expect(screen.getByText("Categoria")).toBeInTheDocument();
+    expect(screen.getByText("Pop")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Agregar pista actual" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Quitar" })).not.toBeInTheDocument();
 

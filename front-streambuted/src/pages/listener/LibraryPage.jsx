@@ -182,14 +182,21 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
       {!isLoading && !error && library && (
         <>
           <div className="library-hero">
-            <PlaylistCover coverAssetId={likedSongs.coverAssetId} className="library-liked-cover" />
-            <div className="library-liked-copy">
-              <div className="album-hero-type">Playlist</div>
-              <div className="library-liked-title">Canciones que te gustan</div>
-              <div className="library-liked-meta">
-                {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'cancion guardada' : 'canciones guardadas'}
+            <button
+              aria-label={`Abrir playlist ${likedSongs.name}`}
+              className="library-liked-main"
+              onClick={() => navigate(routes.libraryPlaylist(likedSongs.playlistId))}
+              type="button"
+            >
+              <PlaylistCover coverAssetId={likedSongs.coverAssetId} className="library-liked-cover" />
+              <div className="library-liked-copy">
+                <div className="album-hero-type">Playlist</div>
+                <div className="library-liked-title">Canciones que te gustan</div>
+                <div className="library-liked-meta">
+                  {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'cancion guardada' : 'canciones guardadas'}
+                </div>
               </div>
-            </div>
+            </button>
             <label className="btn-ghost library-cover-action">
               {isUpdatingLikedCover ? 'Subiendo...' : 'Cambiar portada'}
               <input
@@ -208,13 +215,6 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
               type="button"
             >
               <IcPlay />
-            </button>
-            <button
-              className="btn-ghost"
-              onClick={() => navigate(routes.libraryPlaylist(likedSongs.playlistId))}
-              type="button"
-            >
-              Ver playlist
             </button>
           </div>
 
@@ -482,7 +482,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
               <thead><tr>
                 <th style={{ width: 40 }}>#</th>
                 <th>Titulo</th>
-                <th>Artista</th>
+                <th>Categoria</th>
                 <th className="track-duration-col">Duracion</th>
                 {!isSystemPlaylist && <th style={{ width: 110 }}>Acciones</th>}
               </tr></thead>
@@ -494,7 +494,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
                     index={index}
                     isPlaying={currentTrack?.trackId === track.trackId}
                     onPlay={() => onPlayTrack(track, tracks, playlist.playlistId)}
-                    metaText={track.artistName}
+                    metaText={track.genre || 'Sin genero'}
                     actions={!isSystemPlaylist ? (
                       <button
                         className="btn-ghost"
