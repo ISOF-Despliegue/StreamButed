@@ -106,10 +106,6 @@ function sortByNewest(items) {
   return [...items].sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime());
 }
 
-function formatMetricNumber(value) {
-  return new Intl.NumberFormat('es-MX').format(Number(value ?? 0));
-}
-
 function hasGenericArtistName(artistName) {
   return !artistName || artistName === 'Unknown artist' || artistName === 'Artista';
 }
@@ -274,7 +270,6 @@ export function HomePage() {
                   )}
                 </div>
                 <div className="album-card-title">{artist.artistName || 'Artista'}</div>
-                <div className="album-card-artist">{formatMetricNumber(artist.plays)} reproducciones</div>
               </button>
             ))}
           </div>

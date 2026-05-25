@@ -720,6 +720,11 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   position: relative;
   display: inline-flex;
 }
+.player-track-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
 .player-playlist-menu {
   position: absolute;
   left: 50%;

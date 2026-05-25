@@ -1,12 +1,18 @@
-export function formatNumber(value: number | null | undefined): string {
+type FormatCountOptions = {
+  compact?: boolean;
+};
+
+export function formatNumber(value: number | null | undefined, options: FormatCountOptions = {}): string {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "--";
   }
 
+  const normalizedValue = Math.round(value);
+
   return new Intl.NumberFormat("es-MX", {
-    notation: value >= 10000 ? "compact" : "standard",
-    maximumFractionDigits: 1,
-  }).format(value);
+    notation: options.compact !== false && normalizedValue >= 10000 ? "compact" : "standard",
+    maximumFractionDigits: 0,
+  }).format(normalizedValue);
 }
 
 export function formatDuration(seconds: number | null | undefined): string {

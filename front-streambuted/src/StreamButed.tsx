@@ -697,6 +697,10 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           onPrevious={handlePreviousTrack}
           onToggleShuffle={handleToggleShuffle}
           onToggleRepeat={handleToggleRepeat}
+          isLiked={currentTrackLikeState.isLiked}
+          isLikeLoading={currentTrackLikeState.isLoading}
+          onToggleLike={onToggleCurrentTrackLike}
+          toast={toast}
           onSelectTrack={(trackToSelect: AppTrack) => {
             const trackId = getTrackIdentifier(trackToSelect);
             if (playbackQueue.sourceType === "album" && trackId) {
