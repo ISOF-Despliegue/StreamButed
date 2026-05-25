@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { IcHeart, IcPlus } from '../icons/Icons';
 import { libraryService } from '../../services/libraryService';
 import { emitPlaylistUpdated, subscribeToLibraryEvents } from '../../services/libraryEvents';
+import { toPlaylistSummary } from '../../utils/libraryEventPayloads';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 export function TrackLibraryActions({
@@ -54,11 +55,16 @@ export function TrackLibraryActions({
       }
 
       if (event.type === 'playlist-updated' && event.playlist && !event.playlist.isSystem) {
+        const playlistSummary = toPlaylistSummary(event.playlist);
+        if (!playlistSummary) {
+          return;
+        }
+
         setPlaylists((current) => current.map((playlist) => (
-          playlist.playlistId === event.playlist.playlistId
+          playlist.playlistId === playlistSummary.playlistId
             ? {
               ...playlist,
-              ...event.playlist,
+              ...playlistSummary,
             }
             : playlist
         )));

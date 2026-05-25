@@ -18,6 +18,7 @@ import {
 } from '../../services/libraryEvents';
 import { getAssetUrl, getUploadFileHelperText, mediaService } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
+import { toPlaylistSummary } from '../../utils/libraryEventPayloads';
 import { getTrackIdentifier } from '../../utils/playbackQueue';
 import { includesSearchTerm } from '../../utils/searchText';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
@@ -141,13 +142,14 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
 
       if (event.type === 'playlist-updated' && event.playlist) {
         if (event.playlist.isSystem) {
+          const likedSongsSummary = toPlaylistSummary(event.playlist);
           setLibrary((current) => (
-            current
+            current && likedSongsSummary
               ? {
                 ...current,
                 likedSongs: {
                   ...current.likedSongs,
-                  ...event.playlist,
+                  ...likedSongsSummary,
                 },
               }
               : current
@@ -155,13 +157,14 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
           return;
         }
 
+        const playlistSummary = toPlaylistSummary(event.playlist);
         setLibrary((current) => (
-          current
+          current && playlistSummary
             ? {
               ...current,
               playlists: current.playlists.map((playlist) => (
-                playlist.playlistId === event.playlist.playlistId
-                  ? { ...playlist, ...event.playlist }
+                playlist.playlistId === playlistSummary.playlistId
+                  ? { ...playlist, ...playlistSummary }
                   : playlist
               )),
             }
@@ -198,7 +201,10 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
         name,
         coverAssetId: coverUpload?.assetId ?? null,
       });
-      emitPlaylistCreated(createdPlaylist);
+      const createdPlaylistSummary = toPlaylistSummary(createdPlaylist);
+      if (createdPlaylistSummary) {
+        emitPlaylistCreated(createdPlaylistSummary);
+      }
       setPlaylistName('');
       setPlaylistCoverFile(null);
       setIsCreateDialogOpen(false);
@@ -434,7 +440,8 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       }
 
       if (event.type === 'playlist-deleted' && event.playlistId === playlistId) {
-        void loadPlaylist({ silent: true });
+        setPlaylist(null);
+        setError('Esta playlist ya no está disponible.');
       }
     })
   ), [loadPlaylist, playlist?.isSystem, playlistId]);
