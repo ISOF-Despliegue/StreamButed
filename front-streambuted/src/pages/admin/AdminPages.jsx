@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
 import { userService } from '../../services/userService';
-import { formatDate } from '../../utils/formatters';
+import { formatDate, formatNumber } from '../../utils/formatters';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 import { includesSearchTerm } from '../../utils/searchText';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -20,7 +20,7 @@ function getErrorMessage(error) {
 }
 
 function formatMetricNumber(value) {
-  return new Intl.NumberFormat('es-MX').format(Number(value ?? 0));
+  return formatNumber(Number(value ?? 0));
 }
 
 function useAdminSummary() {

@@ -88,7 +88,7 @@ describe("ListenerPages", () => {
     expect(await screen.findByText("Álbum legado")).toBeInTheDocument();
     expect(await screen.findAllByText("Ada")).toHaveLength(2);
     expect(screen.queryByText("Artista")).not.toBeInTheDocument();
-    expect(screen.getByText("0 reproducciones")).toBeInTheDocument();
+    expect(screen.queryByText(/reproducciones/i)).not.toBeInTheDocument();
     expect(catalogService.getAlbum).toHaveBeenCalledWith("album-legacy");
     expect(container.querySelector('img[src="https://assets/cover-legacy"]')).not.toBeNull();
     expect(container.querySelector('img[src="https://assets/profile-1"]')).not.toBeNull();

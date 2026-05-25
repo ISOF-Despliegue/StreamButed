@@ -2,7 +2,23 @@ import { IcChevron, IcMusic, IcShuffle, IcSkipBack, IcPlay, IcPause, IcSkipFwd, 
 import { getAssetUrl } from '../../services/mediaService';
 import { ProgressBar } from '../ui/ProgressBar';
 import { formatDuration } from '../../utils/formatters';
+import { TrackLibraryActions } from './TrackLibraryActions';
 import PropTypes from 'prop-types';
+
+function resolveQueueDuration(track, playback, activeTrackId) {
+  const duration = track.durationSeconds ?? track.duration;
+  const trackId = track.trackId || track.id;
+
+  if (typeof duration === 'number' && Number.isFinite(duration)) {
+    return duration;
+  }
+
+  if (trackId && trackId === activeTrackId && typeof playback.durationSeconds === 'number') {
+    return playback.durationSeconds;
+  }
+
+  return null;
+}
 
 export function ExpandedPlayer({
   track,
@@ -17,12 +33,17 @@ export function ExpandedPlayer({
   onNext,
   onPrevious,
   onToggleShuffle,
-  onToggleRepeat
+  onToggleRepeat,
+  isLiked = false,
+  isLikeLoading = false,
+  onToggleLike = undefined,
+  toast = undefined
 }) {
   if (!track) return null;
 
   const artistName = track.artist || track.artistName || 'Artista';
   const progressMax = playback.durationSeconds > 0 ? playback.durationSeconds : 1;
+  const trackId = track.trackId || track.id;
   const handleVolumeClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
@@ -47,6 +68,16 @@ export function ExpandedPlayer({
         <div className="ep-meta">
           <div className="ep-title">{track.title}</div>
           <div className="ep-artist">{artistName}</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+            <TrackLibraryActions
+              className="player-track-actions"
+              trackId={trackId}
+              isLiked={isLiked}
+              isLikeLoading={isLikeLoading}
+              onToggleLike={onToggleLike}
+              toast={toast}
+            />
+          </div>
           {playback.error && (
             <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>{playback.error}</div>
           )}
@@ -132,7 +163,7 @@ export function ExpandedPlayer({
                 <div className="queue-name">{t.title}</div>
                 <div className="queue-artist">{t.artist || t.artistName || 'Artista'}</div>
               </div>
-              <div className="queue-dur">--:--</div>
+              <div className="queue-dur">{formatDuration(resolveQueueDuration(t, playback, activeId))}</div>
             </button>
           );
         })}
@@ -145,17 +176,22 @@ const playerTrackPropType = PropTypes.shape({
   artist: PropTypes.string,
   artistName: PropTypes.string,
   coverAssetId: PropTypes.string,
+  duration: PropTypes.number,
+  durationSeconds: PropTypes.number,
   id: PropTypes.string,
   title: PropTypes.string,
   trackId: PropTypes.string,
 });
 
 ExpandedPlayer.propTypes = {
+  isLiked: PropTypes.bool,
+  isLikeLoading: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
   onNext: PropTypes.func.isRequired,
   onPrevious: PropTypes.func.isRequired,
   onSeek: PropTypes.func.isRequired,
   onSelectTrack: PropTypes.func.isRequired,
+  onToggleLike: PropTypes.func,
   onTogglePlay: PropTypes.func.isRequired,
   onToggleRepeat: PropTypes.func.isRequired,
   onToggleShuffle: PropTypes.func.isRequired,
@@ -171,6 +207,7 @@ ExpandedPlayer.propTypes = {
   }).isRequired,
   queue: PropTypes.arrayOf(playerTrackPropType).isRequired,
   setVolume: PropTypes.func.isRequired,
+  toast: PropTypes.func,
   track: playerTrackPropType,
   volume: PropTypes.number.isRequired,
 };

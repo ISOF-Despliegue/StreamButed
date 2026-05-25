@@ -18,7 +18,7 @@ import {
   mediaService,
 } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
-import { formatDate } from '../../utils/formatters';
+import { formatDate, formatNumber } from '../../utils/formatters';
 import { includesSearchTerm } from '../../utils/searchText';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
@@ -42,7 +42,7 @@ function getArtistPlayableTrack(track, username) {
 }
 
 function formatMetricNumber(value) {
-  return new Intl.NumberFormat('es-MX').format(Number(value ?? 0));
+  return formatNumber(Number(value ?? 0));
 }
 
 const TRACK_GENRES = [
