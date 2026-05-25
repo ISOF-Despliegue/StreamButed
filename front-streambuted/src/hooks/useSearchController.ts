@@ -91,6 +91,26 @@ export function useSearchController({
     };
   }, [autoDebounceMs, comparableSearchTerm, minAutoLength, normalizedSearchTerm, onClear, submitSearch]);
 
+  useEffect(() => {
+    if (!cooldownUntil) {
+      return undefined;
+    }
+
+    const remainingMs = cooldownUntil - Date.now();
+    if (remainingMs <= 0) {
+      setCooldownUntil(0);
+      return undefined;
+    }
+
+    const timeoutId = globalThis.setTimeout(() => {
+      setCooldownUntil(0);
+    }, remainingMs);
+
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [cooldownUntil]);
+
   return {
     cooldownUntil,
     normalizedSearchTerm,

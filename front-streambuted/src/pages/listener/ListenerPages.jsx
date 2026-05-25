@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { IcMusic } from '../../components/icons/Icons';
@@ -303,6 +303,15 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const clearSearch = useCallback(() => {
     setResults({ artists: [], albums: [], tracks: [] });
@@ -326,19 +335,26 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
         ...(response.albums ?? []),
         ...(response.tracks ?? []),
       ]);
+      if (!isMountedRef.current) return;
       const albums = withArtistNames(response.albums ?? [], artistNamesById);
       const albumTitlesById = await getAlbumTitlesById(response.tracks ?? [], albums);
+      if (!isMountedRef.current) return;
       const tracks = withAlbumContext(withArtistNames(response.tracks ?? [], artistNamesById), albumTitlesById);
 
+      if (!isMountedRef.current) return;
       setResults({
         artists: response.artists ?? [],
         albums,
         tracks,
       });
     } catch (err) {
-      setError(getErrorMessage(err));
+      if (isMountedRef.current) {
+        setError(getErrorMessage(err));
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
