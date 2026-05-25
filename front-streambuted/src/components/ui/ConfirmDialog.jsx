@@ -21,10 +21,26 @@ export function ConfirmDialog({
   const previousActiveElementRef = useRef(null);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) {
+      previousActiveElementRef.current?.focus?.();
+      return undefined;
+    }
 
     previousActiveElementRef.current = document.activeElement;
-    dialogRef.current?.focus();
+    const dialogNode = dialogRef.current;
+    const initialFocusTarget = dialogNode?.querySelector(
+      '[data-dialog-autofocus], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])'
+    );
+    initialFocusTarget?.focus?.();
+    if (!initialFocusTarget) {
+      dialogNode?.focus();
+    }
+
+    return undefined;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape' && !isLoading) {
@@ -36,7 +52,6 @@ export function ConfirmDialog({
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      previousActiveElementRef.current?.focus?.();
     };
   }, [isLoading, onCancel, open]);
 
@@ -59,6 +74,7 @@ export function ConfirmDialog({
         aria-describedby={message ? messageId : undefined}
         open
         ref={dialogRef}
+        tabIndex={-1}
       >
         <div className={`confirm-dialog-marker ${tone}`} aria-hidden="true" />
         <div className="confirm-dialog-title" id={titleId}>{title}</div>

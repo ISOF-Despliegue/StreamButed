@@ -3,15 +3,20 @@ import { Link, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { IcMusic, IcPlay, IcX } from '../../components/icons/Icons';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { FilePicker } from '../../components/ui/FilePicker';
 import { InlineState } from '../../components/ui/InlineState';
+import { SearchInput } from '../../components/ui/SearchInput';
 import { TrackRow } from '../../components/ui/TrackRow';
+import { useSearchController } from '../../hooks/useSearchController';
 import { libraryService } from '../../services/libraryService';
-import { getAssetUrl, mediaService } from '../../services/mediaService';
+import { getAssetUrl, getUploadFileHelperText, mediaService } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
 import { getTrackIdentifier } from '../../utils/playbackQueue';
+import { includesSearchTerm } from '../../utils/searchText';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 const PLAYLIST_NAME_MAX_LENGTH = 20;
+const PLAYLIST_IMAGE_HELPER = `JPG, PNG o WEBP - maximo 5 MB. ${getUploadFileHelperText('portada-01.png')}`;
 
 function getErrorMessage(error) {
   if (error instanceof Error) {
@@ -49,7 +54,7 @@ function PlaylistSummaryCard({ playlist, onOpen, onDelete }) {
         <div>
           <div className="library-playlist-title">{playlist.name}</div>
           <div className="library-playlist-meta">
-            {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
+            {playlist.trackCount} {playlist.trackCount === 1 ? 'cancion' : 'canciones'}
           </div>
         </div>
       </button>
@@ -70,6 +75,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   const [error, setError] = useState('');
   const [playlistName, setPlaylistName] = useState('');
   const [playlistCoverFile, setPlaylistCoverFile] = useState(null);
+  const [playlistCoverPreviewUrl, setPlaylistCoverPreviewUrl] = useState('');
   const [playlistToDelete, setPlaylistToDelete] = useState(null);
 
   const loadLibrary = useCallback(async () => {
@@ -88,6 +94,20 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary]);
+
+  useEffect(() => {
+    if (!playlistCoverFile) {
+      setPlaylistCoverPreviewUrl('');
+      return undefined;
+    }
+
+    const previewUrl = URL.createObjectURL(playlistCoverFile);
+    setPlaylistCoverPreviewUrl(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [playlistCoverFile]);
 
   const createPlaylist = async () => {
     const name = playlistName.trim();
@@ -117,12 +137,12 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   const updateLikedCover = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file || !likedSongs?.playlistId || isUpdatingLikedCover) return;
+    if (!file || !library?.likedSongs?.playlistId || isUpdatingLikedCover) return;
 
     setIsUpdatingLikedCover(true);
     try {
       const upload = await mediaService.uploadPlaylistCover(file);
-      await libraryService.updatePlaylist(likedSongs.playlistId, { coverAssetId: upload.assetId });
+      await libraryService.updatePlaylist(library.likedSongs.playlistId, { coverAssetId: upload.assetId });
       toast('Portada actualizada');
       await loadLibrary();
     } catch (err) {
@@ -167,7 +187,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
               <div className="album-hero-type">Playlist</div>
               <div className="library-liked-title">Canciones que te gustan</div>
               <div className="library-liked-meta">
-                {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'canción guardada' : 'canciones guardadas'}
+                {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'cancion guardada' : 'canciones guardadas'}
               </div>
             </div>
             <label className="btn-ghost library-cover-action">
@@ -189,39 +209,13 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
             >
               <IcPlay />
             </button>
-          </div>
-
-          <div className="section">
-            <div className="section-header">
-              <div className="section-title">Canciones que te gustan</div>
-            </div>
-            {playableLikedTracks.length === 0 ? (
-              <InlineState
-                title="Aún no has dado me gusta a canciones"
-                message="Usa el corazón del reproductor para guardarlas aquí."
-              />
-            ) : (
-              <table className="track-list">
-                <thead><tr>
-                  <th style={{ width: 40 }}>#</th>
-                  <th>Título</th>
-                  <th>Artista</th>
-                  <th className="track-duration-col">Duración</th>
-                </tr></thead>
-                <tbody>
-                  {playableLikedTracks.map((track, index) => (
-                    <TrackRow
-                      key={track.trackId}
-                      track={track}
-                      index={index}
-                      isPlaying={currentTrack?.trackId === track.trackId}
-                      onPlay={() => onPlayCollectionTrack(track, playableLikedTracks, likedSongs.playlistId)}
-                      metaText={track.artistName}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <button
+              className="btn-ghost"
+              onClick={() => navigate(routes.libraryPlaylist(likedSongs.playlistId))}
+              type="button"
+            >
+              Ver playlist
+            </button>
           </div>
 
           <div className="section">
@@ -233,7 +227,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
             </div>
 
             {library.playlists.length === 0 ? (
-              <InlineState title="Sin playlists todavía" message="Crea una lista privada para organizar tus canciones." />
+              <InlineState title="Sin playlists todavia" message="Crea una lista privada para organizar tus canciones." />
             ) : (
               <div className="library-playlist-grid">
                 {library.playlists.map(playlist => (
@@ -271,6 +265,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
           <input
             id="playlist-name"
             aria-label="Nombre de playlist"
+            data-dialog-autofocus
             value={playlistName}
             onChange={event => setPlaylistName(event.target.value)}
             placeholder="Nueva playlist"
@@ -279,20 +274,30 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
           <div className="char-count">{playlistName.length}/{PLAYLIST_NAME_MAX_LENGTH}</div>
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="playlist-cover">Portada</label>
-          <input
-            id="playlist-cover"
-            type="file"
+          <div className="form-label">Portada</div>
+          <FilePicker
             accept="image/png,image/jpeg,image/webp"
+            file={playlistCoverFile}
             onChange={event => setPlaylistCoverFile(event.target.files?.[0] ?? null)}
+            helperText={PLAYLIST_IMAGE_HELPER}
+            buttonLabel="Seleccionar archivo"
           />
+          {playlistCoverPreviewUrl && (
+            <div style={{ marginTop: 10 }}>
+              <img
+                src={playlistCoverPreviewUrl}
+                alt="Previsualizacion de portada de playlist"
+                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+              />
+            </div>
+          )}
         </div>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={Boolean(playlistToDelete)}
         title="Eliminar playlist"
-        message={`Se eliminará "${playlistToDelete?.name ?? 'esta playlist'}" de tu biblioteca.`}
+        message={`Se eliminara "${playlistToDelete?.name ?? 'esta playlist'}" de tu biblioteca.`}
         confirmLabel="Eliminar"
         onConfirm={deletePlaylist}
         onCancel={() => setPlaylistToDelete(null)}
@@ -307,6 +312,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   const [isAddingCurrent, setIsAddingCurrent] = useState(false);
   const [isUpdatingCover, setIsUpdatingCover] = useState(false);
   const [error, setError] = useState('');
+  const [playlistTrackSearchTerm, setPlaylistTrackSearchTerm] = useState('');
 
   const loadPlaylist = useCallback(async () => {
     if (!playlistId) return;
@@ -326,6 +332,11 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     void loadPlaylist();
   }, [loadPlaylist]);
 
+  const playlistTrackSearchController = useSearchController({
+    onClear: useCallback(() => setPlaylistTrackSearchTerm(''), []),
+    onSearch: useCallback(searchTerm => setPlaylistTrackSearchTerm(searchTerm), []),
+  });
+
   const addCurrentTrack = async () => {
     const trackId = getTrackIdentifier(currentTrack);
     if (!trackId || !playlistId || isAddingCurrent) return;
@@ -333,7 +344,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     setIsAddingCurrent(true);
     try {
       setPlaylist(await libraryService.addTrackToPlaylist(playlistId, trackId));
-      toast('Canción agregada a la playlist');
+      toast('Cancion agregada a la playlist');
     } catch (err) {
       toast(getErrorMessage(err));
     } finally {
@@ -346,7 +357,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
     try {
       setPlaylist(await libraryService.removeTrackFromPlaylist(playlistId, trackId));
-      toast('Canción quitada de la playlist');
+      toast('Cancion quitada de la playlist');
     } catch (err) {
       toast(getErrorMessage(err));
     }
@@ -361,7 +372,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     try {
       const upload = await mediaService.uploadPlaylistCover(file);
       const updated = await libraryService.updatePlaylist(playlistId, { coverAssetId: upload.assetId });
-      setPlaylist(current => current ? { ...current, coverAssetId: updated.coverAssetId } : current);
+      setPlaylist(current => (current ? { ...current, coverAssetId: updated.coverAssetId } : current));
       toast('Portada actualizada');
     } catch (err) {
       toast(getErrorMessage(err));
@@ -387,8 +398,16 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   }
 
   const tracks = playlist.tracks.map(toPlayableTrack);
+  const isSystemPlaylist = Boolean(playlist.isSystem);
   const currentTrackId = getTrackIdentifier(currentTrack);
   const hasCurrentTrack = Boolean(currentTrackId && tracks.some(track => track.trackId === currentTrackId));
+  const filteredTracks = playlistTrackSearchTerm
+    ? tracks.filter(track => (
+      includesSearchTerm(track.title, playlistTrackSearchTerm) ||
+      includesSearchTerm(track.artistName, playlistTrackSearchTerm) ||
+      includesSearchTerm(track.albumTitle, playlistTrackSearchTerm)
+    ))
+    : tracks;
 
   return (
     <div className="page-inner">
@@ -402,7 +421,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           <div>
             <div className="page-title">{playlist.name}</div>
             <div className="page-subtitle">
-              {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
+              {playlist.trackCount} {playlist.trackCount === 1 ? 'cancion' : 'canciones'}
             </div>
           </div>
         </div>
@@ -417,14 +436,16 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
               onChange={updatePlaylistCover}
             />
           </label>
-          <button
-            className="btn-ghost"
-            disabled={!currentTrackId || hasCurrentTrack || isAddingCurrent}
-            onClick={addCurrentTrack}
-            type="button"
-          >
-            Agregar pista actual
-          </button>
+          {!isSystemPlaylist && (
+            <button
+              className="btn-ghost"
+              disabled={!currentTrackId || hasCurrentTrack || isAddingCurrent}
+              onClick={addCurrentTrack}
+              type="button"
+            >
+              Agregar pista actual
+            </button>
+          )}
           <button
             className="btn-primary"
             disabled={tracks.length === 0}
@@ -437,42 +458,62 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       </div>
 
       {tracks.length === 0 ? (
-        <InlineState title="Playlist vacía" message="Reproduce una canción y agrégala desde este detalle." />
+        <InlineState
+          title={isSystemPlaylist ? 'Aun no has dado me gusta a canciones' : 'Playlist vacia'}
+          message={isSystemPlaylist
+            ? 'Usa el corazon del reproductor para guardarlas aqui.'
+            : 'Reproduce una cancion y agregala desde este detalle.'}
+        />
       ) : (
-        <table className="track-list">
-          <thead><tr>
-            <th style={{ width: 40 }}>#</th>
-            <th>Título</th>
-            <th>Artista</th>
-            <th className="track-duration-col">Duración</th>
-            <th style={{ width: 110 }}>Acciones</th>
-          </tr></thead>
-          <tbody>
-            {tracks.map((track, index) => (
-              <TrackRow
-                key={track.trackId}
-                track={track}
-                index={index}
-                isPlaying={currentTrack?.trackId === track.trackId}
-                onPlay={() => onPlayTrack(track, tracks, playlist.playlistId)}
-                metaText={track.artistName}
-                actions={(
-                  <button
-                    className="btn-ghost"
-                    style={{ padding: '6px 10px', fontSize: 12 }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void removeTrack(track.trackId);
-                    }}
-                    type="button"
-                  >
-                    Quitar
-                  </button>
-                )}
-              />
-            ))}
-          </tbody>
-        </table>
+        <>
+          <div className="table-header">
+            <SearchInput
+              cooldownUntil={playlistTrackSearchController.cooldownUntil}
+              placeholder={isSystemPlaylist ? 'Buscar en tus me gusta' : 'Buscar en esta playlist'}
+              value={playlistTrackSearchController.searchValue}
+              onChange={playlistTrackSearchController.setSearchValue}
+              onSubmit={playlistTrackSearchController.submitSearch}
+            />
+          </div>
+          {filteredTracks.length === 0 ? (
+            <InlineState title="Sin canciones para esta busqueda" />
+          ) : (
+            <table className="track-list">
+              <thead><tr>
+                <th style={{ width: 40 }}>#</th>
+                <th>Titulo</th>
+                <th>Artista</th>
+                <th className="track-duration-col">Duracion</th>
+                {!isSystemPlaylist && <th style={{ width: 110 }}>Acciones</th>}
+              </tr></thead>
+              <tbody>
+                {filteredTracks.map((track, index) => (
+                  <TrackRow
+                    key={track.trackId}
+                    track={track}
+                    index={index}
+                    isPlaying={currentTrack?.trackId === track.trackId}
+                    onPlay={() => onPlayTrack(track, tracks, playlist.playlistId)}
+                    metaText={track.artistName}
+                    actions={!isSystemPlaylist ? (
+                      <button
+                        className="btn-ghost"
+                        style={{ padding: '6px 10px', fontSize: 12 }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void removeTrack(track.trackId);
+                        }}
+                        type="button"
+                      >
+                        Quitar
+                      </button>
+                    ) : undefined}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
     </div>
   );
