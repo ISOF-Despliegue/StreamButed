@@ -31,6 +31,16 @@ describe("mediaService", () => {
     expect((options.headers as Headers).get("Content-Type")).toBeNull();
   });
 
+  it("uploads playlist covers with the PLAYLIST_COVER usage", async () => {
+    const file = new File(["cover"], "playlist-cover.png", { type: "image/png" });
+
+    await mediaService.uploadPlaylistCover(file);
+
+    const options = (globalThis.fetch as jest.Mock).mock.calls[0][1];
+    expect(options.body).toBeInstanceOf(FormData);
+    expect((options.body as FormData).get("usage")).toBe("PLAYLIST_COVER");
+  });
+
   it("accepts audio files when the browser does not provide a MIME type", async () => {
     const file = new File(["audio"], "song.mp3", { type: "" });
 

@@ -45,6 +45,11 @@ jest.mock("./pages/listener/ListenerPages", () => ({
   ArtistDiscographyPage: () => <div>Artist Discography</div>,
 }));
 
+jest.mock("./pages/listener/LibraryPage", () => ({
+  LibraryPage: () => <div>Library</div>,
+  PlaylistDetailPage: () => <div>Playlist Detail</div>,
+}));
+
 jest.mock("./pages/artist/ArtistPages", () => ({
   ArtistDashboardPage: () => <div>Artist Dashboard</div>,
   MyTracksPage: () => <div>My Tracks</div>,
@@ -90,6 +95,14 @@ jest.mock("./services/catalogService", () => ({
   catalogService: {
     getTrack: jest.fn(),
     getArtist: jest.fn(),
+  },
+}));
+
+jest.mock("./services/libraryService", () => ({
+  libraryService: {
+    getTrackLikeStatus: jest.fn().mockResolvedValue({ isLiked: false }),
+    likeTrack: jest.fn(),
+    unlikeTrack: jest.fn(),
   },
 }));
 

@@ -34,6 +34,7 @@ export const IcChevron = ({ dir = "down" }) => {
   return <Icon d={d} fill="none" />;
 };
 export const IcX = () => <Icon d="M18 6L6 18 M6 6l12 12" fill="none" />;
+export const IcPlus = () => <Icon d="M12 5v14 M5 12h14" fill="none" />;
 export const IcCheck = () => <Icon d="M20 6L9 17l-5-5" fill="none" />;
 export const IcMusic = () => <Icon d="M9 18V5l12-2v13 M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M18 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="none" />;
 export const IcCamera = () => <Icon d="M23 7l-7 5 7 5V7z M14 5H6l-2 2H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" fill="none" />;

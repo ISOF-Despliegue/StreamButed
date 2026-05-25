@@ -5,6 +5,7 @@ export const routes = {
   authCallback: "/auth/callback",
   search: "/search",
   library: "/library",
+  libraryPlaylist: (playlistId: string) => `/library/playlists/${encodeURIComponent(playlistId)}`,
   lives: "/lives",
   liveRoom: (roomId: string) => `/lives/${encodeURIComponent(roomId)}`,
   artistLive: "/artist/live",
@@ -33,4 +34,5 @@ export const routePatterns = {
   artistDiscography: "/artists/:artistId/discography",
   liveRoom: "/lives/:roomId",
   artistTrackEdit: "/artist/tracks/:trackId/edit",
+  libraryPlaylist: "/library/playlists/:playlistId",
 } as const;
