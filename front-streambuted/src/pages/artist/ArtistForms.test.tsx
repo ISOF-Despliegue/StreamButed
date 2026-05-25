@@ -402,6 +402,52 @@ describe("artist upload forms", () => {
     });
   });
 
+  it("uploads a new cover when editing a track", async () => {
+    const user = userEvent.setup();
+    jest.mocked(mediaService.uploadCatalogImage).mockResolvedValueOnce({
+      assetId: "new-cover",
+      assetType: "TRACK_COVER",
+      contentType: "image/png",
+      sizeBytes: 100,
+    });
+
+    const { container } = render(
+      <EditTrackPage
+        track={{
+          trackId: "track-1",
+          artistId: "artist-1",
+          albumId: null,
+          title: "Song",
+          genre: "Rock",
+          audioAssetId: "audio-1",
+          coverAssetId: "cover-1",
+          status: "PUBLICADO",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        }}
+        user={{ id: "artist-1" }}
+        onCancel={jest.fn()}
+        onDone={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    const coverInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(coverInput, new File(["cover"], "portada-01.png", { type: "image/png" }));
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => {
+      expect(mediaService.uploadCatalogImage).toHaveBeenCalledWith(expect.any(File), "TRACK_COVER");
+      expect(catalogService.updateTrack).toHaveBeenCalledWith("track-1", {
+        title: "Song",
+        genre: "Rock",
+        albumId: null,
+        coverAssetId: "new-cover",
+      });
+    });
+  });
+
   it("renders track and album covers in artist tables", async () => {
     jest.mocked(catalogService.listArtistTracks).mockResolvedValue([
       {
@@ -450,7 +496,7 @@ describe("artist upload forms", () => {
     );
   });
 
-  it("plays tracks from artist track and album tables", async () => {
+  it("plays tracks from artist track table and opens albums without embedded track playback", async () => {
     const user = userEvent.setup();
     const singleTrack = {
       trackId: "track-1",
@@ -518,12 +564,10 @@ describe("artist upload forms", () => {
       />
     );
 
-    await user.click(await screen.findByRole("button", { name: "Reproducir Lado B" }));
+    await screen.findByRole("button", { name: /Album/ });
 
-    expect(onPlayAlbumTrack).toHaveBeenCalledWith(
-      expect.objectContaining({ artist: "Ada", trackId: "track-2" }),
-      [expect.objectContaining({ trackId: "track-2" })],
-      "album-1"
-    );
+    expect(screen.queryByRole("button", { name: "Reproducir Lado B" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reproducir" })).not.toBeInTheDocument();
+    expect(onPlayAlbumTrack).not.toHaveBeenCalled();
   });
 });

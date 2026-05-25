@@ -442,7 +442,7 @@ describe("RegisterPage", () => {
     await user.type(screen.getByPlaceholderText("Confirma tu contraseña"), "SecurePass1!");
     await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "El nombre de usuario debe tener entre 3 y 50 caracteres."
+      "El nombre de usuario debe tener entre 3 y 100 caracteres."
     );
 
     onStartRegistration.mockResolvedValueOnce({

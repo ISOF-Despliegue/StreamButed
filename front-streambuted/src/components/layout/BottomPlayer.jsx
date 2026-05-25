@@ -63,7 +63,7 @@ export function BottomPlayer({
       <div className="player-center">
         <div className="player-controls">
           <button
-            className="btn-icon"
+            className={`btn-icon${playback.shuffleEnabled ? ' active' : ''}`}
             disabled={!playback.canUseAlbumControls}
             title="Aleatorio del álbum"
             aria-pressed={playback.shuffleEnabled}

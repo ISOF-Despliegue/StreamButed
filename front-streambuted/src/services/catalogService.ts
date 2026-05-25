@@ -21,7 +21,7 @@ export const catalogService = {
   searchCatalog(params: CatalogSearchParams): Promise<CatalogSearchResponse> {
     return apiRequest<CatalogSearchResponse>(
       withQuery("/catalog/search", {
-        q: params.q,
+        searchTerm: params.searchTerm,
         limit: params.limit ?? 20,
         offset: params.offset ?? 0,
       })

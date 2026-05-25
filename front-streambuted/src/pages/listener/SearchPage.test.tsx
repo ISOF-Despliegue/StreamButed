@@ -28,6 +28,10 @@ function renderWithRouter(ui: React.ReactNode) {
 }
 
 describe("SearchPage", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it("calls catalog search endpoint through service", async () => {
     const user = userEvent.setup();
     jest.mocked(catalogService.searchCatalog).mockResolvedValue({
@@ -47,10 +51,35 @@ describe("SearchPage", () => {
 
     await waitFor(() => {
       expect(catalogService.searchCatalog).toHaveBeenCalledWith({
-        q: "night",
+        searchTerm: "night",
         limit: 20,
         offset: 0,
       });
+    });
+  });
+
+  it("allows short manual searches with the search button", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.searchCatalog).mockResolvedValue({
+      artists: [],
+      albums: [],
+      tracks: [],
+    });
+
+    renderWithRouter(
+      <SearchPage
+        onPlayTrack={jest.fn()}
+        currentTrack={null}
+      />
+    );
+
+    await user.type(screen.getByPlaceholderText("Busca canciones, artistas, álbumes..."), "az");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    expect(catalogService.searchCatalog).toHaveBeenCalledWith({
+      searchTerm: "az",
+      limit: 20,
+      offset: 0,
     });
   });
 

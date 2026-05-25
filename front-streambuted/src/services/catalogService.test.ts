@@ -11,10 +11,10 @@ describe("catalogService", () => {
   });
 
   it("calls catalog search through gateway", async () => {
-    await catalogService.searchCatalog({ q: "night", limit: 10, offset: 5 });
+    await catalogService.searchCatalog({ searchTerm: "night", limit: 10, offset: 5 });
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "http://localhost/api/v1/catalog/search?q=night&limit=10&offset=5",
+      "http://localhost/api/v1/catalog/search?searchTerm=night&limit=10&offset=5",
       expect.any(Object)
     );
   });

@@ -3,8 +3,8 @@ import { Link, NavLink } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import {
   IcHome, IcSearch, IcLib, IcSettings,
-  IcDashboard, IcUpload, IcChart, IcMusic,
-  IcOverview, IcReport, IcShield,
+  IcDashboard, IcUpload, IcChart, IcMusic, IcCamera,
+  IcOverview, IcReport, IcShield, IcChevron,
 } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
@@ -16,7 +16,7 @@ function SidebarNavItem({ item }) {
       end={item.end}
       to={item.to}
     >
-      {item.icon}<span>{item.label}</span>
+      {item.icon}<span className="nav-item-label">{item.label}</span>
     </NavLink>
   );
 }
@@ -28,12 +28,53 @@ function SidebarNavItem({ item }) {
  * Manage section is gated behind the artist role so that capability expansion
  * feels seamless rather than abrupt (no sidebar swap on promotion).
  */
-function MainSidebarComponent({ user }) {
+function SidebarRestoreButton({ onToggle }) {
+  return (
+    <button
+      className="sidebar-restore-button"
+      type="button"
+      aria-label="Mostrar barra lateral"
+      onClick={onToggle}
+      title="Mostrar barra lateral"
+    >
+      <IcChevron dir="right" />
+    </button>
+  );
+}
+
+function SidebarCollapsedRail({ onToggle }) {
+  return (
+    <div className="sidebar-collapsed-rail">
+      <SidebarRestoreButton onToggle={onToggle} />
+    </div>
+  );
+}
+
+function SidebarCollapseButton({ onToggle }) {
+  return (
+    <button
+      className="sidebar-toggle-button"
+      type="button"
+      aria-label="Ocultar barra lateral"
+      onClick={onToggle}
+      title="Ocultar barra lateral"
+    >
+      <IcChevron dir="left" />
+      <span>Ocultar</span>
+    </button>
+  );
+}
+
+function MainSidebarComponent({ collapsed = false, onToggle, user }) {
+  if (collapsed) {
+    return <SidebarCollapsedRail onToggle={onToggle} />;
+  }
+
   const discoverItems = [
     { to: routes.home, end: true, label: 'Inicio', icon: <IcHome /> },
     { to: routes.search, label: 'Buscar', icon: <IcSearch /> },
     { to: routes.library, label: 'Biblioteca', icon: <IcLib /> },
-    { to: routes.lives, label: 'En vivo', icon: <span style={{ fontSize: 14 }}>Vivo</span> },
+    { to: routes.lives, label: 'En vivo', icon: <IcCamera /> },
     { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
   ];
 
@@ -46,7 +87,7 @@ function MainSidebarComponent({ user }) {
           { to: routes.artistAlbums, label: 'Álbumes', icon: <IcMusic /> },
           { to: routes.artistAnalytics, label: 'Analíticas', icon: <IcChart /> },
           { to: routes.artistUpload, label: 'Subir +', icon: <IcUpload /> },
-          { to: routes.artistLive, label: 'Transmitir', icon: <span style={{ fontSize: 14 }}>Vivo</span> },
+          { to: routes.artistLive, label: 'Transmitir', icon: <IcCamera /> },
         ]
       : []; 
 
@@ -73,11 +114,12 @@ function MainSidebarComponent({ user }) {
         <div className="logo-mark">S</div>
         <div className="logo-text">StreamButed</div>
       </div>
+      <SidebarCollapseButton onToggle={onToggle} />
 
       {/* Discover section - always visible */}
       <div
         style={{
-          padding: '10px 20px 4px',
+          padding: '10px 16px 4px',
           fontSize: 10,
           fontWeight: 600,
           letterSpacing: '0.08em',
@@ -98,7 +140,7 @@ function MainSidebarComponent({ user }) {
         <>
           <div
             style={{
-              padding: '10px 20px 4px',
+              padding: '10px 16px 4px',
               fontSize: 10,
               fontWeight: 600,
               letterSpacing: '0.08em',
@@ -129,7 +171,11 @@ function MainSidebarComponent({ user }) {
   );
 }
 
-function AdminSidebarComponent({ user }) {
+function AdminSidebarComponent({ collapsed = false, onToggle, user }) {
+  if (collapsed) {
+    return <SidebarCollapsedRail onToggle={onToggle} />;
+  }
+
   const items = [
     { to: routes.adminOverview, end: true, label: 'Resumen', icon: <IcOverview /> },
     { to: routes.adminReports, label: 'Analíticas', icon: <IcReport /> },
@@ -143,9 +189,10 @@ function AdminSidebarComponent({ user }) {
         <div className="logo-mark">S</div>
         <div className="logo-text">StreamButed</div>
       </div>
+      <SidebarCollapseButton onToggle={onToggle} />
       <div
         style={{
-          padding: '10px 20px 4px',
+          padding: '10px 16px 4px',
           fontSize: 10,
           fontWeight: 600,
           letterSpacing: '0.08em',
@@ -207,11 +254,27 @@ SidebarNavItem.propTypes = {
 };
 
 MainSidebarComponent.propTypes = {
+  collapsed: PropTypes.bool,
+  onToggle: PropTypes.func.isRequired,
   user: sidebarUserPropType.isRequired,
 };
 
 AdminSidebarComponent.propTypes = {
+  collapsed: PropTypes.bool,
+  onToggle: PropTypes.func.isRequired,
   user: sidebarUserPropType.isRequired,
+};
+
+SidebarRestoreButton.propTypes = {
+  onToggle: PropTypes.func.isRequired,
+};
+
+SidebarCollapsedRail.propTypes = {
+  onToggle: PropTypes.func.isRequired,
+};
+
+SidebarCollapseButton.propTypes = {
+  onToggle: PropTypes.func.isRequired,
 };
 
 export const MainSidebar = memo(MainSidebarComponent);

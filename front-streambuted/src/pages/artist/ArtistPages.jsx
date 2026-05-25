@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { IcMusic, IcPlay } from '../../components/icons/Icons';
@@ -6,6 +6,9 @@ import { TrackRow } from '../../components/ui/TrackRow';
 import { FilePicker } from '../../components/ui/FilePicker';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InlineState } from '../../components/ui/InlineState';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { TEXT_LIMITS } from '../../constants/textLimits';
+import { useSearchController } from '../../hooks/useSearchController';
 import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
 import {
@@ -16,6 +19,7 @@ import {
 } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
 import { formatDate } from '../../utils/formatters';
+import { includesSearchTerm } from '../../utils/searchText';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 function getErrorMessage(error) {
@@ -54,9 +58,9 @@ const TRACK_GENRES = [
   'Otro',
 ];
 
-const TRACK_TITLE_MAX_LENGTH = 220;
-const ALBUM_TITLE_MAX_LENGTH = 220;
-const GENRE_MAX_LENGTH = 80;
+const TRACK_TITLE_MAX_LENGTH = TEXT_LIMITS.trackTitle;
+const ALBUM_TITLE_MAX_LENGTH = TEXT_LIMITS.albumTitle;
+const GENRE_MAX_LENGTH = TEXT_LIMITS.trackGenre;
 
 const MAX_AUDIO_SIZE_BYTES = 200 * 1024 * 1024;
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -254,7 +258,7 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
               <table className="track-list">
                 <thead><tr><th style={{ width: 40 }}>#</th><th>Título</th><th>Género</th><th className="track-duration-col">Duración</th></tr></thead>
                 <tbody>
-                  {tracks.slice(0, 6).map((track, index) => (
+                  {tracks.slice(0, 10).map((track, index) => (
                     <TrackRow
                       key={track.trackId}
                       track={{ ...track, artist: user.username }}
@@ -310,6 +314,7 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
   const [isRetiringTrack, setIsRetiringTrack] = useState(false);
   const [error, setError] = useState('');
   const [trackToRetire, setTrackToRetire] = useState(null);
+  const [trackSearchTerm, setTrackSearchTerm] = useState('');
 
   const loadTracks = useCallback(async () => {
     setIsLoading(true);
@@ -330,6 +335,18 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
   }, [user.id]);
 
   const albumTitleById = new Map(albums.map(album => [album.albumId, album.title]));
+  const trackSearchController = useSearchController({
+    onClear: useCallback(() => setTrackSearchTerm(''), []),
+    onSearch: useCallback(searchTerm => setTrackSearchTerm(searchTerm), []),
+  });
+  const filteredTracks = useMemo(() => {
+    if (!trackSearchTerm) return tracks;
+    return tracks.filter(track => (
+      includesSearchTerm(track.title, trackSearchTerm) ||
+      includesSearchTerm(track.genre, trackSearchTerm) ||
+      includesSearchTerm(albumTitleById.get(track.albumId), trackSearchTerm)
+    ));
+  }, [albumTitleById, trackSearchTerm, tracks]);
 
   useEffect(() => {
     void loadTracks();
@@ -367,13 +384,26 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
 
       {!isLoading && !error && (
         <div className="table-wrap">
+          {tracks.length > 0 && (
+            <div className="table-header">
+              <SearchInput
+                cooldownUntil={trackSearchController.cooldownUntil}
+                placeholder="Buscar en mis pistas"
+                value={trackSearchController.searchValue}
+                onChange={trackSearchController.setSearchValue}
+                onSubmit={trackSearchController.submitSearch}
+              />
+            </div>
+          )}
           {tracks.length === 0 ? (
             <InlineState title="Sin pistas publicadas" />
+          ) : filteredTracks.length === 0 ? (
+            <InlineState title="Sin pistas para esta búsqueda" />
           ) : (
             <table className="data-table">
               <thead><tr><th>Título</th><th>Género</th><th>Álbum</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
               <tbody>
-                {tracks.map(track => (
+                {filteredTracks.map(track => (
                   <tr key={track.trackId}>
                     <td>
                       <button
@@ -431,6 +461,8 @@ MyTracksPage.propTypes = {
 };
 
 export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = undefined }) {
+  void currentTrack;
+  void onPlayTrack;
   const navigate = useNavigate();
   const [albums, setAlbums] = useState([]);
   const [tracks, setTracks] = useState([]);
@@ -438,6 +470,7 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
   const [isRetiringAlbum, setIsRetiringAlbum] = useState(false);
   const [error, setError] = useState('');
   const [albumToRetire, setAlbumToRetire] = useState(null);
+  const [albumSearchTerm, setAlbumSearchTerm] = useState('');
 
   const loadAlbums = useCallback(async () => {
     setIsLoading(true);
@@ -483,14 +516,14 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
 
   const getAlbumTracks = (albumId) => tracks.filter(track => track.albumId === albumId);
   const countTracks = (albumId) => getAlbumTracks(albumId).length;
-  const playAlbumTrack = (album, track) => {
-    const albumTracks = getAlbumTracks(album.albumId).map(item => getArtistPlayableTrack(item, user.username));
-    onPlayTrack?.(
-      getArtistPlayableTrack(track, user.username),
-      albumTracks,
-      album.albumId
-    );
-  };
+  const albumSearchController = useSearchController({
+    onClear: useCallback(() => setAlbumSearchTerm(''), []),
+    onSearch: useCallback(searchTerm => setAlbumSearchTerm(searchTerm), []),
+  });
+  const filteredAlbums = useMemo(() => {
+    if (!albumSearchTerm) return albums;
+    return albums.filter(album => includesSearchTerm(album.title, albumSearchTerm));
+  }, [albumSearchTerm, albums]);
 
   return (
     <div className="page-inner">
@@ -507,21 +540,34 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
 
       {!isLoading && !error && (
         <div className="table-wrap">
+          {albums.length > 0 && (
+            <div className="table-header">
+              <SearchInput
+                cooldownUntil={albumSearchController.cooldownUntil}
+                placeholder="Buscar en mis álbumes"
+                value={albumSearchController.searchValue}
+                onChange={albumSearchController.setSearchValue}
+                onSubmit={albumSearchController.submitSearch}
+              />
+            </div>
+          )}
           {albums.length === 0 ? (
             <InlineState title="Sin álbumes publicados" message="Crea un álbum y luego agrega canciones desde esta misma vista." />
+          ) : filteredAlbums.length === 0 ? (
+            <InlineState title="Sin álbumes para esta búsqueda" />
           ) : (
             <table className="data-table">
               <thead><tr><th>Álbum</th><th>Pistas</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
               <tbody>
-                {albums.map(album => {
-                  const albumTracks = getAlbumTracks(album.albumId);
-                  const firstAlbumTrack = albumTracks[0];
-
-                  return (
+                {filteredAlbums.map(album => (
                   <tr key={album.albumId}>
                     <td>
                       <div className="artist-album-cell">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <button
+                          className="artist-album-link"
+                          type="button"
+                          onClick={() => navigate(routes.album(album.albumId))}
+                        >
                           <div className="track-thumb">
                             {album.coverAssetId ? (
                               <img src={getAssetUrl(album.coverAssetId)} alt={`Portada de ${album.title}`} />
@@ -530,23 +576,7 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
                             )}
                           </div>
                           <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Álbum publicado</div></div>
-                        </div>
-                        {albumTracks.length > 0 && (
-                          <div className="artist-album-track-list" aria-label={`Pistas de ${album.title}`}>
-                            {albumTracks.map(track => (
-                              <button
-                                className={`artist-album-track-chip${currentTrack?.trackId === track.trackId ? ' active' : ''}`}
-                                key={track.trackId}
-                                type="button"
-                                onClick={() => playAlbumTrack(album, track)}
-                                aria-label={`Reproducir ${track.title}`}
-                              >
-                                <IcPlay />
-                                <span>{track.title}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                        </button>
                       </div>
                     </td>
                     <td style={{ color: 'var(--t2)' }}>{countTracks(album.albumId)}</td>
@@ -554,21 +584,12 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
                     <td style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          className="btn-ghost"
-                          disabled={!firstAlbumTrack}
-                          style={{ padding: '5px 12px', fontSize: 12 }}
-                          onClick={() => firstAlbumTrack && playAlbumTrack(album, firstAlbumTrack)}
-                        >
-                          Reproducir
-                        </button>
                         <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }} onClick={() => addTrackToAlbum(album.albumId)}>Agregar canción</button>
                         <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setAlbumToRetire(album)}>Retirar</button>
                       </div>
                     </td>
                   </tr>
-                );
-                })}
+                ))}
               </tbody>
             </table>
           )}
@@ -696,7 +717,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
     if (hasEmptyTrackFields({ title, genre, audioFile, coverFile })) {
       return setError('Todos los campos son obligatorios.');
     }
-    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 100 caracteres.');
     if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     const audioError = validateAudio(audioFile);
@@ -890,7 +911,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
     if (hasEmptyTrackFields({ title, genre, audioFile, coverFile })) {
       return setError('Todos los campos son obligatorios.');
     }
-    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título de la canción no puede superar 220 caracteres.');
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título de la canción no puede superar 100 caracteres.');
     if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     const audioError = validateAudio(audioFile);
@@ -1034,7 +1055,7 @@ export function CreateAlbumPage({ toast }) {
   const handleCreate = async () => {
     const normalizedTitle = normalizeText(title);
     if (!normalizedTitle || !coverFile) return setError('Todos los campos son obligatorios.');
-    if (normalizedTitle.length > ALBUM_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
+    if (normalizedTitle.length > ALBUM_TITLE_MAX_LENGTH) return setError('El título no puede superar 100 caracteres.');
     const coverError = validateCoverImage(coverFile);
     if (coverError) return setError(coverError);
 
@@ -1242,6 +1263,8 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
   const [title, setTitle] = useState(track?.title ?? '');
   const [genre, setGenre] = useState(track?.genre ?? '');
   const [albumId, setAlbumId] = useState(track?.albumId ?? '');
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
   const [albums, setAlbums] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -1251,7 +1274,29 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
     setTitle(track?.title ?? '');
     setGenre(track?.genre ?? '');
     setAlbumId(track?.albumId ?? '');
+    setCoverFile(null);
   }, [track]);
+
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    if (typeof URL.createObjectURL !== 'function') {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(coverFile);
+    setCoverPreviewUrl(previewUrl);
+
+    return () => {
+      if (typeof URL.revokeObjectURL === 'function') {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [coverFile]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1284,7 +1329,7 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
     const normalizedGenre = normalizeText(genre);
 
     if (!normalizedTitle || !normalizedGenre) return setError('Todos los campos son obligatorios.');
-    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 220 caracteres.');
+    if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 100 caracteres.');
     if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
 
     return {
@@ -1310,9 +1355,25 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
     setIsSubmitting(true);
 
     try {
-      await catalogService.updateTrack(track.trackId, payload);
+      let updatePayload = payload;
+
+      if (coverFile) {
+        const coverError = validateCoverImage(coverFile);
+        if (coverError) {
+          setError(coverError);
+          return;
+        }
+        const trackCover = await mediaService.uploadCatalogImage(coverFile, 'TRACK_COVER');
+        updatePayload = {
+          ...payload,
+          coverAssetId: trackCover.assetId,
+        };
+      }
+
+      await catalogService.updateTrack(track.trackId, updatePayload);
       toast('Cambios guardados');
       setPendingAction(null);
+      setCoverFile(null);
       onDone();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -1336,6 +1397,12 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
       setIsSubmitting(false);
     }
   };
+
+  const handleCoverChange = buildFileChangeHandler({
+    validate: validateCoverImage,
+    setFile: setCoverFile,
+    setError,
+  });
 
   return (
       <div className="page-inner">
@@ -1367,8 +1434,30 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
             ))}
           </select>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
-          La edición de audio y portada estará disponible próximamente.
+        <div className="form-group-mb">
+          <div className="form-label">Portada</div>
+          <FilePicker
+            accept="image/png,image/jpeg,image/webp"
+            file={coverFile}
+            onChange={handleCoverChange}
+            helperText={IMAGE_FILE_HELPER}
+            buttonLabel="Seleccionar portada"
+          />
+          <div style={{ marginTop: 10 }}>
+            {coverPreviewUrl ? (
+              <img
+                src={coverPreviewUrl}
+                alt="Previsualización de nueva portada"
+                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+              />
+            ) : track.coverAssetId ? (
+              <img
+                src={getAssetUrl(track.coverAssetId)}
+                alt={`Portada actual de ${track.title}`}
+                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+              />
+            ) : null}
+          </div>
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
@@ -1414,6 +1503,7 @@ export function ArtistAnalyticsPage({ user }) {
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [breakdownSearchTerm, setBreakdownSearchTerm] = useState('');
 
   const loadAnalytics = useCallback(async () => {
     setIsLoading(true);
@@ -1432,6 +1522,16 @@ export function ArtistAnalyticsPage({ user }) {
   useEffect(() => {
     void loadAnalytics();
   }, [loadAnalytics]);
+
+  const breakdownSearchController = useSearchController({
+    onClear: useCallback(() => setBreakdownSearchTerm(''), []),
+    onSearch: useCallback(searchTerm => setBreakdownSearchTerm(searchTerm), []),
+  });
+  const filteredBreakdownTracks = useMemo(() => {
+    const tracks = summary?.tracks ?? [];
+    if (!breakdownSearchTerm) return tracks;
+    return tracks.filter(track => includesSearchTerm(track.title, breakdownSearchTerm));
+  }, [breakdownSearchTerm, summary]);
 
   return (
     <div className="page-inner">
@@ -1463,7 +1563,7 @@ export function ArtistAnalyticsPage({ user }) {
 
           <div className="section">
             <div className="section-header">
-              <div className="section-title">5 canciones principales</div>
+              <div className="section-title">Canciones principales</div>
             </div>
             {summary.topTracks.length === 0 ? (
               <InlineState title="Aún no hay reproducciones registradas" />
@@ -1493,18 +1593,32 @@ export function ArtistAnalyticsPage({ user }) {
               <InlineState title="Sin canciones con métricas" />
             ) : (
               <div className="table-wrap">
-                <table className="data-table">
-                  <thead><tr><th>Canción</th><th>Reproducciones</th><th>Oyentes únicos</th></tr></thead>
-                  <tbody>
-                    {summary.tracks.map(track => (
-                      <tr key={track.trackId}>
-                        <td>{track.title}</td>
-                        <td>{formatMetricNumber(track.plays)}</td>
-                        <td>{formatMetricNumber(track.uniqueListeners)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="table-header">
+                  <SearchInput
+                    cooldownUntil={breakdownSearchController.cooldownUntil}
+                    placeholder="Buscar canción en el desglose"
+                    value={breakdownSearchController.searchValue}
+                    onChange={breakdownSearchController.setSearchValue}
+                    onSubmit={breakdownSearchController.submitSearch}
+                    wrapperClassName="search-input-wrap-wide"
+                  />
+                </div>
+                {filteredBreakdownTracks.length === 0 ? (
+                  <InlineState title="Sin canciones para esta búsqueda" />
+                ) : (
+                  <table className="data-table">
+                    <thead><tr><th>Canción</th><th>Reproducciones</th><th>Oyentes únicos</th></tr></thead>
+                    <tbody>
+                      {filteredBreakdownTracks.map(track => (
+                        <tr key={track.trackId}>
+                          <td>{track.title}</td>
+                          <td>{formatMetricNumber(track.plays)}</td>
+                          <td>{formatMetricNumber(track.uniqueListeners)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             )}
           </div>

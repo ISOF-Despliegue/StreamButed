@@ -11,6 +11,7 @@ import {
 import { FilePicker } from '../components/ui/FilePicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import LogoutButton from '../components/layout/LogoutButton';
+import { TEXT_LIMITS } from '../constants/textLimits';
 import { browserLogger } from '../utils/browserLogger';
 import { reloadCurrentPage } from '../utils/navigation';
 import { toUserFacingMessage } from '../utils/userFacingMessages';
@@ -133,11 +134,14 @@ export function SettingsPage({
     const normalizedBio = bio.trim();
 
     if (!normalizedUsername) return setError('Todos los campos son obligatorios.');
-    if (normalizedUsername.length < 3 || normalizedUsername.length > 50) {
-      return setError('El nombre de usuario debe tener entre 3 y 50 caracteres.');
+    if (
+      normalizedUsername.length < TEXT_LIMITS.usernameMin ||
+      normalizedUsername.length > TEXT_LIMITS.usernameMax
+    ) {
+      return setError('El nombre de usuario debe tener entre 3 y 100 caracteres.');
     }
 
-    if (normalizedBio.length > 1000) {
+    if (normalizedBio.length > TEXT_LIMITS.biography) {
       return setError('La biografía no puede superar 1000 caracteres.');
     }
 
@@ -281,7 +285,7 @@ export function SettingsPage({
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Nombre de usuario"
-            maxLength={50}
+            maxLength={TEXT_LIMITS.usernameMax}
           />
         </div>
         <div className="form-group-mb">
@@ -292,9 +296,9 @@ export function SettingsPage({
             onChange={(e) => setBio(e.target.value)}
             placeholder="Cuéntanos sobre ti"
             rows={4}
-            maxLength={1000}
+            maxLength={TEXT_LIMITS.biography}
           />
-          <div className="char-count">{bio.length} / 1000</div>
+          <div className="char-count">{bio.length} / {TEXT_LIMITS.biography}</div>
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <button className="btn-primary" onClick={requestSave} disabled={isSaving}>

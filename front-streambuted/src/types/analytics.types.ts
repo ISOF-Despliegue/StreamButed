@@ -14,6 +14,15 @@ export interface AnalyticsArtistMetric {
   uniqueListeners: number;
 }
 
+export interface AnalyticsAlbumMetric {
+  albumId: string;
+  artistId: string;
+  title: string;
+  artistName?: string | null;
+  coverAssetId?: string | null;
+  plays: number;
+}
+
 export interface ArtistAnalyticsSummary {
   artistId: string;
   totalPlays: number;
@@ -28,5 +37,10 @@ export interface AdminAnalyticsSummary {
   monthlyActiveUsers: number;
   totalPlays: number;
   topTracks: AnalyticsTrackMetric[];
+  topArtists: AnalyticsArtistMetric[];
+}
+
+export interface PublicDiscoverySummary {
+  topAlbums: AnalyticsAlbumMetric[];
   topArtists: AnalyticsArtistMetric[];
 }
