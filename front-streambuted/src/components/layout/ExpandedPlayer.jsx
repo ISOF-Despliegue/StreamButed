@@ -60,7 +60,7 @@ export function ExpandedPlayer({
         </div>
         <div className="ep-controls">
           <button
-            className="btn-icon"
+            className={`btn-icon${playback.shuffleEnabled ? ' active' : ''}`}
             disabled={!playback.canUseAlbumControls}
             title="Aleatorio del álbum"
             aria-pressed={playback.shuffleEnabled}

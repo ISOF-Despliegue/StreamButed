@@ -42,6 +42,7 @@ jest.mock("./pages/listener/ListenerPages", () => ({
   SearchPage: () => <div>Search</div>,
   AlbumDetailPage: () => <div>Album Detail</div>,
   ArtistProfilePage: () => <div>Artist Profile</div>,
+  ArtistDiscographyPage: () => <div>Artist Discography</div>,
 }));
 
 jest.mock("./pages/listener/LibraryPage", () => ({
@@ -156,5 +157,25 @@ describe("StreamButed suspension dialog", () => {
       expect(screen.queryByText("Tu cuenta fue suspendida por un administrador del sistema."))
         .not.toBeInTheDocument();
     });
+  });
+
+  it("mounts the dedicated artist discography route for authenticated listeners", () => {
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: {
+        id: "listener-1",
+        email: "listener@example.com",
+        role: "listener",
+        username: "Listener",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/artists/artist-1/discography"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Artist Discography")).toBeInTheDocument();
   });
 });

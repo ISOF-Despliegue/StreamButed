@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { IcMusic, IcPlay, IcX } from '../../components/icons/Icons';
@@ -49,7 +50,7 @@ function PlaylistSummaryCard({ playlist, onOpen, onDelete }) {
         <div>
           <div className="library-playlist-title">{playlist.name}</div>
           <div className="library-playlist-meta">
-            {playlist.trackCount} {playlist.trackCount === 1 ? 'cancion' : 'canciones'}
+            {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
           </div>
         </div>
       </button>
@@ -167,7 +168,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
               <div className="album-hero-type">Playlist</div>
               <div className="library-liked-title">Canciones que te gustan</div>
               <div className="library-liked-meta">
-                {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'cancion guardada' : 'canciones guardadas'}
+                {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'canción guardada' : 'canciones guardadas'}
               </div>
             </div>
             <label className="btn-ghost library-cover-action">
@@ -197,16 +198,16 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
             </div>
             {playableLikedTracks.length === 0 ? (
               <InlineState
-                title="Aun no has dado me gusta a canciones"
-                message="Usa el corazon del reproductor para guardarlas aqui."
+                title="Aún no has dado me gusta a canciones"
+                message="Usa el corazón del reproductor para guardarlas aquí."
               />
             ) : (
               <table className="track-list">
                 <thead><tr>
                   <th style={{ width: 40 }}>#</th>
-                  <th>Titulo</th>
+                  <th>Título</th>
                   <th>Artista</th>
-                  <th className="track-duration-col">Duracion</th>
+                  <th className="track-duration-col">Duración</th>
                 </tr></thead>
                 <tbody>
                   {playableLikedTracks.map((track, index) => (
@@ -233,7 +234,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
             </div>
 
             {library.playlists.length === 0 ? (
-              <InlineState title="Sin playlists todavia" message="Crea una lista privada para organizar tus canciones." />
+              <InlineState title="Sin playlists todavía" message="Crea una lista privada para organizar tus canciones." />
             ) : (
               <div className="library-playlist-grid">
                 {library.playlists.map(playlist => (
@@ -292,7 +293,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
       <ConfirmDialog
         open={Boolean(playlistToDelete)}
         title="Eliminar playlist"
-        message={`Se eliminara "${playlistToDelete?.name ?? 'esta playlist'}" de tu biblioteca.`}
+        message={`Se eliminará "${playlistToDelete?.name ?? 'esta playlist'}" de tu biblioteca.`}
         confirmLabel="Eliminar"
         onConfirm={deletePlaylist}
         onCancel={() => setPlaylistToDelete(null)}
@@ -333,7 +334,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     setIsAddingCurrent(true);
     try {
       setPlaylist(await libraryService.addTrackToPlaylist(playlistId, trackId));
-      toast('Cancion agregada a la playlist');
+      toast('Canción agregada a la playlist');
     } catch (err) {
       toast(getErrorMessage(err));
     } finally {
@@ -346,7 +347,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
     try {
       setPlaylist(await libraryService.removeTrackFromPlaylist(playlistId, trackId));
-      toast('Cancion quitada de la playlist');
+      toast('Canción quitada de la playlist');
     } catch (err) {
       toast(getErrorMessage(err));
     }
@@ -402,7 +403,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           <div>
             <div className="page-title">{playlist.name}</div>
             <div className="page-subtitle">
-              {playlist.trackCount} {playlist.trackCount === 1 ? 'cancion' : 'canciones'}
+              {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
             </div>
           </div>
         </div>
@@ -437,14 +438,14 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       </div>
 
       {tracks.length === 0 ? (
-        <InlineState title="Playlist vacia" message="Reproduce una cancion y agregala desde este detalle." />
+        <InlineState title="Playlist vacía" message="Reproduce una canción y agrégala desde este detalle." />
       ) : (
         <table className="track-list">
           <thead><tr>
             <th style={{ width: 40 }}>#</th>
-            <th>Titulo</th>
+            <th>Título</th>
             <th>Artista</th>
-            <th className="track-duration-col">Duracion</th>
+            <th className="track-duration-col">Duración</th>
             <th style={{ width: 110 }}>Acciones</th>
           </tr></thead>
           <tbody>

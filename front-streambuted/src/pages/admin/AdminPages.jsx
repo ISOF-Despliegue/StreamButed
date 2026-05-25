@@ -88,7 +88,7 @@ function RankingCard({ title, rows, primaryKey }) {
         <div style={{ fontSize: 13, color: 'var(--t2)' }}>Sin datos registrados.</div>
       ) : (
         <div className="chart-legend">
-          {rows.slice(0, 5).map((row, index) => (
+          {rows.slice(0, 10).map((row, index) => (
             <div className="legend-item" key={row.trackId ?? row.artistId}>
               <span className="legend-dot" style={{ background: index === 0 ? 'var(--accent)' : 'var(--border2)' }} />
               <span>{row[primaryKey]}</span>

@@ -2,7 +2,15 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { AlbumDetailPage, ArtistProfilePage } from "./ListenerPages";
+import { analyticsService } from "../../services/analyticsService";
 import { catalogService } from "../../services/catalogService";
+
+jest.mock("../../services/analyticsService", () => ({
+  analyticsService: {
+    getArtistPublicSummary: jest.fn(),
+    getDiscoverySummary: jest.fn(),
+  },
+}));
 
 jest.mock("../../services/catalogService", () => ({
   catalogService: {
@@ -96,6 +104,14 @@ describe("ArtistProfilePage", () => {
     } as never);
     jest.mocked(catalogService.listArtistTracks).mockResolvedValue([] as never);
     jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([] as never);
+    jest.mocked(analyticsService.getArtistPublicSummary).mockResolvedValue({
+      artistId: "artist-1",
+      totalPlays: 0,
+      tracks: [],
+      topTracks: [],
+      averageDailyUniqueListeners: 0,
+      averageDailyPlays: 0,
+    } as never);
 
     renderWithRouter(
       <ArtistProfilePage

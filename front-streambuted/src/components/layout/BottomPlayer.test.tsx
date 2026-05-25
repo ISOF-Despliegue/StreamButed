@@ -117,6 +117,34 @@ describe("BottomPlayer", () => {
     expect(onToggleRepeat).toHaveBeenCalledTimes(1);
   });
 
+  it("marks shuffle as active when album shuffle is enabled", async () => {
+    const user = userEvent.setup();
+    const onToggleShuffle = jest.fn();
+    render(
+      <BottomPlayer
+        track={track}
+        onExpand={jest.fn()}
+        volume={70}
+        setVolume={jest.fn()}
+        playback={{ ...basePlayback, canUseAlbumControls: true, shuffleEnabled: true }}
+        onTogglePlay={jest.fn()}
+        onSeek={jest.fn()}
+        onNext={jest.fn()}
+        onPrevious={jest.fn()}
+        onToggleShuffle={onToggleShuffle}
+        onToggleRepeat={jest.fn()}
+      />
+    );
+
+    const shuffleButton = screen.getByTitle("Aleatorio del álbum");
+    expect(shuffleButton).toHaveAttribute("aria-pressed", "true");
+    expect(shuffleButton.className).toContain("active");
+
+    await user.click(shuffleButton);
+
+    expect(onToggleShuffle).toHaveBeenCalledTimes(1);
+  });
+
   it("dispatches like toggle and exposes pressed state", async () => {
     const user = userEvent.setup();
     const onToggleLike = jest.fn();
@@ -181,5 +209,33 @@ describe("BottomPlayer", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Ruta" }));
 
     expect(libraryService.addTrackToPlaylist).toHaveBeenCalledWith("playlist-1", "track-1");
+  });
+
+  it("does not refetch playlists when an empty playlist list has already loaded", async () => {
+    const user = userEvent.setup();
+    render(
+      <BottomPlayer
+        track={track}
+        onExpand={jest.fn()}
+        volume={70}
+        setVolume={jest.fn()}
+        playback={basePlayback}
+        onTogglePlay={jest.fn()}
+        onSeek={jest.fn()}
+        onNext={jest.fn()}
+        onPrevious={jest.fn()}
+        onToggleShuffle={jest.fn()}
+        onToggleRepeat={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByTitle("Agregar a playlist"));
+    expect(await screen.findByText("No tienes playlists privadas.")).toBeInTheDocument();
+
+    await user.click(document.body);
+    await user.click(screen.getByTitle("Agregar a playlist"));
+
+    expect(libraryService.listPlaylists).toHaveBeenCalledTimes(1);
   });
 });

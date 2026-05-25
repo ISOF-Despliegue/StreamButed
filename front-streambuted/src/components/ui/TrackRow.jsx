@@ -17,7 +17,7 @@ export function TrackRow({ track, index, isPlaying, onPlay, onArtistClick, metaT
 
   return (
     <tr className={`track-row${isPlaying ? ' playing' : ''}`} onClick={onPlay}>
-      <td><span className="track-num">{isPlaying ? '*' : index + 1}</span></td>
+      <td><span className="track-num">{index + 1}</span></td>
       <td>
         <div className="track-title-cell">
           <div className="track-thumb">

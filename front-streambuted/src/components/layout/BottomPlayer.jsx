@@ -26,6 +26,7 @@ export function BottomPlayer({
 }) {
   const [isPlaylistMenuOpen, setIsPlaylistMenuOpen] = useState(false);
   const [playlists, setPlaylists] = useState([]);
+  const [hasLoadedPlaylists, setHasLoadedPlaylists] = useState(false);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [isAddingToPlaylist, setIsAddingToPlaylist] = useState(false);
   const playlistMenuRef = useRef(null);
@@ -50,11 +51,12 @@ export function BottomPlayer({
 
     const nextOpen = !isPlaylistMenuOpen;
     setIsPlaylistMenuOpen(nextOpen);
-    if (!nextOpen || playlists.length > 0 || isLoadingPlaylists) return;
+    if (!nextOpen || hasLoadedPlaylists || isLoadingPlaylists) return;
 
     setIsLoadingPlaylists(true);
     try {
       setPlaylists(await libraryService.listPlaylists());
+      setHasLoadedPlaylists(true);
     } catch (error) {
       toast?.(toUserFacingMessage(error instanceof Error ? error.message : 'No se pudieron cargar tus playlists.'));
     } finally {
@@ -68,10 +70,10 @@ export function BottomPlayer({
     setIsAddingToPlaylist(true);
     try {
       await libraryService.addTrackToPlaylist(playlistId, trackId);
-      toast?.('Cancion agregada a la playlist');
+      toast?.('Canción agregada a la playlist');
       setIsPlaylistMenuOpen(false);
     } catch (error) {
-      toast?.(toUserFacingMessage(error instanceof Error ? error.message : 'No se pudo agregar la cancion.'));
+      toast?.(toUserFacingMessage(error instanceof Error ? error.message : 'No se pudo agregar la canción.'));
     } finally {
       setIsAddingToPlaylist(false);
     }
@@ -171,7 +173,7 @@ export function BottomPlayer({
       <div className="player-center">
         <div className="player-controls">
           <button
-            className="btn-icon"
+            className={`btn-icon${playback.shuffleEnabled ? ' active' : ''}`}
             disabled={!playback.canUseAlbumControls}
             title="Aleatorio del álbum"
             aria-pressed={playback.shuffleEnabled}

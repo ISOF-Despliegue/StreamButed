@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { TEXT_LIMITS } from '../constants/textLimits';
 import { toUserFacingMessage } from '../utils/userFacingMessages';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EMAIL_MAX_LENGTH = 320;
-const USERNAME_MIN_LENGTH = 3;
-const USERNAME_MAX_LENGTH = 50;
-const PASSWORD_MIN_LENGTH = 8;
-const PASSWORD_MAX_LENGTH = 15;
+const EMAIL_MAX_LENGTH = TEXT_LIMITS.email;
+const USERNAME_MIN_LENGTH = TEXT_LIMITS.usernameMin;
+const USERNAME_MAX_LENGTH = TEXT_LIMITS.usernameMax;
+const PASSWORD_MIN_LENGTH = TEXT_LIMITS.passwordMin;
+const PASSWORD_MAX_LENGTH = TEXT_LIMITS.passwordMax;
 const PASSWORD_UPPERCASE = /[A-Z]/;
 const PASSWORD_DIGIT = /\d/;
 const PASSWORD_SPECIAL = /[^A-Za-z0-9]/;
@@ -273,7 +274,7 @@ export function RegisterPage({
       normalizedUsername.length < USERNAME_MIN_LENGTH ||
       normalizedUsername.length > USERNAME_MAX_LENGTH
     ) {
-      return setError('El nombre de usuario debe tener entre 3 y 50 caracteres.');
+      return setError('El nombre de usuario debe tener entre 3 y 100 caracteres.');
     }
 
     const passwordError = validatePasswordRules(form.password);
