@@ -67,6 +67,31 @@ describe("ExpandedPlayer", () => {
     expect(screen.getAllByText("4:21")).toHaveLength(2);
   });
 
+  it("keeps unknown active queue durations hidden until metadata is available", () => {
+    render(
+      <ExpandedPlayer
+        track={{ ...track, durationSeconds: undefined }}
+        queue={[{ ...track, durationSeconds: undefined }]}
+        onClose={jest.fn()}
+        volume={70}
+        setVolume={jest.fn()}
+        onSelectTrack={jest.fn()}
+        playback={{ ...basePlayback, durationSeconds: 0 }}
+        onTogglePlay={jest.fn()}
+        onSeek={jest.fn()}
+        onNext={jest.fn()}
+        onPrevious={jest.fn()}
+        onToggleShuffle={jest.fn()}
+        onToggleRepeat={jest.fn()}
+        onToggleLike={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByText("0:00")).not.toBeInTheDocument();
+    expect(screen.getAllByText("--:--")).toHaveLength(2);
+  });
+
   it("adds the current track to a selected playlist from the expanded player", async () => {
     const user = userEvent.setup();
     jest.mocked(libraryService.listPlaylists).mockResolvedValue([

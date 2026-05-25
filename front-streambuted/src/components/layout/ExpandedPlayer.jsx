@@ -13,7 +13,13 @@ function resolveQueueDuration(track, playback, activeTrackId) {
     return duration;
   }
 
-  if (trackId && trackId === activeTrackId && typeof playback.durationSeconds === 'number') {
+  if (
+    trackId &&
+    trackId === activeTrackId &&
+    typeof playback.durationSeconds === 'number' &&
+    Number.isFinite(playback.durationSeconds) &&
+    playback.durationSeconds > 0
+  ) {
     return playback.durationSeconds;
   }
 

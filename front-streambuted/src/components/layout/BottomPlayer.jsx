@@ -64,14 +64,16 @@ export function BottomPlayer({
           </button>
           <div className="player-track-artist">{artistName}</div>
         </div>
-        <TrackLibraryActions
-          className="player-track-actions"
-          trackId={trackId}
-          isLiked={isLiked}
-          isLikeLoading={isLikeLoading}
-          onToggleLike={onToggleLike}
-          toast={toast}
-        />
+        <div style={{ marginLeft: 8 }}>
+          <TrackLibraryActions
+            className="player-track-actions"
+            trackId={trackId}
+            isLiked={isLiked}
+            isLikeLoading={isLikeLoading}
+            onToggleLike={onToggleLike}
+            toast={toast}
+          />
+        </div>
       </div>
 
       <div className="player-center">
