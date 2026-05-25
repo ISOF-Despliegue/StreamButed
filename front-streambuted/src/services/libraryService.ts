@@ -10,7 +10,7 @@ import type {
 
 export const libraryService = {
   getLibrary(): Promise<LibrarySummary> {
-    return apiRequest<LibrarySummary>("/library");
+    return apiRequest<LibrarySummary>("/library/");
   },
 
   getLikedSongs(): Promise<LibraryPlaylistDetail> {
