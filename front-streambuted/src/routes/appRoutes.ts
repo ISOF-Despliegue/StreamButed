@@ -10,6 +10,7 @@ export const routes = {
   artistLive: "/artist/live",
   album: (albumId: string) => `/albums/${encodeURIComponent(albumId)}`,
   artistProfile: (artistId: string) => `/artists/${encodeURIComponent(artistId)}`,
+  artistDiscography: (artistId: string) => `/artists/${encodeURIComponent(artistId)}/discography`,
   artistDashboard: "/artist",
   artistTracks: "/artist/tracks",
   artistAlbums: "/artist/albums",
@@ -29,6 +30,7 @@ export const routes = {
 export const routePatterns = {
   album: "/albums/:albumId",
   artistProfile: "/artists/:artistId",
+  artistDiscography: "/artists/:artistId/discography",
   liveRoom: "/lives/:roomId",
   artistTrackEdit: "/artist/tracks/:trackId/edit",
 } as const;

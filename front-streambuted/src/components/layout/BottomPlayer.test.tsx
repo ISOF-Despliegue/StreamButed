@@ -102,4 +102,32 @@ describe("BottomPlayer", () => {
 
     expect(onToggleRepeat).toHaveBeenCalledTimes(1);
   });
+
+  it("marks shuffle as active when album shuffle is enabled", async () => {
+    const user = userEvent.setup();
+    const onToggleShuffle = jest.fn();
+    render(
+      <BottomPlayer
+        track={track}
+        onExpand={jest.fn()}
+        volume={70}
+        setVolume={jest.fn()}
+        playback={{ ...basePlayback, canUseAlbumControls: true, shuffleEnabled: true }}
+        onTogglePlay={jest.fn()}
+        onSeek={jest.fn()}
+        onNext={jest.fn()}
+        onPrevious={jest.fn()}
+        onToggleShuffle={onToggleShuffle}
+        onToggleRepeat={jest.fn()}
+      />
+    );
+
+    const shuffleButton = screen.getByTitle("Aleatorio del álbum");
+    expect(shuffleButton).toHaveAttribute("aria-pressed", "true");
+    expect(shuffleButton.className).toContain("active");
+
+    await user.click(shuffleButton);
+
+    expect(onToggleShuffle).toHaveBeenCalledTimes(1);
+  });
 });

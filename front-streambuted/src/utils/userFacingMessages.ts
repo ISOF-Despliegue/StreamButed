@@ -48,8 +48,11 @@ export function toUserFacingMessage(message: string | null | undefined): string 
     return "El correo no puede superar 320 caracteres.";
   }
 
-  if (normalized.includes("username must be between 3 and 50 characters")) {
-    return "El nombre de usuario debe tener entre 3 y 50 caracteres.";
+  if (
+    normalized.includes("username must be between 3 and 100 characters") ||
+    normalized.includes("username must be between 3 and 50 characters")
+  ) {
+    return "El nombre de usuario debe tener entre 3 y 100 caracteres.";
   }
 
   if (normalized.includes("password must be between 8 and 15 characters")) {
@@ -81,10 +84,20 @@ export function toUserFacingMessage(message: string | null | undefined): string 
   }
 
   if (
-    normalized.includes("registration cannot be completed") ||
-    normalized.includes("username already exists") ||
+    normalized.includes("email is already registered") ||
     normalized.includes("email already exists")
   ) {
+    return "Ese correo ya está registrado. Inicia sesión o usa otro correo.";
+  }
+
+  if (
+    normalized.includes("username is already in use") ||
+    normalized.includes("username already exists")
+  ) {
+    return "Ese nombre de usuario ya está en uso. Elige otro.";
+  }
+
+  if (normalized.includes("registration cannot be completed")) {
     return "No se pudo completar el registro con esos datos.";
   }
 

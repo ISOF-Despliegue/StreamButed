@@ -32,6 +32,7 @@ import {
   SearchPage,
   AlbumDetailPage,
   ArtistProfilePage,
+  ArtistDiscographyPage,
 } from "./pages/listener/ListenerPages";
 import {
   ArtistDashboardPage,
@@ -739,6 +740,22 @@ function getDefaultRoute(user: CurrentUser): string {
   return routes.home;
 }
 
+function readSidebarPreference(storageKey: string): boolean {
+  try {
+    return globalThis.localStorage?.getItem(storageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeSidebarPreference(storageKey: string, collapsed: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(storageKey, String(collapsed));
+  } catch {
+    // Ignore storage failures; the in-memory preference still works for this session.
+  }
+}
+
 type SinglePlaybackRouteProps = Readonly<{
   currentTrack: AppTrack | null;
   onPlayTrack: (track: AppTrack) => void;
@@ -788,6 +805,28 @@ function ArtistProfileRoute({ currentTrack, currentUser, onPlayTrack }: ArtistPr
 
   return (
     <ArtistProfilePage
+      artistId={artistId}
+      currentUser={currentUser}
+      currentTrack={currentTrack}
+      onPlayTrack={onPlayTrack}
+    />
+  );
+}
+
+function ArtistDiscographyRoute({ currentTrack, currentUser, onPlayTrack }: ArtistProfileRouteProps) {
+  const { artistId } = useParams();
+
+  if (!artistId) {
+    return (
+      <NotAvailableState
+        title="Discografía no seleccionada"
+        message="No encontramos el artista que intentas abrir."
+      />
+    );
+  }
+
+  return (
+    <ArtistDiscographyPage
       artistId={artistId}
       currentUser={currentUser}
       currentTrack={currentTrack}
@@ -945,10 +984,30 @@ export default function StreamButed() {
   const [oauthError, setOauthError] = useState("");
   const [oauthStatus, setOauthStatus] = useState("");
   const [showSuspendedDialog, setShowSuspendedDialog] = useState(false);
+  const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(() =>
+    readSidebarPreference("streambuted:sidebar:admin")
+  );
+  const [isMainSidebarCollapsed, setIsMainSidebarCollapsed] = useState(() =>
+    readSidebarPreference("streambuted:sidebar:main")
+  );
 
   const playbackControllerRef = useRef<PlaybackControllerHandle | null>(null);
 
   const toast = useCallback((msg: string) => setToastMsg(msg), []);
+  const toggleAdminSidebar = useCallback(() => {
+    setIsAdminSidebarCollapsed((current) => {
+      const next = !current;
+      writeSidebarPreference("streambuted:sidebar:admin", next);
+      return next;
+    });
+  }, []);
+  const toggleMainSidebar = useCallback(() => {
+    setIsMainSidebarCollapsed((current) => {
+      const next = !current;
+      writeSidebarPreference("streambuted:sidebar:main", next);
+      return next;
+    });
+  }, []);
 
   const playSingleTrack = useCallback(
     (track: AppTrack) => {
@@ -1153,8 +1212,12 @@ export default function StreamButed() {
   if (user.role === "admin") {
     return (
       <div className="app-shell">
-        <div className="app-body">
-          <AdminSidebar user={user} />
+        <div className={`app-body${isAdminSidebarCollapsed ? " sidebar-is-collapsed" : ""}`}>
+          <AdminSidebar
+            collapsed={isAdminSidebarCollapsed}
+            onToggle={toggleAdminSidebar}
+            user={user}
+          />
           <div className="main-content">
             <Routes>
               <Route
@@ -1217,8 +1280,12 @@ export default function StreamButed() {
 
   return (
     <div className="app-shell">
-      <div className="app-body">
-        <MainSidebar user={user} />
+      <div className={`app-body${isMainSidebarCollapsed ? " sidebar-is-collapsed" : ""}`}>
+        <MainSidebar
+          collapsed={isMainSidebarCollapsed}
+          onToggle={toggleMainSidebar}
+          user={user}
+        />
         <div className="main-content">
           <Routes>
             <Route path={routes.home} element={<HomePage />} />
@@ -1243,6 +1310,16 @@ export default function StreamButed() {
               path={routePatterns.artistProfile}
               element={
                 <ArtistProfileRoute
+                  currentUser={user}
+                  onPlayTrack={playSingleTrack}
+                  currentTrack={currentTrack}
+                />
+              }
+            />
+            <Route
+              path={routePatterns.artistDiscography}
+              element={
+                <ArtistDiscographyRoute
                   currentUser={user}
                   onPlayTrack={playSingleTrack}
                   currentTrack={currentTrack}

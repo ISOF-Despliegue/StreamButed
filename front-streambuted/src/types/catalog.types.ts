@@ -66,7 +66,7 @@ export interface AlbumTracksResponse {
 }
 
 export interface CatalogSearchParams {
-  q: string;
+  searchTerm: string;
   limit?: number;
   offset?: number;
 }

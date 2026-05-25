@@ -149,7 +149,7 @@ describe("SettingsPage", () => {
     await user.type(usernameInput, "ab");
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "El nombre de usuario debe tener entre 3 y 50 caracteres."
+      "El nombre de usuario debe tener entre 3 y 100 caracteres."
     );
   });
 
