@@ -870,7 +870,7 @@ function ArtistDiscographyRoute({ currentTrack, currentUser, onPlayTrack }: Arti
   if (!artistId) {
     return (
       <NotAvailableState
-        title="Discograf�a no seleccionada"
+        title="Discografía no seleccionada"
         message="No encontramos el artista que intentas abrir."
       />
     );
