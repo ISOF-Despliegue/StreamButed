@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BottomPlayer } from "./BottomPlayer";
+import { emitPlaylistCreated } from "../../services/libraryEvents";
 import { libraryService } from "../../services/libraryService";
 
 jest.mock("../../services/libraryService", () => ({
@@ -236,6 +237,45 @@ describe("BottomPlayer", () => {
     await user.click(document.body);
     await user.click(screen.getByTitle("Agregar a playlist"));
 
+    expect(libraryService.listPlaylists).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates the cached playlist menu when a new playlist is created elsewhere", async () => {
+    const user = userEvent.setup();
+    render(
+      <BottomPlayer
+        track={track}
+        onExpand={jest.fn()}
+        volume={70}
+        setVolume={jest.fn()}
+        playback={basePlayback}
+        onTogglePlay={jest.fn()}
+        onSeek={jest.fn()}
+        onNext={jest.fn()}
+        onPrevious={jest.fn()}
+        onToggleShuffle={jest.fn()}
+        onToggleRepeat={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByTitle("Agregar a playlist"));
+    expect(await screen.findByText("No tienes playlists privadas.")).toBeInTheDocument();
+
+    act(() => {
+      emitPlaylistCreated({
+        playlistId: "playlist-2",
+        name: "Nueva lista",
+        coverAssetId: null,
+        isSystem: false,
+        systemKey: null,
+        trackCount: 0,
+        createdAt: "2026-05-25T00:00:00Z",
+        updatedAt: "2026-05-25T00:00:00Z",
+      });
+    });
+
+    expect(await screen.findByRole("menuitem", { name: "Nueva lista" })).toBeInTheDocument();
     expect(libraryService.listPlaylists).toHaveBeenCalledTimes(1);
   });
 });
