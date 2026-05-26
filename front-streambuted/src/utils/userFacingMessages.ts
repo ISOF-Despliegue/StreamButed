@@ -110,7 +110,21 @@ export function toUserFacingMessage(message: string | null | undefined): string 
   }
 
   if (normalized.includes("access denied") || normalized.includes("forbidden")) {
-    return "No tienes permisos para esta acción.";
+    return "No tienes permisos para esta accion.";
+  }
+
+  if (
+    normalized.includes("you already have a playlist with that name") ||
+    normalized.includes("playlistnamealreadyexists")
+  ) {
+    return "Ya existe una playlist con ese nombre.";
+  }
+
+  if (
+    normalized.includes("this song is already in that playlist") ||
+    normalized.includes("trackalreadyinplaylist")
+  ) {
+    return "Esta canción ya se encuentra en esa playlist.";
   }
 
   if (normalized.includes("not found")) {
