@@ -242,6 +242,8 @@ describe("BottomPlayer", () => {
         onSeek={jest.fn()}
         onNext={jest.fn()}
         onPrevious={jest.fn()}
+        onToggleShuffle={jest.fn()}
+        onToggleRepeat={jest.fn()}
         toast={toast}
       />
     );
