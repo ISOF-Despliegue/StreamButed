@@ -759,7 +759,6 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         onUploadAlbumConsumed?.();
       }
     } catch (err) {
-      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
@@ -943,7 +942,6 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
       onTrackCreated?.(createdTrack);
       toast('Canción agregada al álbum');
     } catch (err) {
-      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);

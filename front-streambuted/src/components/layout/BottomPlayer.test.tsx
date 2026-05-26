@@ -228,7 +228,7 @@ describe("BottomPlayer", () => {
       },
     ]);
     jest.mocked(libraryService.addTrackToPlaylist).mockRejectedValue(
-      new Error("This song is already in that playlist.")
+      new Error("Esta cancion ya se encuentra en esa playlist.")
     );
 
     render(

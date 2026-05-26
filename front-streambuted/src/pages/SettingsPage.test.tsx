@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { SettingsPage } from "./SettingsPage";
 import { useAuth } from "../hooks/useAuth";
+import { ApiError } from "../services/apiClient";
 import { catalogService } from "../services/catalogService";
 import { mediaService } from "../services/mediaService";
 
@@ -87,7 +88,9 @@ describe("SettingsPage", () => {
     const toast = jest.fn();
     const reloadSpy = jest.fn();
 
-    jest.mocked(catalogService.getArtist).mockRejectedValue(new Error("Not ready"));
+    jest.mocked(catalogService.getArtist).mockRejectedValue(
+      new ApiError(404, "El perfil de artista aun no existe.")
+    );
 
     render(<SettingsPage user={listenerUser} toast={toast} reloadPage={reloadSpy} />);
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../hooks/useAuth';
+import { ApiError } from '../services/apiClient';
 import { catalogService } from '../services/catalogService';
 import {
   getAssetUrl,
@@ -34,6 +35,9 @@ async function waitForArtistProfile(artistId) {
     try {
       return await catalogService.getArtist(artistId);
     } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 404) {
+        throw error;
+      }
       browserLogger.warn('Artist profile is not ready yet. Retrying.', error);
     }
   }

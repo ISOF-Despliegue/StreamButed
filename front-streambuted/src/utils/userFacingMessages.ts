@@ -122,6 +122,7 @@ export function toUserFacingMessage(message: string | null | undefined): string 
 
   if (
     normalized.includes("this song is already in that playlist") ||
+    normalized.includes("esta cancion ya se encuentra en esa playlist") ||
     normalized.includes("trackalreadyinplaylist")
   ) {
     return "Esta canción ya se encuentra en esa playlist.";
