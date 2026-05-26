@@ -1,8 +1,9 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { LibraryPage, PlaylistDetailPage } from "./LibraryPage";
+import { emitLikedSongsChanged } from "../../services/libraryEvents";
 import { libraryService } from "../../services/libraryService";
 import { mediaService } from "../../services/mediaService";
 
@@ -12,7 +13,9 @@ jest.mock("../../services/libraryService", () => ({
     createPlaylist: jest.fn(),
     deletePlaylist: jest.fn(),
     getLibrary: jest.fn(),
+    getLikedSongs: jest.fn(),
     getPlaylist: jest.fn(),
+    listPlaylists: jest.fn(),
     removeTrackFromPlaylist: jest.fn(),
     updatePlaylist: jest.fn(),
   },
@@ -90,6 +93,8 @@ describe("LibraryPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(libraryService.getLibrary).mockResolvedValue(librarySummary as never);
+    jest.mocked(libraryService.getLikedSongs).mockResolvedValue(librarySummary.likedSongs as never);
+    jest.mocked(libraryService.listPlaylists).mockResolvedValue(librarySummary.playlists as never);
     jest.mocked(libraryService.createPlaylist).mockResolvedValue({
       playlistId: "playlist-1",
       name: "Nueva lista",
@@ -158,6 +163,47 @@ describe("LibraryPage", () => {
     expect(toast).toHaveBeenCalledWith("Playlist creada");
   });
 
+  it("rejects creating a playlist with an exact duplicate name before sending the request", async () => {
+    const user = userEvent.setup();
+    const toast = jest.fn();
+    jest.mocked(libraryService.getLibrary).mockResolvedValue({
+      ...librarySummary,
+      playlists: [
+        {
+          playlistId: "playlist-1",
+          name: "playlist",
+          coverAssetId: null,
+          isSystem: false,
+          systemKey: null,
+          trackCount: 0,
+          createdAt: "2026-05-24T00:00:00Z",
+          updatedAt: "2026-05-24T00:00:00Z",
+        },
+      ],
+    } as never);
+
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={toast}
+      />
+    );
+
+    await screen.findByText("playlist");
+    await user.click(screen.getByRole("button", { name: "Crear playlist" }));
+
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Nombre de playlist"), "playlist");
+    await user.click(within(dialog).getByRole("button", { name: "Crear" }));
+
+    expect(libraryService.createPlaylist).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Ya existe una playlist con ese nombre.");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("opens liked songs from the cover/title area without rendering the detail on the landing view", async () => {
     const user = userEvent.setup();
 
@@ -208,6 +254,56 @@ describe("LibraryPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Quedate")).toBeInTheDocument();
       expect(screen.queryByText("Sol eterno")).not.toBeInTheDocument();
+    });
+  });
+
+  it("refreshes liked songs detail when the current likes change elsewhere", async () => {
+    const updatedLikedSongs = {
+      ...librarySummary.likedSongs,
+      trackCount: 3,
+      tracks: [
+        ...librarySummary.likedSongs.tracks,
+        {
+          trackId: "track-3",
+          artistId: "artist-3",
+          artist: "Cora",
+          artistName: "Cora",
+          albumId: "album-3",
+          albumTitle: "Aurora",
+          title: "Nuevo pulso",
+          genre: "Indie",
+          audioAssetId: "audio-3",
+          coverAssetId: null,
+          durationSeconds: 200,
+          status: "PUBLICADO",
+          createdAt: "2026-05-24T00:00:00Z",
+          updatedAt: "2026-05-24T00:00:00Z",
+          addedAt: "2026-05-24T00:00:00Z",
+        },
+      ],
+    };
+    jest.mocked(libraryService.getPlaylist)
+      .mockResolvedValueOnce(librarySummary.likedSongs as never)
+      .mockResolvedValueOnce(updatedLikedSongs as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="liked-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByText("Quedate");
+
+    act(() => {
+      emitLikedSongsChanged();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Nuevo pulso")).toBeInTheDocument();
+      expect(screen.getByText("3 canciones")).toBeInTheDocument();
     });
   });
 });

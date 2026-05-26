@@ -58,6 +58,7 @@ import { useAuth } from "./hooks/useAuth";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
 import { libraryService } from "./services/libraryService";
+import { emitLikedSongsChanged } from "./services/libraryEvents";
 import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
 import { authService } from "./services/authService";
 import { browserLogger } from "./utils/browserLogger";
@@ -1142,6 +1143,7 @@ export default function StreamButed() {
         isLiked: status.isLiked,
         isLoading: false,
       });
+      emitLikedSongsChanged();
       toast(status.isLiked ? "Agregada a tus me gusta" : "Quitada de tus me gusta");
     } catch (error) {
       browserLogger.error("Failed to toggle track like.", error);

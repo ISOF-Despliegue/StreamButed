@@ -8,9 +8,17 @@ import { InlineState } from '../../components/ui/InlineState';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { useSearchController } from '../../hooks/useSearchController';
+import { browserLogger } from '../../utils/browserLogger';
 import { libraryService } from '../../services/libraryService';
+import {
+  emitPlaylistCreated,
+  emitPlaylistDeleted,
+  emitPlaylistUpdated,
+  subscribeToLibraryEvents,
+} from '../../services/libraryEvents';
 import { getAssetUrl, getUploadFileHelperText, mediaService } from '../../services/mediaService';
 import { routes } from '../../routes/appRoutes';
+import { toPlaylistSummary } from '../../utils/libraryEventPayloads';
 import { getTrackIdentifier } from '../../utils/playbackQueue';
 import { includesSearchTerm } from '../../utils/searchText';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
@@ -18,12 +26,12 @@ import { toUserFacingMessage } from '../../utils/userFacingMessages';
 const PLAYLIST_NAME_MAX_LENGTH = 20;
 const PLAYLIST_IMAGE_HELPER = `JPG, PNG o WEBP - maximo 5 MB. ${getUploadFileHelperText('portada-01.png')}`;
 
-function getErrorMessage(error) {
+function getErrorMessage(error, fallback = 'No se pudo completar la solicitud.') {
   if (error instanceof Error) {
     return toUserFacingMessage(error.message);
   }
 
-  return 'No se pudo cargar la biblioteca.';
+  return fallback;
 }
 
 function toPlayableTrack(track) {
@@ -54,7 +62,7 @@ function PlaylistSummaryCard({ playlist, onOpen, onDelete }) {
         <div>
           <div className="library-playlist-title">{playlist.name}</div>
           <div className="library-playlist-meta">
-            {playlist.trackCount} {playlist.trackCount === 1 ? 'cancion' : 'canciones'}
+            {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
           </div>
         </div>
       </button>
@@ -78,6 +86,12 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   const [playlistCoverPreviewUrl, setPlaylistCoverPreviewUrl] = useState('');
   const [playlistToDelete, setPlaylistToDelete] = useState(null);
 
+  const resetCreateDialog = useCallback(() => {
+    setIsCreateDialogOpen(false);
+    setPlaylistName('');
+    setPlaylistCoverFile(null);
+  }, []);
+
   const loadLibrary = useCallback(async () => {
     setIsLoading(true);
     setError('');
@@ -85,15 +99,86 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
     try {
       setLibrary(await libraryService.getLibrary());
     } catch (err) {
-      setError(getErrorMessage(err));
+      setError(getErrorMessage(err, 'No se pudo cargar la biblioteca.'));
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  const refreshLikedSongs = useCallback(async () => {
+    try {
+      const likedSongs = await libraryService.getLikedSongs();
+      setLibrary((current) => (current ? { ...current, likedSongs } : current));
+    } catch (error) {
+      browserLogger.warn('Failed to refresh liked songs library section.', error);
     }
   }, []);
 
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary]);
+
+  useEffect(() => (
+    subscribeToLibraryEvents((event) => {
+      if (event.type === 'liked-songs-changed') {
+        void refreshLikedSongs();
+        return;
+      }
+
+      if (event.type === 'playlist-created') {
+        setLibrary((current) => (
+          current
+            ? { ...current, playlists: [...current.playlists, event.playlist] }
+            : current
+        ));
+        return;
+      }
+
+      if (event.type === 'playlist-deleted') {
+        setLibrary((current) => (
+          current
+            ? {
+              ...current,
+              playlists: current.playlists.filter((playlist) => playlist.playlistId !== event.playlistId),
+            }
+            : current
+        ));
+        return;
+      }
+
+      if (event.type === 'playlist-updated' && event.playlist) {
+        if (event.playlist.isSystem) {
+          const likedSongsSummary = toPlaylistSummary(event.playlist);
+          setLibrary((current) => (
+            current && likedSongsSummary
+              ? {
+                ...current,
+                likedSongs: {
+                  ...current.likedSongs,
+                  ...likedSongsSummary,
+                },
+              }
+              : current
+          ));
+          return;
+        }
+
+        const playlistSummary = toPlaylistSummary(event.playlist);
+        setLibrary((current) => (
+          current && playlistSummary
+            ? {
+              ...current,
+              playlists: current.playlists.map((playlist) => (
+                playlist.playlistId === playlistSummary.playlistId
+                  ? { ...playlist, ...playlistSummary }
+                  : playlist
+              )),
+            }
+            : current
+        ));
+      }
+    })
+  ), [refreshLikedSongs]);
 
   useEffect(() => {
     if (!playlistCoverFile) {
@@ -112,23 +197,30 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   const createPlaylist = async () => {
     const name = playlistName.trim();
     if (!name || isCreating) return;
+    if (library?.playlists?.some((playlist) => playlist.name === name)) {
+      resetCreateDialog();
+      toast('Ya existe una playlist con ese nombre.');
+      return;
+    }
 
     setIsCreating(true);
     try {
       const coverUpload = playlistCoverFile
         ? await mediaService.uploadPlaylistCover(playlistCoverFile)
         : null;
-      await libraryService.createPlaylist({
+      const createdPlaylist = await libraryService.createPlaylist({
         name,
         coverAssetId: coverUpload?.assetId ?? null,
       });
-      setPlaylistName('');
-      setPlaylistCoverFile(null);
-      setIsCreateDialogOpen(false);
+      const createdPlaylistSummary = toPlaylistSummary(createdPlaylist);
+      if (createdPlaylistSummary) {
+        emitPlaylistCreated(createdPlaylistSummary);
+      }
+      resetCreateDialog();
       toast('Playlist creada');
-      await loadLibrary();
     } catch (err) {
-      toast(getErrorMessage(err));
+      resetCreateDialog();
+      toast(getErrorMessage(err, 'No se pudo crear la playlist.'));
     } finally {
       setIsCreating(false);
     }
@@ -142,9 +234,9 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
     setIsUpdatingLikedCover(true);
     try {
       const upload = await mediaService.uploadPlaylistCover(file);
-      await libraryService.updatePlaylist(library.likedSongs.playlistId, { coverAssetId: upload.assetId });
+      const updatedLikedSongs = await libraryService.updatePlaylist(library.likedSongs.playlistId, { coverAssetId: upload.assetId });
+      emitPlaylistUpdated(updatedLikedSongs);
       toast('Portada actualizada');
-      await loadLibrary();
     } catch (err) {
       toast(getErrorMessage(err));
     } finally {
@@ -157,11 +249,12 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
 
     try {
       await libraryService.deletePlaylist(playlistToDelete.playlistId);
+      emitPlaylistDeleted(playlistToDelete.playlistId);
       toast('Playlist eliminada');
       setPlaylistToDelete(null);
-      await loadLibrary();
     } catch (err) {
-      toast(getErrorMessage(err));
+      setPlaylistToDelete(null);
+      toast(getErrorMessage(err, 'No se pudo eliminar la playlist.'));
     }
   };
 
@@ -193,7 +286,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
                 <div className="album-hero-type">Playlist</div>
                 <div className="library-liked-title">Canciones que te gustan</div>
                 <div className="library-liked-meta">
-                  {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'cancion guardada' : 'canciones guardadas'}
+                  {likedSongs.trackCount} {likedSongs.trackCount === 1 ? 'canción guardada' : 'canciones guardadas'}
                 </div>
               </div>
             </button>
@@ -255,9 +348,7 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
         onConfirm={createPlaylist}
         onCancel={() => {
           if (isCreating) return;
-          setIsCreateDialogOpen(false);
-          setPlaylistName('');
-          setPlaylistCoverFile(null);
+          resetCreateDialog();
         }}
       >
         <div className="form-group">
@@ -314,23 +405,55 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   const [error, setError] = useState('');
   const [playlistTrackSearchTerm, setPlaylistTrackSearchTerm] = useState('');
 
-  const loadPlaylist = useCallback(async () => {
+  const loadPlaylist = useCallback(async ({ silent = false } = {}) => {
     if (!playlistId) return;
 
-    setIsLoading(true);
-    setError('');
+    if (!silent) {
+      setIsLoading(true);
+      setError('');
+    }
     try {
       setPlaylist(await libraryService.getPlaylist(playlistId));
     } catch (err) {
-      setError(getErrorMessage(err));
+      if (silent) {
+        browserLogger.warn(`Failed to silently refresh playlist ${playlistId}.`, err);
+      } else {
+        setError(getErrorMessage(err, 'No se pudo cargar la playlist.'));
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, [playlistId]);
 
   useEffect(() => {
     void loadPlaylist();
   }, [loadPlaylist]);
+
+  useEffect(() => (
+    subscribeToLibraryEvents((event) => {
+      if (event.type === 'liked-songs-changed' && playlist?.isSystem) {
+        void loadPlaylist({ silent: true });
+        return;
+      }
+
+      if (event.type === 'playlist-updated' && event.playlist?.playlistId === playlistId) {
+        if (Array.isArray(event.playlist.tracks)) {
+          setPlaylist(event.playlist);
+          return;
+        }
+
+        setPlaylist((current) => (current ? { ...current, ...event.playlist } : current));
+        return;
+      }
+
+      if (event.type === 'playlist-deleted' && event.playlistId === playlistId) {
+        setPlaylist(null);
+        setError('Esta playlist ya no está disponible.');
+      }
+    })
+  ), [loadPlaylist, playlist?.isSystem, playlistId]);
 
   const playlistTrackSearchController = useSearchController({
     onClear: useCallback(() => setPlaylistTrackSearchTerm(''), []),
@@ -343,10 +466,12 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
     setIsAddingCurrent(true);
     try {
-      setPlaylist(await libraryService.addTrackToPlaylist(playlistId, trackId));
-      toast('Cancion agregada a la playlist');
+      const updatedPlaylist = await libraryService.addTrackToPlaylist(playlistId, trackId);
+      setPlaylist(updatedPlaylist);
+      emitPlaylistUpdated(updatedPlaylist);
+      toast('Canción agregada a la playlist');
     } catch (err) {
-      toast(getErrorMessage(err));
+      toast(getErrorMessage(err, 'No se pudo agregar la canción a la playlist.'));
     } finally {
       setIsAddingCurrent(false);
     }
@@ -356,10 +481,12 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     if (!playlistId) return;
 
     try {
-      setPlaylist(await libraryService.removeTrackFromPlaylist(playlistId, trackId));
-      toast('Cancion quitada de la playlist');
+      const updatedPlaylist = await libraryService.removeTrackFromPlaylist(playlistId, trackId);
+      setPlaylist(updatedPlaylist);
+      emitPlaylistUpdated(updatedPlaylist);
+      toast('Canción quitada de la playlist');
     } catch (err) {
-      toast(getErrorMessage(err));
+      toast(getErrorMessage(err, 'No se pudo quitar la canción de la playlist.'));
     }
   };
 
@@ -373,9 +500,10 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       const upload = await mediaService.uploadPlaylistCover(file);
       const updated = await libraryService.updatePlaylist(playlistId, { coverAssetId: upload.assetId });
       setPlaylist(current => (current ? { ...current, coverAssetId: updated.coverAssetId } : current));
+      emitPlaylistUpdated(updated);
       toast('Portada actualizada');
     } catch (err) {
-      toast(getErrorMessage(err));
+      toast(getErrorMessage(err, 'No se pudo actualizar la portada de la playlist.'));
     } finally {
       setIsUpdatingCover(false);
     }
@@ -421,7 +549,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           <div>
             <div className="page-title">{playlist.name}</div>
             <div className="page-subtitle">
-              {playlist.trackCount} {playlist.trackCount === 1 ? 'cancion' : 'canciones'}
+              {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
             </div>
           </div>
         </div>
@@ -462,7 +590,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           title={isSystemPlaylist ? 'Aun no has dado me gusta a canciones' : 'Playlist vacia'}
           message={isSystemPlaylist
             ? 'Usa el corazon del reproductor para guardarlas aqui.'
-            : 'Reproduce una cancion y agregala desde este detalle.'}
+            : 'Reproduce una canción y agrégala desde este detalle.'}
         />
       ) : (
         <>

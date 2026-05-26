@@ -362,6 +362,7 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
       setTrackToRetire(null);
       await loadTracks();
     } catch (err) {
+      setTrackToRetire(null);
       toast(getErrorMessage(err));
     } finally {
       setIsRetiringTrack(false);
@@ -504,6 +505,7 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
       setAlbumToRetire(null);
       await loadAlbums();
     } catch (err) {
+      setAlbumToRetire(null);
       toast(getErrorMessage(err));
     } finally {
       setIsRetiringAlbum(false);
@@ -757,6 +759,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         onUploadAlbumConsumed?.();
       }
     } catch (err) {
+      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
@@ -940,6 +943,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
       onTrackCreated?.(createdTrack);
       toast('Canción agregada al álbum');
     } catch (err) {
+      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
