@@ -110,7 +110,7 @@ export function toUserFacingMessage(message: string | null | undefined): string 
   }
 
   if (normalized.includes("access denied") || normalized.includes("forbidden")) {
-    return "No tienes permisos para esta accion.";
+    return "No tienes permisos para esta acción.";
   }
 
   if (
