@@ -100,7 +100,9 @@ export function TrackLibraryActions({
       toast?.('Canción agregada a la playlist');
       setIsPlaylistMenuOpen(false);
     } catch (error) {
-      toast?.(toUserFacingMessage(error instanceof Error ? error.message : 'No se pudo agregar la canción.'));
+      toast?.(toUserFacingMessage(
+        error instanceof Error ? error.message : 'No se pudo agregar la canción a la playlist.'
+      ));
     } finally {
       setIsAddingToPlaylist(false);
     }

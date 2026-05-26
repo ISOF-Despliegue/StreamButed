@@ -163,6 +163,47 @@ describe("LibraryPage", () => {
     expect(toast).toHaveBeenCalledWith("Playlist creada");
   });
 
+  it("rejects creating a playlist with an exact duplicate name before sending the request", async () => {
+    const user = userEvent.setup();
+    const toast = jest.fn();
+    jest.mocked(libraryService.getLibrary).mockResolvedValue({
+      ...librarySummary,
+      playlists: [
+        {
+          playlistId: "playlist-1",
+          name: "playlist",
+          coverAssetId: null,
+          isSystem: false,
+          systemKey: null,
+          trackCount: 0,
+          createdAt: "2026-05-24T00:00:00Z",
+          updatedAt: "2026-05-24T00:00:00Z",
+        },
+      ],
+    } as never);
+
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={toast}
+      />
+    );
+
+    await screen.findByText("playlist");
+    await user.click(screen.getByRole("button", { name: "Crear playlist" }));
+
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Nombre de playlist"), "playlist");
+    await user.click(within(dialog).getByRole("button", { name: "Crear" }));
+
+    expect(libraryService.createPlaylist).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Ya existe una playlist con ese nombre.");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("opens liked songs from the cover/title area without rendering the detail on the landing view", async () => {
     const user = userEvent.setup();
 
