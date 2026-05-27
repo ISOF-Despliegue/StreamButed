@@ -3,7 +3,12 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { LibraryPage, PlaylistDetailPage } from "./LibraryPage";
-import { emitLikedSongsChanged } from "../../services/libraryEvents";
+import {
+  emitLikedSongsChanged,
+  emitPlaylistCreated,
+  emitPlaylistDeleted,
+  emitPlaylistUpdated,
+} from "../../services/libraryEvents";
 import { libraryService } from "../../services/libraryService";
 import { mediaService } from "../../services/mediaService";
 
@@ -87,6 +92,35 @@ const librarySummary = {
     ],
   },
   playlists: [],
+};
+
+const privatePlaylist = {
+  playlistId: "playlist-1",
+  name: "Road mix",
+  coverAssetId: null,
+  isSystem: false,
+  systemKey: null,
+  trackCount: 2,
+  createdAt: "2026-05-24T00:00:00Z",
+  updatedAt: "2026-05-24T00:00:00Z",
+  tracks: librarySummary.likedSongs.tracks,
+};
+
+const currentTrack = {
+  trackId: "track-3",
+  artistId: "artist-3",
+  artist: "Cora",
+  artistName: "Cora",
+  albumId: "album-3",
+  albumTitle: "Aurora",
+  title: "Nuevo pulso",
+  genre: "Indie",
+  audioAssetId: "audio-3",
+  coverAssetId: null,
+  durationSeconds: 200,
+  status: "PUBLICADO",
+  createdAt: "2026-05-24T00:00:00Z",
+  updatedAt: "2026-05-24T00:00:00Z",
 };
 
 describe("LibraryPage", () => {
@@ -305,5 +339,354 @@ describe("LibraryPage", () => {
       expect(screen.getByText("Nuevo pulso")).toBeInTheDocument();
       expect(screen.getByText("3 canciones")).toBeInTheDocument();
     });
+  });
+
+  it("plays liked songs from the library hero", async () => {
+    const user = userEvent.setup();
+    const onPlayCollectionTrack = jest.fn();
+
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={onPlayCollectionTrack}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByText("Canciones que te gustan");
+    await user.click(screen.getByTitle("Reproducir canciones que te gustan"));
+
+    expect(onPlayCollectionTrack).toHaveBeenCalledWith(
+      expect.objectContaining({ trackId: "track-1" }),
+      expect.any(Array),
+      "liked-1"
+    );
+  });
+
+  it("updates the liked songs cover from the library hero", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.updatePlaylist).mockResolvedValue({
+      ...librarySummary.likedSongs,
+      coverAssetId: "cover-1",
+    } as never);
+
+    const { container } = renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByText("Canciones que te gustan");
+    await user.upload(
+      container.querySelector(".library-cover-action input") as HTMLInputElement,
+      new File(["cover"], "liked-cover.png", { type: "image/png" })
+    );
+
+    await waitFor(() =>
+      expect(libraryService.updatePlaylist).toHaveBeenCalledWith("liked-1", {
+        coverAssetId: "cover-1",
+      })
+    );
+  });
+
+  it("shows upload errors when the liked songs cover cannot be updated", async () => {
+    const user = userEvent.setup();
+    const toast = jest.fn();
+    jest.mocked(mediaService.uploadPlaylistCover).mockRejectedValueOnce(new Error("forbidden"));
+
+    const { container } = renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={toast}
+      />
+    );
+
+    await screen.findByText("Canciones que te gustan");
+    await user.upload(
+      container.querySelector(".library-cover-action input") as HTMLInputElement,
+      new File(["cover"], "liked-cover.png", { type: "image/png" })
+    );
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("No tienes permisos para esta acción."));
+  });
+
+  it("adds playlists created from another library surface", async () => {
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByText("Canciones que te gustan");
+
+    act(() => {
+      emitPlaylistCreated(privatePlaylist);
+    });
+
+    expect(await screen.findByText("Road mix")).toBeInTheDocument();
+  });
+
+  it("removes playlists deleted from another library surface", async () => {
+    jest.mocked(libraryService.getLibrary).mockResolvedValue({
+      ...librarySummary,
+      playlists: [privatePlaylist],
+    } as never);
+
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByText("Road mix");
+
+    act(() => {
+      emitPlaylistDeleted("playlist-1");
+    });
+
+    await waitFor(() => expect(screen.queryByText("Road mix")).not.toBeInTheDocument());
+  });
+
+  it("renames playlists updated from another library surface", async () => {
+    jest.mocked(libraryService.getLibrary).mockResolvedValue({
+      ...librarySummary,
+      playlists: [privatePlaylist],
+    } as never);
+
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByText("Road mix");
+
+    act(() => {
+      emitPlaylistUpdated({ ...privatePlaylist, name: "Road mix renovada" });
+    });
+
+    expect(await screen.findByText("Road mix renovada")).toBeInTheDocument();
+  });
+
+  it("updates the liked songs summary when the system playlist event arrives", async () => {
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByText("Canciones que te gustan");
+
+    act(() => {
+      emitPlaylistUpdated({ ...librarySummary.likedSongs, trackCount: 1, tracks: undefined } as never);
+    });
+
+    expect(await screen.findByText(/1 canci/)).toBeInTheDocument();
+  });
+
+  it("deletes private playlists after confirmation", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.getLibrary).mockResolvedValue({
+      ...librarySummary,
+      playlists: [privatePlaylist],
+    } as never);
+
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByText("Road mix");
+    await user.click(screen.getByTitle("Eliminar playlist"));
+    await user.click(screen.getByRole("button", { name: "Eliminar" }));
+
+    await waitFor(() => expect(libraryService.deletePlaylist).toHaveBeenCalledWith("playlist-1"));
+  });
+
+  it("shows a load error when the library request fails", async () => {
+    jest.mocked(libraryService.getLibrary).mockRejectedValueOnce(new Error("not found"));
+
+    renderWithRouter(
+      <LibraryPage
+        currentTrack={null}
+        onPlayCollectionTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    expect(await screen.findByText("No se pudo cargar tu biblioteca")).toBeInTheDocument();
+  });
+
+  it("adds the current track to a private playlist detail", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+    jest.mocked(libraryService.addTrackToPlaylist).mockResolvedValue({
+      ...privatePlaylist,
+      tracks: [...privatePlaylist.tracks, currentTrack],
+    } as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={currentTrack}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Agregar pista actual" }));
+
+    await waitFor(() => expect(libraryService.addTrackToPlaylist).toHaveBeenCalledWith("playlist-1", "track-3"));
+  });
+
+  it("removes tracks from a private playlist detail", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+    jest.mocked(libraryService.removeTrackFromPlaylist).mockResolvedValue({
+      ...privatePlaylist,
+      tracks: [privatePlaylist.tracks[1]],
+    } as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByRole("button", { name: "Reproducir" });
+    await user.click(screen.getAllByRole("button", { name: "Quitar" })[0]);
+
+    await waitFor(() =>
+      expect(libraryService.removeTrackFromPlaylist).toHaveBeenCalledWith("playlist-1", "track-1")
+    );
+  });
+
+  it("updates private playlist covers from the detail page", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+    jest.mocked(libraryService.updatePlaylist).mockResolvedValue({
+      ...privatePlaylist,
+      coverAssetId: "cover-1",
+    } as never);
+
+    const { container } = renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByRole("button", { name: "Reproducir" });
+    await user.upload(
+      container.querySelector('.my-tracks-header input[type="file"]') as HTMLInputElement,
+      new File(["cover"], "cover.png", { type: "image/png" })
+    );
+
+    await waitFor(() =>
+      expect(libraryService.updatePlaylist).toHaveBeenCalledWith("playlist-1", { coverAssetId: "cover-1" })
+    );
+  });
+
+  it("shows an empty search result inside private playlist details", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByRole("button", { name: "Reproducir" });
+    await user.type(screen.getByPlaceholderText("Buscar en esta playlist"), "zzzz{enter}");
+
+    expect(await screen.findByText("Sin canciones para esta busqueda")).toBeInTheDocument();
+  });
+
+  it("marks playlist details unavailable when the playlist is deleted elsewhere", async () => {
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByRole("button", { name: "Reproducir" });
+
+    act(() => {
+      emitPlaylistDeleted("playlist-1");
+    });
+
+    expect(await screen.findByText("Esta playlist ya no está disponible.")).toBeInTheDocument();
+  });
+
+  it("replaces playlist detail tracks when a full update event arrives", async () => {
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await screen.findByRole("button", { name: "Reproducir" });
+
+    act(() => {
+      emitPlaylistUpdated({ ...privatePlaylist, tracks: [currentTrack] });
+    });
+
+    expect(await screen.findByText("Nuevo pulso")).toBeInTheDocument();
+  });
+
+  it("plays private playlist tracks from the detail page", async () => {
+    const user = userEvent.setup();
+    const onPlayTrack = jest.fn();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={onPlayTrack}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Reproducir" }));
+
+    expect(onPlayTrack).toHaveBeenCalledWith(
+      expect.objectContaining({ trackId: "track-1" }),
+      expect.any(Array),
+      "playlist-1"
+    );
   });
 });

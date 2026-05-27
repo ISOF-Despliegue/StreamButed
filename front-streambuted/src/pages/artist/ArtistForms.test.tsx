@@ -26,8 +26,11 @@ jest.mock("../../services/catalogService", () => ({
     createTrackInAlbum: jest.fn(),
     updateTrack: jest.fn(),
     createAlbum: jest.fn(),
+    getAlbum: jest.fn(),
     listArtistAlbums: jest.fn(),
     listArtistTracks: jest.fn(),
+    retireAlbum: jest.fn(),
+    retireTrack: jest.fn(),
   },
 }));
 
@@ -88,11 +91,22 @@ describe("artist upload forms", () => {
     jest.mocked(catalogService.createTrack).mockResolvedValue({} as never);
     jest.mocked(catalogService.createTrackInAlbum).mockResolvedValue({} as never);
     jest.mocked(catalogService.updateTrack).mockResolvedValue({} as never);
+    jest.mocked(catalogService.retireAlbum).mockResolvedValue({} as never);
+    jest.mocked(catalogService.retireTrack).mockResolvedValue({} as never);
     jest.mocked(analyticsService.getArtistSummary).mockResolvedValue(artistAnalyticsSummary as never);
     jest.mocked(catalogService.createAlbum).mockResolvedValue({
       albumId: "album-1",
       artistId: "artist-1",
       title: "Album",
+      coverAssetId: "album-cover-1",
+      status: "PUBLICADO",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    } as never);
+    jest.mocked(catalogService.getAlbum).mockResolvedValue({
+      albumId: "album-1",
+      artistId: "artist-1",
+      title: "Locked Album",
       coverAssetId: "album-cover-1",
       status: "PUBLICADO",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -123,6 +137,20 @@ describe("artist upload forms", () => {
     expect(await screen.findByText("Reproducciones totales")).toBeInTheDocument();
     expect(screen.getAllByText("Luna")).not.toHaveLength(0);
     expect(analyticsService.getArtistSummary).toHaveBeenCalledWith("artist-1");
+  });
+
+  it("keeps artist dashboard usable when analytics are temporarily unavailable", async () => {
+    jest.mocked(analyticsService.getArtistSummary).mockRejectedValueOnce(new Error("analytics down"));
+
+    renderWithRouter(
+      <ArtistDashboardPage
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        user={{ id: "artist-1", username: "Ada" }}
+      />
+    );
+
+    expect(await screen.findByText(/temporalmente/)).toBeInTheDocument();
   });
 
   it("uploads media before creating a track", async () => {
@@ -165,6 +193,16 @@ describe("artist upload forms", () => {
     expect(mediaService.uploadAudio).not.toHaveBeenCalled();
   });
 
+  it("shows an audio format error before uploading an unsupported file", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const { container } = render(<UploadSinglePage toast={jest.fn()} user={{ id: "artist-1" }} />);
+    const [audioInput] = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
+
+    await user.upload(audioInput, new File(["audio"], "song.exe", { type: "" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Formato de audio inv");
+  });
+
   it("shows one required-fields error when publishing a track with missing fields", async () => {
     const user = userEvent.setup();
 
@@ -175,6 +213,28 @@ describe("artist upload forms", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Todos los campos son obligatorios.");
     expect(mediaService.uploadAudio).not.toHaveBeenCalled();
     expect(catalogService.createTrack).not.toHaveBeenCalled();
+  });
+
+  it("adds a new upload directly to the locked album route", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <UploadSinglePage
+        initialAlbumId="album-1"
+        onUploadAlbumConsumed={jest.fn()}
+        toast={jest.fn()}
+        user={{ id: "artist-1" }}
+      />
+    );
+    const [audioInput, coverInput] = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
+
+    await screen.findByText("Locked Album");
+    await user.type(screen.getByLabelText(/T.tulo de la canci.n/i), "Album Song");
+    await user.type(screen.getByPlaceholderText(/Rock, Pop/i), "Rock");
+    await user.upload(audioInput, new File(["audio"], "album-song.mp3", { type: "audio/mpeg" }));
+    await user.upload(coverInput, new File(["cover"], "album-cover.png", { type: "image/png" }));
+    await user.click(screen.getByRole("button", { name: /Publicar canci.n/ }));
+
+    await waitFor(() => expect(catalogService.createTrackInAlbum).toHaveBeenCalledWith("album-1", expect.any(Object)));
   });
 
   it("uploads cover before creating an album", async () => {
@@ -224,18 +284,18 @@ describe("artist upload forms", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     } as never);
-    jest.mocked(catalogService.createTrackInAlbum).mockResolvedValue({
-      trackId: "track-1",
+    jest.mocked(catalogService.createTrackInAlbum).mockImplementation(async (_albumId, request) => ({
+      trackId: request.title === "Cancion 2" ? "track-2" : "track-1",
       artistId: "artist-1",
       albumId: "album-1",
-      title: "Cancion 1",
-      genre: "Rock",
+      title: request.title,
+      genre: request.genre,
       audioAssetId: "audio-1",
       coverAssetId: "track-cover-1",
       status: "PUBLICADO",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never);
+    } as never));
 
     const { container } = render(<CreateAlbumPage toast={jest.fn()} />);
     const albumCoverInput = container.querySelector('input[type="file"]') as HTMLInputElement;
@@ -494,6 +554,106 @@ describe("artist upload forms", () => {
       "src",
       "http://localhost/api/v1/media/assets/album-cover-1"
     );
+  });
+
+  it("retires a track after the artist confirms the action", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.listArtistTracks).mockResolvedValue([
+      {
+        trackId: "track-1",
+        artistId: "artist-1",
+        albumId: null,
+        title: "Song",
+        genre: "Rock",
+        audioAssetId: "audio-1",
+        coverAssetId: null,
+        status: "PUBLICADO",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+    renderWithRouter(<MyTracksPage user={{ id: "artist-1" }} toast={jest.fn()} />);
+
+    await user.click(await screen.findByRole("button", { name: "Retirar" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Retirar pista" }));
+
+    await waitFor(() => expect(catalogService.retireTrack).toHaveBeenCalledWith("track-1"));
+  });
+
+  it("retires an album after the artist confirms the action", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([
+      {
+        albumId: "album-1",
+        artistId: "artist-1",
+        title: "Album",
+        coverAssetId: null,
+        status: "PUBLICADO",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+    renderWithRouter(<MyAlbumsPage user={{ id: "artist-1" }} toast={jest.fn()} />);
+
+    await user.click(await screen.findByRole("button", { name: "Retirar" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Retirar/ }));
+
+    await waitFor(() => expect(catalogService.retireAlbum).toHaveBeenCalledWith("album-1"));
+  });
+
+  it("shows the empty analytics breakdown when an artist has no tracked songs", async () => {
+    jest.mocked(analyticsService.getArtistSummary).mockResolvedValueOnce({
+      ...artistAnalyticsSummary,
+      topTracks: [],
+      tracks: [],
+    } as never);
+
+    render(<ArtistAnalyticsPage user={{ id: "artist-1", username: "Ada" }} />);
+
+    expect(await screen.findByText(/Sin canciones/)).toBeInTheDocument();
+  });
+
+  it("shows a safe empty state when editing a missing track", () => {
+    render(
+      <EditTrackPage
+        track={{} as never}
+        user={{} as never}
+        onCancel={jest.fn()}
+        onDone={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/Selecciona una pista real/)).toBeInTheDocument();
+  });
+
+  it("retires a track from the edit page after confirmation", async () => {
+    const user = userEvent.setup();
+    render(
+      <EditTrackPage
+        track={{
+          trackId: "track-1",
+          artistId: "artist-1",
+          albumId: null,
+          title: "Song",
+          genre: "Rock",
+          audioAssetId: "audio-1",
+          coverAssetId: null,
+          status: "PUBLICADO",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        }}
+        user={{ id: "artist-1" }}
+        onCancel={jest.fn()}
+        onDone={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Retirar pista" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Retirar pista" }));
+
+    await waitFor(() => expect(catalogService.retireTrack).toHaveBeenCalledWith("track-1"));
   });
 
   it("plays tracks from artist track table and opens albums without embedded track playback", async () => {

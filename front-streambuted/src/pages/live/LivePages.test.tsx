@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { apiRequest } from "../../services/apiClient";
 import { ArtistLiveRoom } from "./ArtistLiveRoom";
@@ -68,6 +68,10 @@ describe("live pages", () => {
     jest.mocked(apiRequest).mockResolvedValue([liveRoom] as never);
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("keeps the artist start action disabled until a title is entered", () => {
     render(<ArtistLiveRoom />);
 
@@ -111,6 +115,68 @@ describe("live pages", () => {
     await user.click(screen.getByRole("button", { name: "Salir" }));
 
     expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries playback muted when the browser blocks autoplay with audio", async () => {
+    jest
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockRejectedValueOnce(new Error("blocked"))
+      .mockResolvedValueOnce(undefined);
+    mockUseListenerLive.mockReturnValue({ ...listenerControls, remoteStream: {} as MediaStream });
+
+    render(<ListenerLiveRoom roomId="room-1" />);
+
+    expect(await screen.findByRole("button", { name: "Activar audio" })).toBeInTheDocument();
+  });
+
+  it("toggles listener audio from the playback controls", async () => {
+    const user = userEvent.setup();
+    jest.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    render(<ListenerLiveRoom roomId="room-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Silenciar" }));
+
+    expect(screen.getByRole("button", { name: "Activar audio" })).toBeInTheDocument();
+  });
+
+  it("blocks the browser context menu on the live video", () => {
+    const { container } = render(<ListenerLiveRoom roomId="room-1" />);
+
+    const video = container.querySelector("video") as HTMLVideoElement;
+
+    expect(fireEvent.contextMenu(video)).toBe(false);
+  });
+
+  it("shows the idle connection state while the listener room prepares", () => {
+    mockUseListenerLive.mockReturnValue({ ...listenerControls, state: "idle" });
+
+    render(<ListenerLiveRoom roomId="room-1" />);
+
+    expect(screen.getByText("Conectando")).toBeInTheDocument();
+  });
+
+  it("shows the joining state while the listener enters the concert", () => {
+    mockUseListenerLive.mockReturnValue({ ...listenerControls, state: "joining" });
+
+    render(<ListenerLiveRoom roomId="room-1" />);
+
+    expect(screen.getByText("Cargando")).toBeInTheDocument();
+  });
+
+  it("lets the listener return when the concert ends", () => {
+    mockUseListenerLive.mockReturnValue({ ...listenerControls, state: "ended" });
+
+    render(<ListenerLiveRoom roomId="room-1" />);
+
+    expect(screen.getByRole("button", { name: "Volver" })).toBeInTheDocument();
+  });
+
+  it("shows the live connection error from the hook", () => {
+    mockUseListenerLive.mockReturnValue({ ...listenerControls, state: "error", error: "Sin se\u00f1al" });
+
+    render(<ListenerLiveRoom roomId="room-1" />);
+
+    expect(screen.getByText("Sin se\u00f1al")).toBeInTheDocument();
   });
 
   it("renders live rooms returned by the API", async () => {

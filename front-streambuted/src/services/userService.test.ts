@@ -92,6 +92,30 @@ describe("userService", () => {
     });
   });
 
+  it("keeps listener roles normalized when the backend sends mixed casing", async () => {
+    jest.mocked(apiRequest).mockResolvedValueOnce({
+      id: "user-1",
+      email: "listener@example.com",
+      username: "listener",
+      bio: "Bio",
+      profileImageAssetId: "profile-1",
+      role: "LISTENER",
+      isActive: true,
+      passwordSetupRequired: false,
+      createdAt: "2026-05-06T00:00:00Z",
+    } as never);
+
+    await expect(userService.getCurrentUser()).resolves.toMatchObject({ role: "listener" });
+  });
+
+  it("uses default pagination for admin user lists", async () => {
+    jest.mocked(apiRequest).mockResolvedValueOnce({ data: [], pagination: { total: 0 } } as never);
+
+    await userService.listAdminUsers();
+
+    expect(apiRequest).toHaveBeenCalledWith("/users/admin?limit=50&offset=0");
+  });
+
   it("calls admin moderation endpoints", async () => {
     jest.mocked(apiRequest)
       .mockResolvedValueOnce({ data: [], pagination: { total: 0 } } as never)
