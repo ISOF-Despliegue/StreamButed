@@ -1,8 +1,10 @@
 import {
   buildAlbumQueue,
   buildSingleQueue,
+  getQueueOrder,
   getNextQueueTrackId,
   getPreviousQueueTrackId,
+  getTrackIdentifier,
 } from "./playbackQueue";
 
 const tracks = [
@@ -39,5 +41,21 @@ describe("playbackQueue", () => {
 
     expect(getNextQueueTrackId(queue, false)).toBe("track-3");
     expect(getPreviousQueueTrackId({ ...queue, currentTrackId: "track-1" })).toBe("track-3");
+  });
+
+  it("falls back to the id field when a trackId is not present", () => {
+    expect(getTrackIdentifier({ id: "legacy-track" })).toBe("legacy-track");
+  });
+
+  it("drops empty identifiers from the queue order", () => {
+    expect(getQueueOrder({ ...buildAlbumQueue("album-1", [{ id: "" }, tracks[0]], tracks[0]) })).toEqual(["track-1"]);
+  });
+
+  it("does not advance when the queue has no current track", () => {
+    expect(getNextQueueTrackId({ ...buildSingleQueue(tracks[0]), currentTrackId: null }, true)).toBeNull();
+  });
+
+  it("does not advance when the current track is absent from the order", () => {
+    expect(getNextQueueTrackId({ ...buildAlbumQueue("album-1", tracks, tracks[0]), currentTrackId: "missing" }, false)).toBeNull();
   });
 });

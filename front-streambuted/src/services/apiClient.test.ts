@@ -3,8 +3,14 @@ import { authTokenStore } from "./authTokenStore";
 
 describe("apiClient", () => {
   beforeEach(() => {
+    jest.restoreAllMocks();
     authTokenStore.clear();
     globalThis.fetch = jest.fn();
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it("builds gateway URLs on /api/v1", () => {
@@ -191,6 +197,164 @@ describe("apiClient", () => {
       details: expect.objectContaining({
         message: "Acceso denegado al recurso final.",
       }),
+    });
+  });
+
+  it("returns undefined for successful responses without JSON bodies", async () => {
+    (globalThis.fetch as jest.Mock).mockResolvedValue(
+      new Response(null, { status: 204 })
+    );
+
+    await expect(apiRequest("/playback/progress/track-1")).resolves.toBeUndefined();
+  });
+
+  it("returns undefined for successful non-json responses", async () => {
+    (globalThis.fetch as jest.Mock).mockResolvedValue(
+      new Response("ok", {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      })
+    );
+
+    await expect(apiRequest("/health")).resolves.toBeUndefined();
+  });
+
+  it("wraps network failures before receiving an API response", async () => {
+    (globalThis.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    await expect(apiRequest("/users/me")).rejects.toThrow("No se pudo conectar");
+  });
+
+  it("wraps network failures after a successful token refresh", async () => {
+    authTokenStore.setAccessToken("old-token");
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Expirado" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accessToken: "new-token" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockRejectedValueOnce(new Error("offline"));
+
+    await expect(apiRequest("/users/me")).rejects.toThrow("No se pudo conectar");
+  });
+
+  it("clears the token when refresh responds without a usable access token", async () => {
+    authTokenStore.setAccessToken("old-token");
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Expirado" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accessToken: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+    await expect(apiRequest("/users/me")).rejects.toMatchObject({
+      message: "La sesión expiró. Inicia sesión nuevamente.",
+    });
+  });
+
+  it("clears the token when the refresh request fails", async () => {
+    authTokenStore.setAccessToken("old-token");
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Expirado" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockRejectedValueOnce(new Error("offline-refresh"));
+
+    await expect(apiRequest("/users/me")).rejects.toMatchObject({
+      message: "La sesión expiró. Inicia sesión nuevamente.",
+    });
+  });
+
+  it("uses text error bodies when the API does not send JSON", async () => {
+    (globalThis.fetch as jest.Mock).mockResolvedValue(
+      new Response("Service down", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      })
+    );
+
+    await expect(apiRequest("/catalog/search")).rejects.toMatchObject({
+      details: { message: "Service down" },
+    });
+  });
+
+  it("falls back cleanly when JSON error parsing fails", async () => {
+    (globalThis.fetch as jest.Mock).mockResolvedValue(
+      new Response("{bad json", {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(apiRequest("/catalog/search")).rejects.toMatchObject({
+      message: "No se pudo completar la solicitud.",
+    });
+  });
+
+  it("falls back cleanly when text error parsing fails", async () => {
+    (globalThis.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers({ "Content-Type": "text/plain" }),
+      text: jest.fn().mockRejectedValue(new Error("cannot read body")),
+    });
+
+    await expect(apiRequest("/catalog/search")).rejects.toMatchObject({
+      details: null,
+    });
+  });
+
+  it("terminates the session from nested banned error details", async () => {
+    const sessionTerminatedListener = jest.fn();
+    window.addEventListener(SESSION_TERMINATED_EVENT, sessionTerminatedListener);
+    authTokenStore.setAccessToken("listener-token");
+    (globalThis.fetch as jest.Mock).mockResolvedValue(
+      new Response(JSON.stringify({
+        message: "Cuenta suspendida",
+        details: {
+          error: "AccountBannedException",
+          code: "ACCOUNT_BANNED",
+          message: "Cuenta suspendida desde details",
+        },
+      }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(apiRequest("/users/me")).rejects.toMatchObject({
+      details: expect.objectContaining({ code: "ACCOUNT_BANNED" }),
+    });
+    window.removeEventListener(SESSION_TERMINATED_EVENT, sessionTerminatedListener);
+  });
+
+  it("uses backend error fields when no message is provided", async () => {
+    (globalThis.fetch as jest.Mock).mockResolvedValue(
+      new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(apiRequest("/admin")).rejects.toMatchObject({
+      message: "No tienes permisos para esta acción.",
     });
   });
 });

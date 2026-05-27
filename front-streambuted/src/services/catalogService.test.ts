@@ -35,6 +35,33 @@ describe("catalogService", () => {
     );
   });
 
+  it("uses default pagination when catalog search omits limits", async () => {
+    await catalogService.searchCatalog({ searchTerm: "night" });
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://localhost/api/v1/catalog/search?searchTerm=night&limit=20&offset=0",
+      expect.any(Object)
+    );
+  });
+
+  it("includes retired admin tracks by default", async () => {
+    await catalogService.listAdminTracks();
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://localhost/api/v1/catalog/admin/tracks?includeRetired=true&limit=50&offset=0",
+      expect.any(Object)
+    );
+  });
+
+  it("can explicitly exclude retired admin albums", async () => {
+    await catalogService.listAdminAlbums({ includeRetired: false });
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://localhost/api/v1/catalog/admin/albums?includeRetired=false&limit=50&offset=0",
+      expect.any(Object)
+    );
+  });
+
   it("calls admin catalog list and retire endpoints", async () => {
     await catalogService.listAdminTracks({ includeRetired: false, limit: 25, offset: 50 });
     await catalogService.listAdminAlbums({ limit: 10, offset: 5 });
