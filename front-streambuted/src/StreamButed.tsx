@@ -485,8 +485,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       } catch (error) {
         browserLogger.error("Audio playback failed to resume with a refreshed stream session.", error);
         setIsPlaying(false);
-        setPlaybackError("No se pudo continuar la reproducciÃ³n.");
-        toast("No se pudo continuar la reproducciÃ³n.");
+        setPlaybackError("No se pudo continuar la reproducción.");
+        toast("No se pudo continuar la reproducción.");
       } finally {
         if (getTrackIdentifier(currentTrackRef.current) === trackId) {
           setIsPlaybackLoading(false);
