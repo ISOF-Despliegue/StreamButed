@@ -1,10 +1,13 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import StreamButed from "./StreamButed";
 import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
+import { playbackService } from "./services/playbackService";
+import { catalogService } from "./services/catalogService";
 
 const mockedUseAuth = jest.fn();
+const mockedBottomPlayer = jest.fn();
 
 jest.mock("./hooks/useAuth", () => ({
   useAuth: () => mockedUseAuth(),
@@ -15,7 +18,10 @@ jest.mock("./components/ui/Toast", () => ({
 }));
 
 jest.mock("./components/layout/BottomPlayer", () => ({
-  BottomPlayer: () => null,
+  BottomPlayer: (props: { onTogglePlay: () => Promise<void> | void }) => {
+    mockedBottomPlayer(props);
+    return <button onClick={() => void props.onTogglePlay()}>Toggle playback</button>;
+  },
 }));
 
 jest.mock("./components/layout/ExpandedPlayer", () => ({
@@ -124,9 +130,38 @@ const baseAuthValue = {
   logout: jest.fn(),
 };
 
+const mockedPlaybackService = playbackService as jest.Mocked<typeof playbackService>;
+const mockedCatalogService = catalogService as jest.Mocked<typeof catalogService>;
+
 describe("StreamButed suspension dialog", () => {
+  let pausedState = true;
+  let pausedSpy: jest.SpyInstance<boolean, []>;
+  let playSpy: jest.SpyInstance<Promise<void>, []>;
+  let pauseSpy: jest.SpyInstance<void, []>;
+  let loadSpy: jest.SpyInstance<void, []>;
+
   beforeEach(() => {
     mockedUseAuth.mockReturnValue(baseAuthValue);
+    mockedBottomPlayer.mockClear();
+    jest.clearAllMocks();
+    pausedState = true;
+
+    pausedSpy = jest.spyOn(HTMLMediaElement.prototype, "paused", "get").mockImplementation(() => pausedState);
+    playSpy = jest.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function play() {
+      pausedState = false;
+      return Promise.resolve();
+    });
+    pauseSpy = jest.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(function pause() {
+      pausedState = true;
+    });
+    loadSpy = jest.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    pausedSpy.mockRestore();
+    playSpy.mockRestore();
+    pauseSpy.mockRestore();
+    loadSpy.mockRestore();
   });
 
   it("shows a popup when a suspended-account forced logout event is received", async () => {
@@ -138,13 +173,15 @@ describe("StreamButed suspension dialog", () => {
       </MemoryRouter>
     );
 
-    window.dispatchEvent(
-      new CustomEvent(SESSION_TERMINATED_EVENT, {
-        detail: {
-          code: "ACCOUNT_BANNED",
-        },
-      })
-    );
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent(SESSION_TERMINATED_EVENT, {
+          detail: {
+            code: "ACCOUNT_BANNED",
+          },
+        })
+      );
+    });
 
     expect(await screen.findByText("Cuenta suspendida")).toBeInTheDocument();
     expect(
@@ -177,5 +214,105 @@ describe("StreamButed suspension dialog", () => {
     );
 
     expect(screen.getByText("Artist Discography")).toBeInTheDocument();
+  });
+
+  it("refreshes the stream session when resuming a paused track", async () => {
+    const user = userEvent.setup();
+
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: {
+        id: "listener-1",
+        email: "listener@example.com",
+        role: "listener",
+        username: "Listener",
+      },
+    });
+
+    mockedPlaybackService.getLatestPlaybackProgress.mockResolvedValue({
+      trackId: "track-1",
+      positionSeconds: 24,
+      durationSeconds: 180,
+      isPlaying: false,
+    });
+    mockedPlaybackService.getPlaybackProgress.mockResolvedValue({
+      trackId: "track-1",
+      positionSeconds: 24,
+      durationSeconds: 180,
+      isPlaying: false,
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedPlaybackService.createStreamSession
+      .mockResolvedValueOnce({
+        trackId: "track-1",
+        streamUrl: "https://example.com/stream?playbackToken=expired-token",
+        expiresAt: "2026-05-26T12:05:00.000Z",
+      })
+      .mockResolvedValueOnce({
+        trackId: "track-1",
+        streamUrl: "https://example.com/stream?playbackToken=fresh-token",
+        expiresAt: "2026-05-26T12:10:00.000Z",
+      });
+    mockedPlaybackService.updatePlaybackProgress.mockResolvedValue({
+      trackId: "track-1",
+      positionSeconds: 42,
+      durationSeconds: 180,
+      isPlaying: true,
+      updatedAt: "2026-05-26T12:01:00.000Z",
+    });
+    mockedCatalogService.getTrack.mockResolvedValue({
+      id: "track-1",
+      title: "Song 1",
+      artistId: "artist-1",
+      albumId: null,
+      genre: "Pop",
+      audioAssetId: "asset-1",
+      coverAssetId: "cover-1",
+      durationSeconds: 180,
+      createdAt: "2026-05-26T12:00:00.000Z",
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedCatalogService.getArtist.mockResolvedValue({
+      id: "artist-1",
+      displayName: "Artist 1",
+      bio: null,
+      avatarAssetId: null,
+      createdAt: "2026-05-26T12:00:00.000Z",
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/home"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole("button", { name: "Toggle playback" });
+
+    await user.click(screen.getByRole("button", { name: "Toggle playback" }));
+
+    await waitFor(() => {
+      expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledTimes(1);
+    });
+
+    const audio = document.querySelector("audio") as HTMLAudioElement;
+    audio.currentTime = 42;
+
+    await user.click(screen.getByRole("button", { name: "Toggle playback" }));
+
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Toggle playback" }));
+
+    await waitFor(() => {
+      expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledTimes(2);
+    });
+
+    expect(audio.src).toContain("fresh-token");
+    expect(mockedPlaybackService.updatePlaybackProgress).toHaveBeenLastCalledWith("track-1", {
+      positionSeconds: 42,
+      durationSeconds: 180,
+      isPlaying: true,
+    });
   });
 });
