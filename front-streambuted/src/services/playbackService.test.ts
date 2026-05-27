@@ -38,4 +38,48 @@ describe("playbackService", () => {
       "http://localhost/api/v1/playback/tracks/track-1/stream?playbackToken=token"
     );
   });
+
+  it("reads and saves playback progress through gateway endpoints", async () => {
+    authTokenStore.setAccessToken("access-token");
+
+    await playbackService.getPlaybackProgress("track-1");
+    await playbackService.getLatestPlaybackProgress();
+    await playbackService.updatePlaybackProgress("track-1", {
+      positionSeconds: 12,
+      durationSeconds: 180,
+      isPlaying: true,
+    });
+
+    expect((globalThis.fetch as jest.Mock).mock.calls.map(([url, options]) => [
+      url,
+      options.method,
+      options.body,
+    ])).toEqual([
+      ["http://localhost/api/v1/playback/progress/track-1", undefined, undefined],
+      ["http://localhost/api/v1/playback/progress/latest", undefined, undefined],
+      [
+        "http://localhost/api/v1/playback/progress/track-1",
+        "PUT",
+        JSON.stringify({ positionSeconds: 12, durationSeconds: 180, isPlaying: true }),
+      ],
+    ]);
+  });
+
+  it("rethrows failures from every playback operation", async () => {
+    (globalThis.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const results = await Promise.allSettled([
+      playbackService.createStreamSession("track-1"),
+      playbackService.getPlaybackProgress("track-1"),
+      playbackService.getLatestPlaybackProgress(),
+      playbackService.updatePlaybackProgress("track-1", { positionSeconds: 0, durationSeconds: null }),
+    ]);
+
+    expect(results.map((result) => result.status)).toEqual([
+      "rejected",
+      "rejected",
+      "rejected",
+      "rejected",
+    ]);
+  });
 });
