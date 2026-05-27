@@ -74,7 +74,7 @@ import {
 } from "./utils/playbackQueue";
 import type { CurrentUser } from "./types/user.types";
 import type { Track } from "./types/catalog.types";
-import type { PlaybackProgressRequest } from "./types/playback.types";
+import type { PlaybackProgressRequest, StreamSessionResponse } from "./types/playback.types";
 
 type AppTrack = Track & {
   id?: string;
@@ -102,6 +102,8 @@ type CurrentTrackLikeState = {
   isLiked: boolean;
   isLoading: boolean;
 };
+
+type PlaybackSessionCache = StreamSessionResponse;
 
 const EMPTY_QUEUE: PlaybackQueueState = {
   sourceType: "single",
@@ -195,6 +197,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
     const pendingSeekSecondsRef = useRef<number | null>(null);
     const lastProgressSyncAtRef = useRef(0);
     const playbackRequestIdRef = useRef(0);
+    const playbackSessionRef = useRef<PlaybackSessionCache | null>(null);
+    const pendingResumeRecoveryTrackIdRef = useRef<string | null>(null);
 
     useEffect(() => {
       currentTrackRef.current = currentTrack;
@@ -209,6 +213,24 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         audioRef.current.volume = volume / 100;
       }
     }, [volume]);
+
+    const cachePlaybackSession = useCallback((session: PlaybackSessionCache) => {
+      playbackSessionRef.current = session;
+    }, []);
+
+    const canReusePlaybackSession = useCallback((trackId: string) => {
+      const session = playbackSessionRef.current;
+      if (!session || session.trackId !== trackId || !session.streamUrl) {
+        return false;
+      }
+
+      const expiresAt = Date.parse(session.expiresAt);
+      if (Number.isNaN(expiresAt)) {
+        return false;
+      }
+
+      return expiresAt - Date.now() > 5000;
+    }, []);
 
     const saveCurrentProgress = useCallback(async (isPlayingOverride?: boolean | null) => {
       const track = currentTrackRef.current;
@@ -285,6 +307,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           pendingSeekSecondsRef.current = restorePosition > 0 ? restorePosition : null;
           setPlaybackPositionSeconds(restorePosition);
           setPlaybackDurationSeconds(progress.durationSeconds ?? 0);
+          cachePlaybackSession(session);
+          pendingResumeRecoveryTrackIdRef.current = null;
           audio.src = session.streamUrl;
           audio.volume = volume / 100;
           audio.load();
@@ -320,7 +344,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           }
         }
       },
-      [saveCurrentProgress, setCurrentTrack, setPlaybackQueue, toast, volume]
+      [cachePlaybackSession, saveCurrentProgress, setCurrentTrack, setPlaybackQueue, toast, volume]
     );
 
     const playSingleTrack = useCallback(
@@ -446,7 +470,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       void playQueueTrackById(previousTrackId);
     }, [isPlaying, playQueueTrackById, restartCurrentTrack]);
 
-    const resumePlayback = useCallback(async () => {
+    const resumePlayback = useCallback(async (forceRefresh = false) => {
       const audio = audioRef.current;
       const track = currentTrackRef.current;
       const trackId = getTrackIdentifier(track);
@@ -460,6 +484,23 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       setIsPlaybackLoading(true);
 
       try {
+        if (!forceRefresh && canReusePlaybackSession(trackId)) {
+          pendingResumeRecoveryTrackIdRef.current = trackId;
+          audio.volume = volume / 100;
+          lastProgressSyncAtRef.current = Date.now();
+          await audio.play();
+          setIsPlaying(true);
+          await playbackService.updatePlaybackProgress(trackId, {
+            positionSeconds: resumePosition,
+            durationSeconds: Number.isFinite(audio.duration)
+              ? audio.duration
+              : (playbackDurationSeconds || null),
+            isPlaying: true,
+          });
+          pendingResumeRecoveryTrackIdRef.current = null;
+          return;
+        }
+
         const session = await playbackService.createStreamSession(trackId);
 
         if (getTrackIdentifier(currentTrackRef.current) !== trackId) {
@@ -468,6 +509,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 
         pendingSeekSecondsRef.current = resumePosition > 0 ? resumePosition : null;
         setPlaybackPositionSeconds(resumePosition);
+        cachePlaybackSession(session);
+        pendingResumeRecoveryTrackIdRef.current = null;
         audio.src = session.streamUrl;
         audio.volume = volume / 100;
         audio.load();
@@ -483,8 +526,16 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           isPlaying: true,
         });
       } catch (error) {
+        if (!forceRefresh && getTrackIdentifier(currentTrackRef.current) === trackId) {
+          browserLogger.warn("Cached playback resume failed. Refreshing stream session.", error);
+          pendingResumeRecoveryTrackIdRef.current = null;
+          await resumePlayback(true);
+          return;
+        }
+
         browserLogger.error("Audio playback failed to resume with a refreshed stream session.", error);
         setIsPlaying(false);
+        pendingResumeRecoveryTrackIdRef.current = null;
         setPlaybackError("No se pudo continuar la reproducción.");
         toast("No se pudo continuar la reproducción.");
       } finally {
@@ -492,7 +543,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           setIsPlaybackLoading(false);
         }
       }
-    }, [playbackDurationSeconds, toast, volume]);
+    }, [cachePlaybackSession, canReusePlaybackSession, playbackDurationSeconds, toast, volume]);
 
     const handleToggleShuffle = useCallback(() => {
       setPlaybackQueue((queue) => {
@@ -635,7 +686,14 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
     }, [playQueueTrackById, repeatEnabled, restartCurrentTrack, saveCurrentProgress]);
 
     const handleAudioError = useCallback(() => {
-      if (!currentTrackRef.current) {
+      const trackId = getTrackIdentifier(currentTrackRef.current);
+      if (!trackId) {
+        return;
+      }
+
+      if (pendingResumeRecoveryTrackIdRef.current === trackId) {
+        pendingResumeRecoveryTrackIdRef.current = null;
+        void resumePlayback(true);
         return;
       }
 
@@ -643,7 +701,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       setIsPlaybackLoading(false);
       setPlaybackError("No se pudo reproducir el audio.");
       toast("No se pudo reproducir el audio.");
-    }, [toast]);
+    }, [resumePlayback, toast]);
 
     const reset = useCallback(() => {
       if (audioRef.current) {
@@ -651,6 +709,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         audioRef.current.removeAttribute("src");
         audioRef.current.load();
       }
+      playbackSessionRef.current = null;
+      pendingResumeRecoveryTrackIdRef.current = null;
       setIsPlaying(false);
       setIsPlaybackLoading(false);
       setPlaybackPositionSeconds(0);
@@ -1629,4 +1689,3 @@ export default function StreamButed() {
     </div>
   );
 }
-

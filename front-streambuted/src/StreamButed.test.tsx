@@ -216,7 +216,101 @@ describe("StreamButed suspension dialog", () => {
     expect(screen.getByText("Artist Discography")).toBeInTheDocument();
   });
 
-  it("refreshes the stream session when resuming a paused track", async () => {
+  it("reuses the cached stream session when resuming a paused track before expiry", async () => {
+    const user = userEvent.setup();
+
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: {
+        id: "listener-1",
+        email: "listener@example.com",
+        role: "listener",
+        username: "Listener",
+      },
+    });
+
+    mockedPlaybackService.getLatestPlaybackProgress.mockResolvedValue({
+      trackId: "track-1",
+      positionSeconds: 24,
+      durationSeconds: 180,
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedPlaybackService.getPlaybackProgress.mockResolvedValue({
+      trackId: "track-1",
+      positionSeconds: 24,
+      durationSeconds: 180,
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedPlaybackService.createStreamSession
+      .mockResolvedValueOnce({
+        trackId: "track-1",
+        streamUrl: "https://example.com/stream?playbackToken=cached-token",
+        expiresAt: "2099-05-26T12:05:00.000Z",
+      });
+    mockedPlaybackService.updatePlaybackProgress.mockResolvedValue({
+      trackId: "track-1",
+      positionSeconds: 42,
+      durationSeconds: 180,
+      updatedAt: "2026-05-26T12:01:00.000Z",
+    });
+    mockedCatalogService.getTrack.mockResolvedValue({
+      trackId: "track-1",
+      title: "Song 1",
+      artistId: "artist-1",
+      albumId: null,
+      genre: "Pop",
+      audioAssetId: "asset-1",
+      coverAssetId: "cover-1",
+      durationSeconds: 180,
+      status: "PUBLICADO",
+      createdAt: "2026-05-26T12:00:00.000Z",
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedCatalogService.getArtist.mockResolvedValue({
+      artistId: "artist-1",
+      displayName: "Artist 1",
+      biography: null,
+      profileImageAssetId: null,
+      createdAt: "2026-05-26T12:00:00.000Z",
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/home"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole("button", { name: "Toggle playback" });
+
+    await user.click(screen.getByRole("button", { name: "Toggle playback" }));
+
+    await waitFor(() => {
+      expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledTimes(1);
+    });
+
+    const audio = document.querySelector("audio") as HTMLAudioElement;
+    audio.currentTime = 42;
+
+    await user.click(screen.getByRole("button", { name: "Toggle playback" }));
+
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Toggle playback" }));
+
+    await waitFor(() => {
+      expect(mockedPlaybackService.updatePlaybackProgress).toHaveBeenLastCalledWith("track-1", {
+        positionSeconds: 42,
+        durationSeconds: 180,
+        isPlaying: true,
+      });
+    });
+
+    expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledTimes(1);
+    expect(audio.src).toContain("cached-token");
+  });
+
+  it("refreshes the stream session when resuming with an expired playback token", async () => {
     const user = userEvent.setup();
 
     mockedUseAuth.mockReturnValue({
@@ -245,12 +339,12 @@ describe("StreamButed suspension dialog", () => {
       .mockResolvedValueOnce({
         trackId: "track-1",
         streamUrl: "https://example.com/stream?playbackToken=expired-token",
-        expiresAt: "2026-05-26T12:05:00.000Z",
+        expiresAt: "2000-05-26T12:05:00.000Z",
       })
       .mockResolvedValueOnce({
         trackId: "track-1",
         streamUrl: "https://example.com/stream?playbackToken=fresh-token",
-        expiresAt: "2026-05-26T12:10:00.000Z",
+        expiresAt: "2099-05-26T12:10:00.000Z",
       });
     mockedPlaybackService.updatePlaybackProgress.mockResolvedValue({
       trackId: "track-1",
