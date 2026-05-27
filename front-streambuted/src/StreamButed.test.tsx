@@ -5,6 +5,7 @@ import StreamButed from "./StreamButed";
 import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
+import { libraryService } from "./services/libraryService";
 
 const mockedUseAuth = jest.fn();
 const mockedBottomPlayer = jest.fn();
@@ -18,14 +19,39 @@ jest.mock("./components/ui/Toast", () => ({
 }));
 
 jest.mock("./components/layout/BottomPlayer", () => ({
-  BottomPlayer: (props: { onTogglePlay: () => Promise<void> | void }) => {
+  BottomPlayer: (props: {
+    onExpand: () => void;
+    onTogglePlay: () => Promise<void> | void;
+    onSeek: (positionSeconds: number) => void;
+    onNext: () => void;
+    onPrevious: () => void;
+    onToggleShuffle: () => void;
+    onToggleRepeat: () => void;
+    onToggleLike: () => void;
+  }) => {
     mockedBottomPlayer(props);
-    return <button onClick={() => void props.onTogglePlay()}>Toggle playback</button>;
+    return (
+      <div>
+        <button onClick={() => void props.onTogglePlay()}>Toggle playback</button>
+        <button onClick={props.onExpand}>Expand player</button>
+        <button onClick={() => props.onSeek(30)}>Seek playback</button>
+        <button onClick={props.onNext}>Next track</button>
+        <button onClick={props.onPrevious}>Previous track</button>
+        <button onClick={props.onToggleShuffle}>Shuffle album</button>
+        <button onClick={props.onToggleRepeat}>Repeat track</button>
+        <button onClick={props.onToggleLike}>Like current track</button>
+      </div>
+    );
   },
 }));
 
 jest.mock("./components/layout/ExpandedPlayer", () => ({
-  ExpandedPlayer: () => null,
+  ExpandedPlayer: ({ onClose }: { onClose: () => void }) => (
+    <div>
+      Expanded Player
+      <button onClick={onClose}>Close expanded player</button>
+    </div>
+  ),
 }));
 
 jest.mock("./components/layout/Sidebars", () => ({
@@ -34,35 +60,194 @@ jest.mock("./components/layout/Sidebars", () => ({
 }));
 
 jest.mock("./pages/AuthPages", () => ({
-  LoginPage: () => <div>Login Page</div>,
-  RegisterPage: () => <div>Register Page</div>,
-  GooglePasswordSetupPage: () => <div>Google Password Setup</div>,
+  LoginPage: ({
+    onLogin,
+    onRegister,
+    onGoogleLogin,
+    externalError,
+  }: {
+    onLogin: (credentials: { email: string; password: string }) => Promise<void>;
+    onRegister: () => void;
+    onGoogleLogin: () => void;
+    externalError?: string;
+  }) => (
+    <div>
+      Login Page
+      <span>{externalError}</span>
+      <button onClick={() => void onLogin({ email: "ada@example.com", password: "Password1!" })}>
+        Submit login
+      </button>
+      <button onClick={onRegister}>Open register</button>
+      <button onClick={onGoogleLogin}>Google login</button>
+    </div>
+  ),
+  RegisterPage: ({
+    onStartRegistration,
+    onVerifyRegistration,
+    onResendCode,
+    onCancelVerification,
+    onBack,
+    externalError,
+  }: {
+    onStartRegistration: (request: { email: string; username: string; password: string }) => Promise<unknown>;
+    onVerifyRegistration: (request: { attemptId: string; email: string; code: string }) => Promise<void>;
+    onResendCode: (request: { attemptId: string; email: string }) => Promise<unknown>;
+    onCancelVerification: (request: { attemptId: string; email: string }) => Promise<unknown>;
+    onBack: () => void;
+    externalError?: string;
+  }) => (
+    <div>
+      Register Page
+      <span>{externalError}</span>
+      <button
+        onClick={() =>
+          void onStartRegistration({
+            email: "ada@example.com",
+            username: "ada",
+            password: "Password1!",
+          })
+        }
+      >
+        Start registration
+      </button>
+      <button
+        onClick={() =>
+          void onVerifyRegistration({
+            attemptId: "attempt-1",
+            email: "ada@example.com",
+            code: "123456",
+          })
+        }
+      >
+        Verify registration
+      </button>
+      <button onClick={() => void onResendCode({ attemptId: "attempt-1", email: "ada@example.com" })}>
+        Resend code
+      </button>
+      <button onClick={() => void onCancelVerification({ attemptId: "attempt-1", email: "ada@example.com" })}>
+        Cancel registration
+      </button>
+      <button onClick={onBack}>Back to login</button>
+    </div>
+  ),
+  GooglePasswordSetupPage: ({
+    email,
+    onSubmit,
+    externalError,
+  }: {
+    email: string;
+    onSubmit: (request: { password: string; confirmPassword: string }) => Promise<void>;
+    externalError?: string;
+  }) => (
+    <div>
+      Google Password Setup {email}
+      <span>{externalError}</span>
+      <button onClick={() => void onSubmit({ password: "Password1!", confirmPassword: "Password1!" })}>
+        Complete setup
+      </button>
+    </div>
+  ),
 }));
 
 jest.mock("./pages/SettingsPage", () => ({
-  SettingsPage: () => <div>Settings</div>,
+  SettingsPage: ({ onRequestLogout }: { onRequestLogout: () => void }) => (
+    <div>
+      Settings
+      <button onClick={onRequestLogout}>Request logout</button>
+    </div>
+  ),
 }));
 
 jest.mock("./pages/listener/ListenerPages", () => ({
   HomePage: () => <div>Home</div>,
-  SearchPage: () => <div>Search</div>,
-  AlbumDetailPage: () => <div>Album Detail</div>,
-  ArtistProfilePage: () => <div>Artist Profile</div>,
-  ArtistDiscographyPage: () => <div>Artist Discography</div>,
+  SearchPage: ({ onPlayTrack }: { onPlayTrack: (track: Record<string, unknown>) => void }) => (
+    <div>
+      Search
+      <button
+        onClick={() =>
+          onPlayTrack({
+            trackId: "track-1",
+            title: "Song 1",
+            artistId: "artist-1",
+            albumId: null,
+            genre: "Pop",
+            audioAssetId: "asset-1",
+            coverAssetId: "cover-1",
+            durationSeconds: 180,
+            status: "PUBLICADO",
+            createdAt: "2026-05-26T12:00:00.000Z",
+            updatedAt: "2026-05-26T12:00:00.000Z",
+          })
+        }
+      >
+        Play search result
+      </button>
+    </div>
+  ),
+  AlbumDetailPage: ({ albumId }: { albumId: string }) => <div>Album Detail {albumId}</div>,
+  ArtistProfilePage: ({ artistId }: { artistId: string }) => <div>Artist Profile {artistId}</div>,
+  ArtistDiscographyPage: ({ artistId }: { artistId: string }) => <div>Artist Discography {artistId}</div>,
 }));
 
 jest.mock("./pages/listener/LibraryPage", () => ({
   LibraryPage: () => <div>Library</div>,
-  PlaylistDetailPage: () => <div>Playlist Detail</div>,
+  PlaylistDetailPage: ({ playlistId }: { playlistId: string }) => <div>Playlist Detail {playlistId}</div>,
 }));
 
 jest.mock("./pages/artist/ArtistPages", () => ({
   ArtistDashboardPage: () => <div>Artist Dashboard</div>,
   MyTracksPage: () => <div>My Tracks</div>,
-  MyAlbumsPage: () => <div>My Albums</div>,
-  UploadSinglePage: () => <div>Upload Single</div>,
+  MyAlbumsPage: ({ onPlayTrack }: { onPlayTrack: (track: Record<string, unknown>, tracks: Array<Record<string, unknown>>, albumId: string) => void }) => {
+    const tracks = [
+      {
+        trackId: "track-1",
+        title: "Song 1",
+        artistId: "artist-1",
+        albumId: "album-1",
+        genre: "Pop",
+        audioAssetId: "asset-1",
+        coverAssetId: "cover-1",
+        durationSeconds: 180,
+        status: "PUBLICADO",
+        createdAt: "2026-05-26T12:00:00.000Z",
+        updatedAt: "2026-05-26T12:00:00.000Z",
+      },
+      {
+        trackId: "track-2",
+        title: "Song 2",
+        artistId: "artist-1",
+        albumId: "album-1",
+        genre: "Pop",
+        audioAssetId: "asset-2",
+        coverAssetId: "cover-2",
+        durationSeconds: 200,
+        status: "PUBLICADO",
+        createdAt: "2026-05-26T12:00:00.000Z",
+        updatedAt: "2026-05-26T12:00:00.000Z",
+      },
+    ];
+
+    return (
+      <div>
+        My Albums
+        <button onClick={() => onPlayTrack(tracks[0], tracks, "album-1")}>Play album track</button>
+      </div>
+    );
+  },
+  UploadSinglePage: ({
+    initialAlbumId,
+    onUploadAlbumConsumed,
+  }: {
+    initialAlbumId: string | null;
+    onUploadAlbumConsumed: () => void;
+  }) => (
+    <div>
+      Upload Single {initialAlbumId}
+      <button onClick={onUploadAlbumConsumed}>Consume upload album</button>
+    </div>
+  ),
   CreateAlbumPage: () => <div>Create Album</div>,
-  EditTrackPage: () => <div>Edit Track</div>,
+  EditTrackPage: ({ track }: { track: { title: string } }) => <div>Edit Track {track.title}</div>,
   ArtistAnalyticsPage: () => <div>Artist Analytics</div>,
 }));
 
@@ -77,11 +262,50 @@ jest.mock("./pages/live/ArtistLiveRoom", () => ({
 }));
 
 jest.mock("./pages/live/LiveConcertsPage", () => ({
-  LiveConcertsPage: () => <div>Live Concerts</div>,
+  LiveConcertsPage: ({
+    onJoinRoom,
+    onStartBroadcast,
+  }: {
+    onJoinRoom?: (room: { id: string; artistId: string; artistName: string; title: string; status: "LIVE" }) => void;
+    onStartBroadcast?: () => void;
+  }) => (
+    <div>
+      Live Concerts
+      <button
+        onClick={() =>
+          onJoinRoom?.({
+            id: "room-1",
+            artistId: "artist-1",
+            artistName: "Ada",
+            title: "Acoustic night",
+            status: "LIVE",
+          })
+        }
+      >
+        Join mocked live
+      </button>
+      <button onClick={onStartBroadcast}>Start mocked live</button>
+    </div>
+  ),
 }));
 
 jest.mock("./pages/live/ListenerLiveRoom", () => ({
-  ListenerLiveRoom: () => <div>Listener Live Room</div>,
+  ListenerLiveRoom: ({
+    roomId,
+    concertTitle,
+    artistName,
+    onLeave,
+  }: {
+    roomId: string;
+    concertTitle?: string;
+    artistName?: string;
+    onLeave?: () => void;
+  }) => (
+    <div>
+      Listener Live Room {roomId} {concertTitle} {artistName}
+      <button onClick={onLeave}>Leave mocked live</button>
+    </div>
+  ),
 }));
 
 jest.mock("./routes/RoleRoute", () => ({
@@ -90,7 +314,12 @@ jest.mock("./routes/RoleRoute", () => ({
 
 jest.mock("./services/playbackService", () => ({
   playbackService: {
-    getLatestPlaybackProgress: jest.fn().mockResolvedValue({ trackId: null }),
+    getLatestPlaybackProgress: jest.fn().mockResolvedValue({
+      trackId: null,
+      positionSeconds: 0,
+      durationSeconds: null,
+      updatedAt: null,
+    }),
     getPlaybackProgress: jest.fn(),
     updatePlaybackProgress: jest.fn(),
     createStreamSession: jest.fn(),
@@ -106,7 +335,7 @@ jest.mock("./services/catalogService", () => ({
 
 jest.mock("./services/libraryService", () => ({
   libraryService: {
-    getTrackLikeStatus: jest.fn().mockResolvedValue({ isLiked: false }),
+    getTrackLikeStatus: jest.fn().mockResolvedValue({ trackId: "track-1", isLiked: false }),
     likeTrack: jest.fn(),
     unlikeTrack: jest.fn(),
   },
@@ -132,6 +361,42 @@ const baseAuthValue = {
 
 const mockedPlaybackService = playbackService as jest.Mocked<typeof playbackService>;
 const mockedCatalogService = catalogService as jest.Mocked<typeof catalogService>;
+const mockedLibraryService = libraryService as jest.Mocked<typeof libraryService>;
+
+function authenticatedUser(role: "listener" | "artist" | "admin" = "listener") {
+  return {
+    id: `${role}-1`,
+    email: `${role}@example.com`,
+    role,
+    username: role,
+  };
+}
+
+function arrangeSuccessfulPlayback() {
+  mockedPlaybackService.getLatestPlaybackProgress.mockResolvedValue({
+    trackId: null,
+    positionSeconds: 0,
+    durationSeconds: null,
+    updatedAt: null,
+  });
+  mockedPlaybackService.getPlaybackProgress.mockImplementation(async (requestedTrackId: string) => ({
+    trackId: requestedTrackId,
+    positionSeconds: 0,
+    durationSeconds: 180,
+    updatedAt: "2026-05-26T12:00:00.000Z",
+  }));
+  mockedPlaybackService.createStreamSession.mockImplementation(async (requestedTrackId: string) => ({
+    trackId: requestedTrackId,
+    streamUrl: `https://example.com/${requestedTrackId}?playbackToken=token-${requestedTrackId}`,
+    expiresAt: "2099-05-26T12:05:00.000Z",
+  }));
+  mockedPlaybackService.updatePlaybackProgress.mockImplementation(async (requestedTrackId: string, payload) => ({
+    trackId: requestedTrackId,
+    positionSeconds: payload.positionSeconds,
+    durationSeconds: payload.durationSeconds ?? 180,
+    updatedAt: "2026-05-26T12:00:00.000Z",
+  }));
+}
 
 describe("StreamButed suspension dialog", () => {
   let pausedState = true;
@@ -144,6 +409,53 @@ describe("StreamButed suspension dialog", () => {
     mockedUseAuth.mockReturnValue(baseAuthValue);
     mockedBottomPlayer.mockClear();
     jest.clearAllMocks();
+    mockedPlaybackService.getLatestPlaybackProgress.mockResolvedValue({
+      trackId: null,
+      positionSeconds: 0,
+      durationSeconds: null,
+      updatedAt: null,
+    });
+    mockedPlaybackService.getPlaybackProgress.mockResolvedValue({
+      trackId: "track-1",
+      positionSeconds: 0,
+      durationSeconds: 180,
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedPlaybackService.createStreamSession.mockResolvedValue({
+      trackId: "track-1",
+      streamUrl: "https://example.com/stream?playbackToken=default-token",
+      expiresAt: "2099-05-26T12:05:00.000Z",
+    });
+    mockedPlaybackService.updatePlaybackProgress.mockResolvedValue({
+      trackId: "track-1",
+      positionSeconds: 0,
+      durationSeconds: 180,
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedCatalogService.getArtist.mockResolvedValue({
+      artistId: "artist-1",
+      displayName: "Artist 1",
+      biography: null,
+      profileImageAssetId: null,
+      createdAt: "2026-05-26T12:00:00.000Z",
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedCatalogService.getTrack.mockResolvedValue({
+      trackId: "track-1",
+      title: "Song 1",
+      artistId: "artist-1",
+      albumId: null,
+      genre: "Pop",
+      audioAssetId: "asset-1",
+      coverAssetId: "cover-1",
+      durationSeconds: 180,
+      status: "PUBLICADO",
+      createdAt: "2026-05-26T12:00:00.000Z",
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+    mockedLibraryService.getTrackLikeStatus.mockResolvedValue({ trackId: "track-1", isLiked: false });
+    mockedLibraryService.likeTrack.mockResolvedValue({ trackId: "track-1", isLiked: true });
+    mockedLibraryService.unlikeTrack.mockResolvedValue({ trackId: "track-1", isLiked: false });
     pausedState = true;
 
     pausedSpy = jest.spyOn(HTMLMediaElement.prototype, "paused", "get").mockImplementation(() => pausedState);
@@ -213,7 +525,7 @@ describe("StreamButed suspension dialog", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("Artist Discography")).toBeInTheDocument();
+    expect(screen.getByText(/Artist Discography/)).toBeInTheDocument();
   });
 
   it("reuses the cached stream session when resuming a paused track before expiry", async () => {
@@ -407,5 +719,263 @@ describe("StreamButed suspension dialog", () => {
       durationSeconds: 180,
       isPlaying: true,
     });
+  });
+
+  it("shows the session loading screen while auth is being restored", () => {
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      isLoadingSession: true,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/login"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/Cargando/)).toBeInTheDocument();
+  });
+
+  it("delegates login submissions to the auth hook", async () => {
+    const user = userEvent.setup();
+    baseAuthValue.login.mockResolvedValueOnce(authenticatedUser("artist"));
+
+    render(
+      <MemoryRouter initialEntries={["/login"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit login" }));
+
+    await waitFor(() =>
+      expect(baseAuthValue.login).toHaveBeenCalledWith({
+        email: "ada@example.com",
+        password: "Password1!",
+      })
+    );
+  });
+
+  it("starts registration from the register route", async () => {
+    const user = userEvent.setup();
+    baseAuthValue.startRegistration.mockResolvedValueOnce({ attemptId: "attempt-1" });
+
+    render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Start registration" }));
+
+    await waitFor(() => expect(baseAuthValue.startRegistration).toHaveBeenCalledTimes(1));
+  });
+
+  it("verifies registration codes from the register route", async () => {
+    const user = userEvent.setup();
+    baseAuthValue.verifyRegistration.mockResolvedValueOnce(authenticatedUser("listener"));
+
+    render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Verify registration" }));
+
+    await waitFor(() => expect(baseAuthValue.verifyRegistration).toHaveBeenCalledTimes(1));
+  });
+
+  it("completes Google password setup for pending users", async () => {
+    const user = userEvent.setup();
+    baseAuthValue.completeGooglePasswordSetup.mockResolvedValueOnce(authenticatedUser("listener"));
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: {
+        ...authenticatedUser("listener"),
+        passwordSetupRequired: true,
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/auth/callback"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Complete setup" }));
+
+    await waitFor(() => expect(baseAuthValue.completeGooglePasswordSetup).toHaveBeenCalledTimes(1));
+  });
+
+  it("logs the user out after confirming the settings dialog", async () => {
+    const user = userEvent.setup();
+    baseAuthValue.logout.mockResolvedValueOnce(undefined);
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("listener"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Request logout" }));
+    await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+
+    await waitFor(() => expect(baseAuthValue.logout).toHaveBeenCalledTimes(1));
+  });
+
+  it("navigates listeners into the selected live room", async () => {
+    const user = userEvent.setup();
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("listener"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/lives"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Join mocked live" }));
+
+    expect(await screen.findByText(/Listener Live Room room-1 Acoustic night Ada/)).toBeInTheDocument();
+  });
+
+  it("navigates artists from the live listing to their broadcast room", async () => {
+    const user = userEvent.setup();
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("artist"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/lives"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Start mocked live" }));
+
+    expect(await screen.findByText("Artist Live Room")).toBeInTheDocument();
+  });
+
+  it("passes the upload album query parameter to the artist upload page", () => {
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("artist"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/artist/upload?albumId=album-1"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/Upload Single album-1/)).toBeInTheDocument();
+  });
+
+  it("loads the editable track before rendering the artist edit route", async () => {
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("artist"),
+    });
+    mockedCatalogService.getTrack.mockResolvedValueOnce({
+      trackId: "track-1",
+      title: "Editable song",
+      artistId: "artist-1",
+      albumId: null,
+      genre: "Pop",
+      audioAssetId: "asset-1",
+      coverAssetId: "cover-1",
+      durationSeconds: 180,
+      status: "PUBLICADO",
+      createdAt: "2026-05-26T12:00:00.000Z",
+      updatedAt: "2026-05-26T12:00:00.000Z",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/artist/tracks/track-1/edit"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Edit Track Editable song")).toBeInTheDocument();
+  });
+
+  it("starts playback from a listener search result", async () => {
+    const user = userEvent.setup();
+    arrangeSuccessfulPlayback();
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("listener"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/search"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Play search result" }));
+
+    await waitFor(() => expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledWith("track-1"));
+  });
+
+  it("likes the current track from the bottom player", async () => {
+    const user = userEvent.setup();
+    arrangeSuccessfulPlayback();
+    mockedLibraryService.getTrackLikeStatus.mockResolvedValue({ trackId: "track-1", isLiked: false });
+    mockedLibraryService.likeTrack.mockResolvedValue({ trackId: "track-1", isLiked: true });
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("listener"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/search"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Play search result" }));
+    await waitFor(() => {
+      const props = mockedBottomPlayer.mock.calls.at(-1)?.[0] as { isLikeLoading?: boolean };
+      if (props?.isLikeLoading) throw new Error("Like status still loading");
+    });
+    await user.click(screen.getByRole("button", { name: "Like current track" }));
+
+    await waitFor(() => expect(mockedLibraryService.likeTrack).toHaveBeenCalledWith("track-1"));
+  });
+
+  it("drives album queue controls from the bottom player", async () => {
+    const user = userEvent.setup();
+    arrangeSuccessfulPlayback();
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("artist"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/artist/albums"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Play album track" }));
+    await screen.findByRole("button", { name: "Next track" });
+    await user.click(screen.getByRole("button", { name: "Shuffle album" }));
+    await user.click(screen.getByRole("button", { name: "Repeat track" }));
+    await user.click(screen.getByRole("button", { name: "Seek playback" }));
+    await user.click(screen.getByRole("button", { name: "Next track" }));
+    await user.click(screen.getByRole("button", { name: "Previous track" }));
+    await user.click(screen.getByRole("button", { name: "Expand player" }));
+    await user.click(screen.getByRole("button", { name: "Close expanded player" }));
+
+    await waitFor(() => expect(mockedPlaybackService.createStreamSession).toHaveBeenCalled());
   });
 });

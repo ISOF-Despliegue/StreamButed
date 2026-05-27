@@ -41,6 +41,28 @@ describe("mediaService", () => {
     expect((options.body as FormData).get("usage")).toBe("PLAYLIST_COVER");
   });
 
+  it("uploads profile and catalog images with their expected targets", async () => {
+    await mediaService.uploadProfileImage(new File(["profile"], "profile.png", { type: "image/png" }));
+    await mediaService.uploadCatalogImage(
+      new File(["cover"], "cover.png", { type: "image/png" }),
+      "ALBUM_COVER"
+    );
+
+    expect((globalThis.fetch as jest.Mock).mock.calls.map(([url, options]) => [
+      url,
+      (options.body as FormData).get("usage"),
+    ])).toEqual([
+      ["http://localhost/api/v1/media/profile-image", null],
+      ["http://localhost/api/v1/media/images", "ALBUM_COVER"],
+    ]);
+  });
+
+  it("rejects missing profile image files before sending a request", () => {
+    expect(() => mediaService.uploadProfileImage(null as unknown as File)).toThrow(
+      "Selecciona una imagen de perfil."
+    );
+  });
+
   it("accepts audio files when the browser does not provide a MIME type", async () => {
     const file = new File(["audio"], "song.mp3", { type: "" });
 
