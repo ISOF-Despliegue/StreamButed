@@ -74,7 +74,7 @@ import {
 } from "./utils/playbackQueue";
 import type { CurrentUser } from "./types/user.types";
 import type { Track } from "./types/catalog.types";
-import type { PlaybackProgressRequest } from "./types/playback.types";
+import type { PlaybackProgressRequest, StreamSessionResponse } from "./types/playback.types";
 
 type AppTrack = Track & {
   id?: string;
@@ -103,11 +103,7 @@ type CurrentTrackLikeState = {
   isLoading: boolean;
 };
 
-type PlaybackSessionCache = {
-  trackId: string;
-  streamUrl: string;
-  expiresAt: string;
-};
+type PlaybackSessionCache = StreamSessionResponse;
 
 const EMPTY_QUEUE: PlaybackQueueState = {
   sourceType: "single",
@@ -147,7 +143,7 @@ function NotAvailableState({ title, message }: Readonly<{ title: string; message
     <div className="page-inner">
       <div className="page-title">{title}</div>
       <div className="empty-state">
-        <div className="empty-text">Esta secciÃ³n aÃºn no estÃ¡ disponible</div>
+        <div className="empty-text">Esta sección aún no está disponible</div>
         <div className="empty-sub">{message}</div>
       </div>
     </div>
@@ -273,7 +269,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       ) => {
         const trackId = getTrackIdentifier(track);
         if (!trackId) {
-          toast("La pista no tiene un identificador vÃ¡lido.");
+          toast("La pista no tiene un identificador válido.");
           return;
         }
 
@@ -339,8 +335,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         } catch (error) {
           browserLogger.error("Failed to start playback.", error);
           if (playbackRequestIdRef.current === requestId) {
-            setPlaybackError("No se pudo iniciar la reproducciÃ³n.");
-            toast("No se pudo iniciar la reproducciÃ³n de esta pista.");
+            setPlaybackError("No se pudo iniciar la reproducción.");
+            toast("No se pudo iniciar la reproducción de esta pista.");
           }
         } finally {
           if (playbackRequestIdRef.current === requestId) {
@@ -408,8 +404,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
             setIsPlaying(true);
           } catch (error) {
             browserLogger.error("Audio playback failed after restart.", error);
-            setPlaybackError("No se pudo continuar la reproducciÃ³n.");
-            toast("No se pudo continuar la reproducciÃ³n.");
+            setPlaybackError("No se pudo continuar la reproducción.");
+            toast("No se pudo continuar la reproducción.");
           }
         } else {
           setIsPlaying(false);
@@ -858,7 +854,7 @@ function getRouteErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "No se pudo cargar la informaciÃ³n.";
+  return "No se pudo cargar la información.";
 }
 
 function getDefaultRoute(user: CurrentUser): string {
@@ -909,8 +905,8 @@ function AlbumDetailRoute({ currentTrack, onPlayTrack }: AlbumPlaybackRouteProps
   if (!albumId) {
     return (
       <NotAvailableState
-        title="Ãlbum no seleccionado"
-        message="No encontramos el Ã¡lbum que intentas abrir."
+        title="Álbum no seleccionado"
+        message="No encontramos el álbum que intentas abrir."
       />
     );
   }
@@ -980,7 +976,7 @@ function ArtistDiscographyRoute({ currentTrack, currentUser, onPlayTrack }: Arti
   if (!artistId) {
     return (
       <NotAvailableState
-        title="DiscografÃ­a no seleccionada"
+        title="Discografía no seleccionada"
         message="No encontramos el artista que intentas abrir."
       />
     );
@@ -1010,8 +1006,8 @@ function ListenerLiveRoomRoute() {
   if (!roomId) {
     return (
       <NotAvailableState
-        title="TransmisiÃ³n no seleccionada"
-        message="No encontramos la transmisiÃ³n que intentas abrir."
+        title="Transmisión no seleccionada"
+        message="No encontramos la transmisión que intentas abrir."
       />
     );
   }
@@ -1309,7 +1305,7 @@ export default function StreamButed() {
     if (oauthStatus === "google-error") {
       setOauthError(toUserFacingMessage(params.get("message") || "No se pudo completar el acceso con Google."));
     } else if (oauthStatus === "google-password-setup") {
-      setOauthError("Completa tu contraseÃ±a para terminar el registro con Google.");
+      setOauthError("Completa tu contraseña para terminar el registro con Google.");
     } else {
       setOauthError("");
     }
@@ -1358,7 +1354,7 @@ export default function StreamButed() {
       <div className="auth-shell">
         <div className="auth-card">
           <div className="auth-logo"><div className="auth-logo-mark">S</div></div>
-          <div className="auth-title">Cargando sesiÃ³n</div>
+          <div className="auth-title">Cargando sesión</div>
           <div className="auth-sub">Preparando tu experiencia...</div>
         </div>
       </div>
@@ -1424,9 +1420,9 @@ export default function StreamButed() {
   const logoutDialog = (
     <ConfirmDialog
       open={showLogoutConfirmation}
-      title="Cerrar sesiÃ³n"
-      message="Guardaremos tu progreso actual y volverÃ¡s a la pantalla de inicio de sesiÃ³n."
-      confirmLabel="Cerrar sesiÃ³n"
+      title="Cerrar sesión"
+      message="Guardaremos tu progreso actual y volverás a la pantalla de inicio de sesión."
+      confirmLabel="Cerrar sesión"
       tone="primary"
       isLoading={isLoggingOut}
       onConfirm={handleLogout}
@@ -1693,6 +1689,3 @@ export default function StreamButed() {
     </div>
   );
 }
-
-
-
