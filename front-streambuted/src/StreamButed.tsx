@@ -1,4 +1,4 @@
-import {
+﻿import {
   forwardRef,
   useCallback,
   useEffect,
@@ -103,6 +103,12 @@ type CurrentTrackLikeState = {
   isLoading: boolean;
 };
 
+type PlaybackSessionCache = {
+  trackId: string;
+  streamUrl: string;
+  expiresAt: string;
+};
+
 const EMPTY_QUEUE: PlaybackQueueState = {
   sourceType: "single",
   albumId: null,
@@ -141,7 +147,7 @@ function NotAvailableState({ title, message }: Readonly<{ title: string; message
     <div className="page-inner">
       <div className="page-title">{title}</div>
       <div className="empty-state">
-        <div className="empty-text">Esta sección aún no está disponible</div>
+        <div className="empty-text">Esta secciÃ³n aÃºn no estÃ¡ disponible</div>
         <div className="empty-sub">{message}</div>
       </div>
     </div>
@@ -195,6 +201,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
     const pendingSeekSecondsRef = useRef<number | null>(null);
     const lastProgressSyncAtRef = useRef(0);
     const playbackRequestIdRef = useRef(0);
+    const playbackSessionRef = useRef<PlaybackSessionCache | null>(null);
+    const pendingResumeRecoveryTrackIdRef = useRef<string | null>(null);
 
     useEffect(() => {
       currentTrackRef.current = currentTrack;
@@ -209,6 +217,24 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         audioRef.current.volume = volume / 100;
       }
     }, [volume]);
+
+    const cachePlaybackSession = useCallback((session: PlaybackSessionCache) => {
+      playbackSessionRef.current = session;
+    }, []);
+
+    const canReusePlaybackSession = useCallback((trackId: string) => {
+      const session = playbackSessionRef.current;
+      if (!session || session.trackId !== trackId || !session.streamUrl) {
+        return false;
+      }
+
+      const expiresAt = Date.parse(session.expiresAt);
+      if (Number.isNaN(expiresAt)) {
+        return false;
+      }
+
+      return expiresAt - Date.now() > 5000;
+    }, []);
 
     const saveCurrentProgress = useCallback(async (isPlayingOverride?: boolean | null) => {
       const track = currentTrackRef.current;
@@ -247,7 +273,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       ) => {
         const trackId = getTrackIdentifier(track);
         if (!trackId) {
-          toast("La pista no tiene un identificador válido.");
+          toast("La pista no tiene un identificador vÃ¡lido.");
           return;
         }
 
@@ -285,6 +311,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           pendingSeekSecondsRef.current = restorePosition > 0 ? restorePosition : null;
           setPlaybackPositionSeconds(restorePosition);
           setPlaybackDurationSeconds(progress.durationSeconds ?? 0);
+          cachePlaybackSession(session);
+          pendingResumeRecoveryTrackIdRef.current = null;
           audio.src = session.streamUrl;
           audio.volume = volume / 100;
           audio.load();
@@ -311,8 +339,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         } catch (error) {
           browserLogger.error("Failed to start playback.", error);
           if (playbackRequestIdRef.current === requestId) {
-            setPlaybackError("No se pudo iniciar la reproducción.");
-            toast("No se pudo iniciar la reproducción de esta pista.");
+            setPlaybackError("No se pudo iniciar la reproducciÃ³n.");
+            toast("No se pudo iniciar la reproducciÃ³n de esta pista.");
           }
         } finally {
           if (playbackRequestIdRef.current === requestId) {
@@ -320,7 +348,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           }
         }
       },
-      [saveCurrentProgress, setCurrentTrack, setPlaybackQueue, toast, volume]
+      [cachePlaybackSession, saveCurrentProgress, setCurrentTrack, setPlaybackQueue, toast, volume]
     );
 
     const playSingleTrack = useCallback(
@@ -380,8 +408,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
             setIsPlaying(true);
           } catch (error) {
             browserLogger.error("Audio playback failed after restart.", error);
-            setPlaybackError("No se pudo continuar la reproducción.");
-            toast("No se pudo continuar la reproducción.");
+            setPlaybackError("No se pudo continuar la reproducciÃ³n.");
+            toast("No se pudo continuar la reproducciÃ³n.");
           }
         } else {
           setIsPlaying(false);
@@ -446,7 +474,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       void playQueueTrackById(previousTrackId);
     }, [isPlaying, playQueueTrackById, restartCurrentTrack]);
 
-    const resumePlayback = useCallback(async () => {
+    const resumePlayback = useCallback(async (forceRefresh = false) => {
       const audio = audioRef.current;
       const track = currentTrackRef.current;
       const trackId = getTrackIdentifier(track);
@@ -460,6 +488,23 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       setIsPlaybackLoading(true);
 
       try {
+        if (!forceRefresh && canReusePlaybackSession(trackId)) {
+          pendingResumeRecoveryTrackIdRef.current = trackId;
+          audio.volume = volume / 100;
+          lastProgressSyncAtRef.current = Date.now();
+          await audio.play();
+          setIsPlaying(true);
+          await playbackService.updatePlaybackProgress(trackId, {
+            positionSeconds: resumePosition,
+            durationSeconds: Number.isFinite(audio.duration)
+              ? audio.duration
+              : (playbackDurationSeconds || null),
+            isPlaying: true,
+          });
+          pendingResumeRecoveryTrackIdRef.current = null;
+          return;
+        }
+
         const session = await playbackService.createStreamSession(trackId);
 
         if (getTrackIdentifier(currentTrackRef.current) !== trackId) {
@@ -468,6 +513,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 
         pendingSeekSecondsRef.current = resumePosition > 0 ? resumePosition : null;
         setPlaybackPositionSeconds(resumePosition);
+        cachePlaybackSession(session);
+        pendingResumeRecoveryTrackIdRef.current = null;
         audio.src = session.streamUrl;
         audio.volume = volume / 100;
         audio.load();
@@ -483,8 +530,16 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           isPlaying: true,
         });
       } catch (error) {
+        if (!forceRefresh && getTrackIdentifier(currentTrackRef.current) === trackId) {
+          browserLogger.warn("Cached playback resume failed. Refreshing stream session.", error);
+          pendingResumeRecoveryTrackIdRef.current = null;
+          await resumePlayback(true);
+          return;
+        }
+
         browserLogger.error("Audio playback failed to resume with a refreshed stream session.", error);
         setIsPlaying(false);
+        pendingResumeRecoveryTrackIdRef.current = null;
         setPlaybackError("No se pudo continuar la reproducción.");
         toast("No se pudo continuar la reproducción.");
       } finally {
@@ -492,7 +547,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           setIsPlaybackLoading(false);
         }
       }
-    }, [playbackDurationSeconds, toast, volume]);
+    }, [cachePlaybackSession, canReusePlaybackSession, playbackDurationSeconds, toast, volume]);
 
     const handleToggleShuffle = useCallback(() => {
       setPlaybackQueue((queue) => {
@@ -635,7 +690,14 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
     }, [playQueueTrackById, repeatEnabled, restartCurrentTrack, saveCurrentProgress]);
 
     const handleAudioError = useCallback(() => {
-      if (!currentTrackRef.current) {
+      const trackId = getTrackIdentifier(currentTrackRef.current);
+      if (!trackId) {
+        return;
+      }
+
+      if (pendingResumeRecoveryTrackIdRef.current === trackId) {
+        pendingResumeRecoveryTrackIdRef.current = null;
+        void resumePlayback(true);
         return;
       }
 
@@ -643,7 +705,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       setIsPlaybackLoading(false);
       setPlaybackError("No se pudo reproducir el audio.");
       toast("No se pudo reproducir el audio.");
-    }, [toast]);
+    }, [resumePlayback, toast]);
 
     const reset = useCallback(() => {
       if (audioRef.current) {
@@ -651,6 +713,8 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         audioRef.current.removeAttribute("src");
         audioRef.current.load();
       }
+      playbackSessionRef.current = null;
+      pendingResumeRecoveryTrackIdRef.current = null;
       setIsPlaying(false);
       setIsPlaybackLoading(false);
       setPlaybackPositionSeconds(0);
@@ -794,7 +858,7 @@ function getRouteErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "No se pudo cargar la información.";
+  return "No se pudo cargar la informaciÃ³n.";
 }
 
 function getDefaultRoute(user: CurrentUser): string {
@@ -845,8 +909,8 @@ function AlbumDetailRoute({ currentTrack, onPlayTrack }: AlbumPlaybackRouteProps
   if (!albumId) {
     return (
       <NotAvailableState
-        title="Álbum no seleccionado"
-        message="No encontramos el álbum que intentas abrir."
+        title="Ãlbum no seleccionado"
+        message="No encontramos el Ã¡lbum que intentas abrir."
       />
     );
   }
@@ -916,7 +980,7 @@ function ArtistDiscographyRoute({ currentTrack, currentUser, onPlayTrack }: Arti
   if (!artistId) {
     return (
       <NotAvailableState
-        title="Discografía no seleccionada"
+        title="DiscografÃ­a no seleccionada"
         message="No encontramos el artista que intentas abrir."
       />
     );
@@ -946,8 +1010,8 @@ function ListenerLiveRoomRoute() {
   if (!roomId) {
     return (
       <NotAvailableState
-        title="Transmisión no seleccionada"
-        message="No encontramos la transmisión que intentas abrir."
+        title="TransmisiÃ³n no seleccionada"
+        message="No encontramos la transmisiÃ³n que intentas abrir."
       />
     );
   }
@@ -1245,7 +1309,7 @@ export default function StreamButed() {
     if (oauthStatus === "google-error") {
       setOauthError(toUserFacingMessage(params.get("message") || "No se pudo completar el acceso con Google."));
     } else if (oauthStatus === "google-password-setup") {
-      setOauthError("Completa tu contraseña para terminar el registro con Google.");
+      setOauthError("Completa tu contraseÃ±a para terminar el registro con Google.");
     } else {
       setOauthError("");
     }
@@ -1294,7 +1358,7 @@ export default function StreamButed() {
       <div className="auth-shell">
         <div className="auth-card">
           <div className="auth-logo"><div className="auth-logo-mark">S</div></div>
-          <div className="auth-title">Cargando sesión</div>
+          <div className="auth-title">Cargando sesiÃ³n</div>
           <div className="auth-sub">Preparando tu experiencia...</div>
         </div>
       </div>
@@ -1360,9 +1424,9 @@ export default function StreamButed() {
   const logoutDialog = (
     <ConfirmDialog
       open={showLogoutConfirmation}
-      title="Cerrar sesión"
-      message="Guardaremos tu progreso actual y volverás a la pantalla de inicio de sesión."
-      confirmLabel="Cerrar sesión"
+      title="Cerrar sesiÃ³n"
+      message="Guardaremos tu progreso actual y volverÃ¡s a la pantalla de inicio de sesiÃ³n."
+      confirmLabel="Cerrar sesiÃ³n"
       tone="primary"
       isLoading={isLoggingOut}
       onConfirm={handleLogout}
@@ -1629,4 +1693,6 @@ export default function StreamButed() {
     </div>
   );
 }
+
+
 
