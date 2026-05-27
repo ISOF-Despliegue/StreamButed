@@ -446,6 +446,54 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       void playQueueTrackById(previousTrackId);
     }, [isPlaying, playQueueTrackById, restartCurrentTrack]);
 
+    const resumePlayback = useCallback(async () => {
+      const audio = audioRef.current;
+      const track = currentTrackRef.current;
+      const trackId = getTrackIdentifier(track);
+
+      if (!audio || !trackId) {
+        return;
+      }
+
+      const resumePosition = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      setPlaybackError("");
+      setIsPlaybackLoading(true);
+
+      try {
+        const session = await playbackService.createStreamSession(trackId);
+
+        if (getTrackIdentifier(currentTrackRef.current) !== trackId) {
+          return;
+        }
+
+        pendingSeekSecondsRef.current = resumePosition > 0 ? resumePosition : null;
+        setPlaybackPositionSeconds(resumePosition);
+        audio.src = session.streamUrl;
+        audio.volume = volume / 100;
+        audio.load();
+        lastProgressSyncAtRef.current = Date.now();
+
+        await audio.play();
+        setIsPlaying(true);
+        await playbackService.updatePlaybackProgress(trackId, {
+          positionSeconds: resumePosition,
+          durationSeconds: Number.isFinite(audio.duration)
+            ? audio.duration
+            : (playbackDurationSeconds || null),
+          isPlaying: true,
+        });
+      } catch (error) {
+        browserLogger.error("Audio playback failed to resume with a refreshed stream session.", error);
+        setIsPlaying(false);
+        setPlaybackError("No se pudo continuar la reproducción.");
+        toast("No se pudo continuar la reproducción.");
+      } finally {
+        if (getTrackIdentifier(currentTrackRef.current) === trackId) {
+          setIsPlaybackLoading(false);
+        }
+      }
+    }, [playbackDurationSeconds, toast, volume]);
+
     const handleToggleShuffle = useCallback(() => {
       setPlaybackQueue((queue) => {
         if (queue.sourceType !== "album" || queue.tracks.length <= 1 || !queue.currentTrackId) {
@@ -493,19 +541,12 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       }
 
       if (audio.paused) {
-        try {
-          await audio.play();
-          setIsPlaying(true);
-        } catch (error) {
-          browserLogger.error("Audio playback failed.", error);
-          setPlaybackError("No se pudo continuar la reproducción.");
-          toast("No se pudo continuar la reproducción.");
-        }
+        await resumePlayback();
         return;
       }
 
       audio.pause();
-    }, [startPlayback, toast]);
+    }, [resumePlayback, startPlayback]);
 
     const handleSeek = useCallback(
       (positionSeconds: number) => {
@@ -1588,3 +1629,4 @@ export default function StreamButed() {
     </div>
   );
 }
+
