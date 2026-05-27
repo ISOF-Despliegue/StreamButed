@@ -233,13 +233,12 @@ describe("StreamButed suspension dialog", () => {
       trackId: "track-1",
       positionSeconds: 24,
       durationSeconds: 180,
-      isPlaying: false,
+      updatedAt: "2026-05-26T12:00:00.000Z",
     });
     mockedPlaybackService.getPlaybackProgress.mockResolvedValue({
       trackId: "track-1",
       positionSeconds: 24,
       durationSeconds: 180,
-      isPlaying: false,
       updatedAt: "2026-05-26T12:00:00.000Z",
     });
     mockedPlaybackService.createStreamSession
@@ -257,11 +256,10 @@ describe("StreamButed suspension dialog", () => {
       trackId: "track-1",
       positionSeconds: 42,
       durationSeconds: 180,
-      isPlaying: true,
       updatedAt: "2026-05-26T12:01:00.000Z",
     });
     mockedCatalogService.getTrack.mockResolvedValue({
-      id: "track-1",
+      trackId: "track-1",
       title: "Song 1",
       artistId: "artist-1",
       albumId: null,
@@ -269,14 +267,15 @@ describe("StreamButed suspension dialog", () => {
       audioAssetId: "asset-1",
       coverAssetId: "cover-1",
       durationSeconds: 180,
+      status: "PUBLICADO",
       createdAt: "2026-05-26T12:00:00.000Z",
       updatedAt: "2026-05-26T12:00:00.000Z",
     });
     mockedCatalogService.getArtist.mockResolvedValue({
-      id: "artist-1",
+      artistId: "artist-1",
       displayName: "Artist 1",
-      bio: null,
-      avatarAssetId: null,
+      biography: null,
+      profileImageAssetId: null,
       createdAt: "2026-05-26T12:00:00.000Z",
       updatedAt: "2026-05-26T12:00:00.000Z",
     });
