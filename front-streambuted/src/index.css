@@ -1587,6 +1587,21 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .app-shell {
+    height: 100svh;
+    min-height: 100svh;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .mobile-shell {
+    min-height: 0;
+  }
+
+  .mobile-main-content {
+    padding-bottom: calc(164px + env(safe-area-inset-bottom));
+  }
+
   .page-inner {
     padding: 20px 16px 120px;
   }
@@ -1756,6 +1771,11 @@ button:disabled {
   }
 
   .bottom-player {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(74px + env(safe-area-inset-bottom));
+    z-index: 170;
     min-height: 82px;
     align-items: center;
     padding: 10px 12px 12px;
@@ -1970,6 +1990,11 @@ button:disabled {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     gap: 6px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 180;
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid rgba(255,255,255,0.05);
     background: rgba(16,16,21,0.96);
