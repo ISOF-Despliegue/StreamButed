@@ -10,7 +10,6 @@ export type MobileNavItem = Readonly<{
 }>;
 
 type ResponsiveAppShellProps = Readonly<{
-  brandTarget: string;
   brandSubtitle: string;
   children: ReactNode;
   isMobile: boolean;
@@ -53,7 +52,6 @@ function getMobileTitle(pathname: string) {
 }
 
 export function ResponsiveAppShell({
-  brandTarget,
   brandSubtitle,
   children,
   isMobile,

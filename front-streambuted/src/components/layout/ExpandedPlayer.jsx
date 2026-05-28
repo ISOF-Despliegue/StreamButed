@@ -46,9 +46,9 @@ export function ExpandedPlayer({
   onToggleLike = undefined,
   toast = undefined
 }) {
+  const [showMobileQueue, setShowMobileQueue] = useState(false);
   if (!track) return null;
 
-  const [showMobileQueue, setShowMobileQueue] = useState(false);
   const artistName = track.artist || track.artistName || 'Artista';
   const progressMax = playback.durationSeconds > 0 ? playback.durationSeconds : 1;
   const trackId = track.trackId || track.id;

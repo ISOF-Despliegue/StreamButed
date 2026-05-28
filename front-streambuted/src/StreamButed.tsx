@@ -1703,7 +1703,6 @@ export default function StreamButed() {
     return (
       <div className="app-shell">
         <ResponsiveAppShell
-          brandTarget={defaultRoute}
           brandSubtitle=""
           isMobile={isMobile}
           isSidebarCollapsed={isAdminSidebarCollapsed}
@@ -1734,7 +1733,6 @@ export default function StreamButed() {
   return (
     <div className="app-shell">
       <ResponsiveAppShell
-        brandTarget={defaultRoute}
         brandSubtitle=""
         isMobile={isMobile}
         isSidebarCollapsed={isMainSidebarCollapsed}

@@ -12,7 +12,6 @@ describe("ResponsiveAppShell", () => {
     render(
       <MemoryRouter initialEntries={["/search"]}>
         <ResponsiveAppShell
-          brandTarget="/search"
           brandSubtitle="Artista · Ada"
           isMobile
           isSidebarCollapsed={false}
