@@ -83,6 +83,8 @@ function MainSidebarComponent({
   collapsed = false,
   onToggle,
   showCollapseButton = true,
+  showHeader = true,
+  showFooter = true,
   showNavigation = true,
   showDiscoverSection = true,
   showManageSection = true,
@@ -131,10 +133,12 @@ function MainSidebarComponent({
 
   return (
     <div className="sidebar">
-      <div className="sidebar-logo">
-        <div className="logo-mark">S</div>
-        <div className="logo-text">StreamButed</div>
-      </div>
+      {showHeader ? (
+        <div className="sidebar-logo">
+          <div className="logo-mark">S</div>
+          <div className="logo-text">StreamButed</div>
+        </div>
+      ) : null}
       {showCollapseButton ? <SidebarCollapseButton onToggle={onToggle} /> : null}
 
       {showNavigation ? (
@@ -167,15 +171,17 @@ function MainSidebarComponent({
         </div>
       )}
 
-      <div className="sidebar-footer">
-        <Link className="user-chip" to={profilePath} aria-label={profileLabel}>
-          <div className="user-avatar">{avatarNode}</div>
-          <div className="user-info">
-            <div className="user-name">{user.username}</div>
-            <div className="user-role">{roleLabel}</div>
-          </div>
-        </Link>
-      </div>
+      {showFooter ? (
+        <div className="sidebar-footer">
+          <Link className="user-chip" to={profilePath} aria-label={profileLabel}>
+            <div className="user-avatar">{avatarNode}</div>
+            <div className="user-info">
+              <div className="user-name">{user.username}</div>
+              <div className="user-role">{roleLabel}</div>
+            </div>
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -184,6 +190,8 @@ function AdminSidebarComponent({
   collapsed = false,
   onToggle,
   showCollapseButton = true,
+  showHeader = true,
+  showFooter = true,
   showNavigation = true,
   user,
 }) {
@@ -200,10 +208,12 @@ function AdminSidebarComponent({
 
   return (
     <div className="sidebar">
-      <div className="sidebar-logo">
-        <div className="logo-mark">S</div>
-        <div className="logo-text">StreamButed</div>
-      </div>
+      {showHeader ? (
+        <div className="sidebar-logo">
+          <div className="logo-mark">S</div>
+          <div className="logo-text">StreamButed</div>
+        </div>
+      ) : null}
       {showCollapseButton ? <SidebarCollapseButton onToggle={onToggle} /> : null}
 
       {showNavigation ? (
@@ -221,27 +231,29 @@ function AdminSidebarComponent({
         </div>
       )}
 
-      <div className="sidebar-footer">
-        <Link className="user-chip" to={routes.settings} aria-label="Abrir ajustes">
-          <div
-            className="user-avatar"
-            style={{ background: 'rgba(167,139,250,0.2)', color: '#A78BFA' }}
-          >
-            {user.profileImageAssetId ? (
-              <img
-                src={getAssetUrl(user.profileImageAssetId)}
-                alt={`Foto de perfil de ${user.username || 'usuario'}`}
-              />
-            ) : (
-              user.username[0]?.toUpperCase()
-            )}
-          </div>
-          <div className="user-info">
-            <div className="user-name">{user.username}</div>
-            <div className="user-role">Administrador</div>
-          </div>
-        </Link>
-      </div>
+      {showFooter ? (
+        <div className="sidebar-footer">
+          <Link className="user-chip" to={routes.settings} aria-label="Abrir ajustes">
+            <div
+              className="user-avatar"
+              style={{ background: 'rgba(167,139,250,0.2)', color: '#A78BFA' }}
+            >
+              {user.profileImageAssetId ? (
+                <img
+                  src={getAssetUrl(user.profileImageAssetId)}
+                  alt={`Foto de perfil de ${user.username || 'usuario'}`}
+                />
+              ) : (
+                user.username[0]?.toUpperCase()
+              )}
+            </div>
+            <div className="user-info">
+              <div className="user-name">{user.username}</div>
+              <div className="user-role">Administrador</div>
+            </div>
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -268,6 +280,8 @@ MainSidebarComponent.propTypes = {
   collapsed: PropTypes.bool,
   onToggle: PropTypes.func.isRequired,
   showCollapseButton: PropTypes.bool,
+  showFooter: PropTypes.bool,
+  showHeader: PropTypes.bool,
   showDiscoverSection: PropTypes.bool,
   showManageSection: PropTypes.bool,
   showNavigation: PropTypes.bool,
@@ -278,6 +292,8 @@ AdminSidebarComponent.propTypes = {
   collapsed: PropTypes.bool,
   onToggle: PropTypes.func.isRequired,
   showCollapseButton: PropTypes.bool,
+  showFooter: PropTypes.bool,
+  showHeader: PropTypes.bool,
   showNavigation: PropTypes.bool,
   user: sidebarUserPropType.isRequired,
 };
