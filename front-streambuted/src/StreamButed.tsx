@@ -1445,7 +1445,6 @@ export default function StreamButed() {
     { to: routes.settings, label: "Ajustes", icon: <IcSettings /> },
   ];
   const requestLogout = () => setShowLogoutConfirmation(true);
-  const showArtistMobileMenu = isMobile && user.role === "artist";
   const mobileProfileTarget =
     user.role === "artist" && user.id
       ? routes.artistProfile(user.id)
@@ -1708,10 +1707,18 @@ export default function StreamButed() {
           isSidebarCollapsed={isAdminSidebarCollapsed}
           mobileMenuOpen={isMobileMenuOpen}
           mobileProfile={mobileProfileNode}
-          mobileSidebar={null}
+          mobileSidebar={
+            <AdminSidebar
+              collapsed={false}
+              onToggle={closeMobileMenu}
+              showCollapseButton={false}
+              showFooter={false}
+              showHeader={false}
+              user={user}
+            />
+          }
           onCloseMobileMenu={closeMobileMenu}
           onOpenMobileMenu={openMobileMenu}
-          showMobileMenuButton={false}
           sidebar={
             <AdminSidebar
               collapsed={isAdminSidebarCollapsed}
@@ -1738,19 +1745,18 @@ export default function StreamButed() {
         isSidebarCollapsed={isMainSidebarCollapsed}
         mobileMenuOpen={isMobileMenuOpen}
         mobileProfile={mobileProfileNode}
-        mobileSidebar={showArtistMobileMenu ? (
+        mobileSidebar={(
           <MainSidebar
             collapsed={false}
             onToggle={closeMobileMenu}
             showCollapseButton={false}
-            showDiscoverSection={false}
-            showManageSection
+            showFooter={false}
+            showHeader={false}
             user={user}
           />
-        ) : null}
+        )}
         onCloseMobileMenu={closeMobileMenu}
         onOpenMobileMenu={openMobileMenu}
-        showMobileMenuButton={showArtistMobileMenu}
         sidebar={
           <MainSidebar
             collapsed={isMainSidebarCollapsed}
