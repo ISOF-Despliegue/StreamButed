@@ -1575,7 +1575,7 @@ button:disabled {
   cursor: not-allowed;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--t3); gap: 12px; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--t3); gap: 12px; text-align: center; }
 .empty-icon { font-size: 48px; }
 .empty-text { font-size: 16px; font-weight: 600; color: var(--t2); }
 .empty-sub { font-size: 14px; }
@@ -1587,12 +1587,42 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .app-shell {
+    height: 100svh;
+    min-height: 100svh;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .mobile-shell {
+    min-height: 0;
+  }
+
+  .mobile-main-content {
+    padding-bottom: calc(164px + env(safe-area-inset-bottom));
+  }
+
   .page-inner {
     padding: 20px 16px 120px;
   }
 
   .page-title {
     font-size: 18px;
+  }
+
+  .search-header {
+    padding: 20px 16px 0;
+    text-align: center;
+  }
+
+  .search-header .empty-state {
+    padding: 36px 8px 20px;
+  }
+
+  .search-header .search-input-wrap,
+  .search-header .search-input-wrap-wide {
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .mobile-topbar {
@@ -1756,6 +1786,11 @@ button:disabled {
   }
 
   .bottom-player {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(74px + env(safe-area-inset-bottom));
+    z-index: 170;
     min-height: 82px;
     align-items: center;
     padding: 10px 12px 12px;
@@ -1970,6 +2005,11 @@ button:disabled {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     gap: 6px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 180;
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid rgba(255,255,255,0.05);
     background: rgba(16,16,21,0.96);
