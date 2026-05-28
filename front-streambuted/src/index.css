@@ -1849,7 +1849,8 @@ button:disabled {
   }
 
   .ep-main {
-    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
     padding: 46px 16px 24px;
   }
 
@@ -1879,7 +1880,13 @@ button:disabled {
   }
 
   .expanded-player-overlay {
-    overflow-y: auto;
+    overflow: hidden;
+  }
+
+  .ep-main.queue-open {
+    justify-content: flex-start;
+    overflow: hidden;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
   }
 
   .ep-mobile-queue-toggle {
@@ -1922,7 +1929,8 @@ button:disabled {
     display: block;
     width: 100%;
     max-width: 420px;
-    max-height: min(42vh, 320px);
+    min-height: 180px;
+    max-height: calc(100dvh - 430px);
     margin-top: 18px;
     border-top: 1px solid var(--border);
     padding-top: 18px;
