@@ -1054,6 +1054,8 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
 .ep-sidebar {
   width: 300px; border-left: 1px solid var(--border);
   padding: 24px 20px; overflow-y: auto;
+  max-height: 100vh;
+  overscroll-behavior: contain;
   background: var(--bg1);
 }
 .ep-sidebar-title { font-size: 14px; font-weight: 700; color: var(--t1); margin-bottom: 16px; }
@@ -1920,9 +1922,13 @@ button:disabled {
     display: block;
     width: 100%;
     max-width: 420px;
+    max-height: min(42vh, 320px);
     margin-top: 18px;
     border-top: 1px solid var(--border);
     padding-top: 18px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .ep-sidebar {
