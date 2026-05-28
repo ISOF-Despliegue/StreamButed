@@ -74,6 +74,15 @@ export function BottomPlayer({
             toast={toast}
           />
         </div>
+        <button
+          className="play-btn player-inline-play-btn"
+          disabled={playback.isLoading}
+          onClick={onTogglePlay}
+          title={playTitle}
+          type="button"
+        >
+          {playback.isPlaying ? <IcPause /> : <IcPlay />}
+        </button>
       </div>
 
       <div className="player-center">

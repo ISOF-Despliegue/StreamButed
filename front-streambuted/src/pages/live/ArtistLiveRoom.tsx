@@ -30,120 +30,99 @@ export function ArtistLiveRoom() {
   const isTransitioning = ["requesting-media", "connecting", "ending"].includes(state);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0A0A0D", color: "#F2EDE6" }}>
-      <div style={{ padding: "16px 24px", borderBottom: "1px solid #22222E", display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontWeight: 700, fontSize: 18 }}>StreamButed en vivo</span>
-        {isLive && (
-          <span style={{ background: "#EF4444", color: "#fff", padding: "3px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-            EN VIVO
-          </span>
-        )}
+    <div className="live-page-shell">
+      <div className="live-page-header">
+        <span className="live-page-title">StreamButed en vivo</span>
+        {isLive ? <span className="live-status-badge">EN VIVO</span> : null}
       </div>
 
-      <div style={{ flex: 1, display: "flex", gap: 24, padding: 24 }}>
-        <div style={{ flex: 1, background: "#16161D", borderRadius: 12, overflow: "hidden", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="live-page-layout">
+        <div className="live-preview-panel">
           {localStream ? (
             <video
               ref={videoRef}
               autoPlay
               muted
               playsInline
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              className="live-preview-video"
             />
           ) : (
-            <div style={{ textAlign: "center", color: "#524E5A" }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>Video</div>
-              <div>{state === "requesting-media" ? "Accediendo a cámara..." : "La cámara aparecerá aquí"}</div>
+            <div className="live-preview-empty">
+              <div className="live-preview-empty-title">Video</div>
+              <div>{state === "requesting-media" ? "Accediendo a camara..." : "La camara aparecera aqui"}</div>
             </div>
           )}
 
-          {state === "connecting" && (
-            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "var(--accent)" }}>
+          {state === "connecting" ? (
+            <div className="live-preview-overlay">
               Conectando...
             </div>
-          )}
+          ) : null}
         </div>
 
-        <div style={{ width: 300, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="live-side-panel">
           {!isLive ? (
             <>
               <div>
-                <label htmlFor="artist-live-title" style={{ fontSize: 13, color: "#9994A0", display: "block", marginBottom: 6 }}>Título del concierto</label>
+                <label className="live-field-label" htmlFor="artist-live-title">Titulo del concierto</label>
                 <input
                   id="artist-live-title"
                   type="text"
-                  placeholder="Ej: Sesión acústica en vivo"
+                  placeholder="Ej: Sesion acustica en vivo"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && canStart && handleGoLive()}
                   maxLength={100}
                   disabled={state === "requesting-media" || state === "connecting"}
-                  style={{
-                    width: "100%",
-                    padding: "10px 14px",
-                    background: "#1E1E28",
-                    border: "1px solid #2E2E3E",
-                    borderRadius: 8,
-                    color: "#F2EDE6",
-                    fontSize: 14,
-                    outline: "none",
-                  }}
+                  className="live-input"
                 />
               </div>
 
               <button
                 onClick={handleGoLive}
                 disabled={!canStart}
-                style={{
-                  padding: "12px 24px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: canStart ? "var(--accent)" : "#252533",
-                  color: canStart ? "#000" : "#524E5A",
-                  fontWeight: 700,
-                  fontSize: 15,
-                  cursor: canStart ? "pointer" : "not-allowed",
-                  transition: "all 0.15s",
-                }}
+                className="live-primary-action"
+                type="button"
               >
                 Iniciar concierto
               </button>
             </>
           ) : (
             <>
-              <div style={{ background: "#1E1E28", borderRadius: 8, padding: 16 }}>
-                <div style={{ fontSize: 12, color: "#9994A0", marginBottom: 4 }}>Título</div>
-                <div style={{ fontWeight: 600 }}>{activeTitle || title}</div>
-                <div style={{ fontSize: 12, color: "#9994A0", marginTop: 12, marginBottom: 4 }}>Oyentes</div>
-                <div style={{ fontWeight: 700, color: "#F2EDE6" }}>{listenerCount}</div>
+              <div className="live-info-card">
+                <div className="live-info-label">Titulo</div>
+                <div className="live-info-value">{activeTitle || title}</div>
+                <div className="live-info-label live-info-gap">Oyentes</div>
+                <div className="live-info-value">{listenerCount}</div>
               </div>
 
               <button
                 onClick={() => void endLive()}
-                style={{ padding: "12px 24px", borderRadius: 8, border: "1px solid #EF4444", background: "transparent", color: "#EF4444", fontWeight: 700, fontSize: 15, cursor: "pointer" }}
+                className="live-danger-action"
+                type="button"
               >
                 Terminar concierto
               </button>
             </>
           )}
 
-          {isTransitioning && (
-            <div style={{ color: "#9994A0", fontSize: 14 }}>
-              {state === "requesting-media" && "Solicitando acceso a cámara y micrófono..."}
-              {state === "connecting" && "Estableciendo conexión..."}
-              {state === "ending" && "Terminando transmisión..."}
+          {isTransitioning ? (
+            <div className="live-help-text">
+              {state === "requesting-media" && "Solicitando acceso a camara y microfono..."}
+              {state === "connecting" && "Estableciendo conexion..."}
+              {state === "ending" && "Terminando transmision..."}
             </div>
-          )}
+          ) : null}
 
-          {error && (
-            <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid #EF4444", borderRadius: 8, padding: 12, fontSize: 13, color: "#EF4444" }}>
+          {error ? (
+            <div className="live-error-box">
               {error}
             </div>
-          )}
+          ) : null}
 
-          <div style={{ marginTop: "auto", fontSize: 11, color: "#524E5A", lineHeight: 1.5 }}>
-            La transmisión usa cámara y micrófono en tiempo real.<br />
-            Puedes navegar a En vivo sin cortar la transmisión; solo termina con el botón.
+          <div className="live-footnote">
+            La transmision usa camara y microfono en tiempo real.<br />
+            Puedes navegar a En vivo sin cortar la transmision; solo termina con el boton.
           </div>
         </div>
       </div>

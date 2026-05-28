@@ -21,13 +21,6 @@ function SidebarNavItem({ item }) {
   );
 }
 
-/**
- * MainSidebar - used by both listeners and artists.
- *
- * Discover section is always visible.
- * Manage section is gated behind the artist role so that capability expansion
- * feels seamless rather than abrupt (no sidebar swap on promotion).
- */
 function SidebarRestoreButton({ onToggle }) {
   return (
     <button
@@ -65,7 +58,36 @@ function SidebarCollapseButton({ onToggle }) {
   );
 }
 
-function MainSidebarComponent({ collapsed = false, onToggle, user }) {
+function SidebarSectionLabel({ children }) {
+  return (
+    <div
+      style={{
+        padding: '10px 16px 4px',
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: '0.08em',
+        color: 'var(--t3)',
+        textTransform: 'uppercase',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+SidebarSectionLabel.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+function MainSidebarComponent({
+  collapsed = false,
+  onToggle,
+  showCollapseButton = true,
+  showNavigation = true,
+  showDiscoverSection = true,
+  showManageSection = true,
+  user,
+}) {
   if (collapsed) {
     return <SidebarCollapsedRail onToggle={onToggle} />;
   }
@@ -78,18 +100,17 @@ function MainSidebarComponent({ collapsed = false, onToggle, user }) {
     { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
   ];
 
-  // Manage items are only shown when the user holds the artist role.
   const manageItems =
     user.role === 'artist'
       ? [
           { to: routes.artistDashboard, end: true, label: 'Panel', icon: <IcDashboard /> },
-          { to: routes.artistTracks, label: 'Mis pistas', icon: <span className="nav-note-icon" aria-hidden="true">♩</span> },
-          { to: routes.artistAlbums, label: 'Álbumes', icon: <IcMusic /> },
-          { to: routes.artistAnalytics, label: 'Analíticas', icon: <IcChart /> },
+          { to: routes.artistTracks, label: 'Mis pistas', icon: <span className="nav-note-icon" aria-hidden="true">♪</span> },
+          { to: routes.artistAlbums, label: 'Albumes', icon: <IcMusic /> },
+          { to: routes.artistAnalytics, label: 'Analiticas', icon: <IcChart /> },
           { to: routes.artistUpload, label: 'Subir +', icon: <IcUpload /> },
           { to: routes.artistLive, label: 'Transmitir', icon: <IcCamera /> },
         ]
-      : []; 
+      : [];
 
   const roleLabel = user.role === 'artist' ? 'Artista' : 'Oyente';
   const profilePath = user.role === 'artist' && user.id
@@ -114,48 +135,36 @@ function MainSidebarComponent({ collapsed = false, onToggle, user }) {
         <div className="logo-mark">S</div>
         <div className="logo-text">StreamButed</div>
       </div>
-      <SidebarCollapseButton onToggle={onToggle} />
+      {showCollapseButton ? <SidebarCollapseButton onToggle={onToggle} /> : null}
 
-      {/* Discover section - always visible */}
-      <div
-        style={{
-          padding: '10px 16px 4px',
-          fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          color: 'var(--t3)',
-          textTransform: 'uppercase',
-        }}
-      >
-        Descubrir
-      </div>
-      <div className="sidebar-section" style={{ paddingTop: 4 }}>
-        {discoverItems.map((item) => (
-          <SidebarNavItem key={item.to} item={item} />
-        ))}
-      </div>
-
-      {/* Manage section - visible only for artists */}
-      {manageItems.length > 0 && (
+      {showNavigation ? (
         <>
-          <div
-            style={{
-              padding: '10px 16px 4px',
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: '0.08em',
-              color: 'var(--t3)',
-              textTransform: 'uppercase',
-            }}
-          >
-            Gestionar
-          </div>
-          <div className="sidebar-section" style={{ paddingTop: 4 }}>
-            {manageItems.map((item) => (
-              <SidebarNavItem key={item.to} item={item} />
-            ))}
-          </div>
+          {showDiscoverSection ? (
+            <>
+              <SidebarSectionLabel>Descubrir</SidebarSectionLabel>
+              <div className="sidebar-section" style={{ paddingTop: 4 }}>
+                {discoverItems.map((item) => (
+                  <SidebarNavItem key={item.to} item={item} />
+                ))}
+              </div>
+            </>
+          ) : null}
+
+          {showManageSection && manageItems.length > 0 ? (
+            <>
+              <SidebarSectionLabel>Gestionar</SidebarSectionLabel>
+              <div className="sidebar-section" style={{ paddingTop: 4 }}>
+                {manageItems.map((item) => (
+                  <SidebarNavItem key={item.to} item={item} />
+                ))}
+              </div>
+            </>
+          ) : null}
         </>
+      ) : (
+        <div className="sidebar-mobile-note">
+          Las secciones principales ya estan disponibles en la barra inferior.
+        </div>
       )}
 
       <div className="sidebar-footer">
@@ -171,15 +180,21 @@ function MainSidebarComponent({ collapsed = false, onToggle, user }) {
   );
 }
 
-function AdminSidebarComponent({ collapsed = false, onToggle, user }) {
+function AdminSidebarComponent({
+  collapsed = false,
+  onToggle,
+  showCollapseButton = true,
+  showNavigation = true,
+  user,
+}) {
   if (collapsed) {
     return <SidebarCollapsedRail onToggle={onToggle} />;
   }
 
   const items = [
     { to: routes.adminOverview, end: true, label: 'Resumen', icon: <IcOverview /> },
-    { to: routes.adminReports, label: 'Analíticas', icon: <IcReport /> },
-    { to: routes.adminModeration, label: 'Moderación', icon: <IcShield /> },
+    { to: routes.adminReports, label: 'Analiticas', icon: <IcReport /> },
+    { to: routes.adminModeration, label: 'Moderacion', icon: <IcShield /> },
     { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
   ];
 
@@ -189,27 +204,23 @@ function AdminSidebarComponent({ collapsed = false, onToggle, user }) {
         <div className="logo-mark">S</div>
         <div className="logo-text">StreamButed</div>
       </div>
-      <SidebarCollapseButton onToggle={onToggle} />
-      <div
-        style={{
-          padding: '10px 16px 4px',
-          fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          color: 'var(--t3)',
-          textTransform: 'uppercase',
-        }}
-      >
-        Administración
-      </div>
-      <div className="sidebar-section" style={{ paddingTop: 4 }}>
-        {items.map((it) => (
-          <SidebarNavItem
-            key={it.to}
-            item={it}
-          />
-        ))}
-      </div>
+      {showCollapseButton ? <SidebarCollapseButton onToggle={onToggle} /> : null}
+
+      {showNavigation ? (
+        <>
+          <SidebarSectionLabel>Administracion</SidebarSectionLabel>
+          <div className="sidebar-section" style={{ paddingTop: 4 }}>
+            {items.map((item) => (
+              <SidebarNavItem key={item.to} item={item} />
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="sidebar-mobile-note">
+          Las secciones administrativas ya estan disponibles en la barra inferior.
+        </div>
+      )}
+
       <div className="sidebar-footer">
         <Link className="user-chip" to={routes.settings} aria-label="Abrir ajustes">
           <div
@@ -256,12 +267,18 @@ SidebarNavItem.propTypes = {
 MainSidebarComponent.propTypes = {
   collapsed: PropTypes.bool,
   onToggle: PropTypes.func.isRequired,
+  showCollapseButton: PropTypes.bool,
+  showDiscoverSection: PropTypes.bool,
+  showManageSection: PropTypes.bool,
+  showNavigation: PropTypes.bool,
   user: sidebarUserPropType.isRequired,
 };
 
 AdminSidebarComponent.propTypes = {
   collapsed: PropTypes.bool,
   onToggle: PropTypes.func.isRequired,
+  showCollapseButton: PropTypes.bool,
+  showNavigation: PropTypes.bool,
   user: sidebarUserPropType.isRequired,
 };
 
