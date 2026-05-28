@@ -9,6 +9,7 @@ import {
   type SetStateAction,
 } from "react";
 import {
+  Link,
   Navigate,
   Route,
   Routes,
@@ -24,7 +25,9 @@ import { Toast } from "./components/ui/Toast";
 import { ConfirmDialog } from "./components/ui/ConfirmDialog";
 import { BottomPlayer } from "./components/layout/BottomPlayer";
 import { ExpandedPlayer } from "./components/layout/ExpandedPlayer";
+import { MobileTabBar, ResponsiveAppShell, type MobileNavItem } from "./components/layout/ResponsiveAppShell";
 import { MainSidebar, AdminSidebar } from "./components/layout/Sidebars";
+import { IcCamera, IcHome, IcLib, IcOverview, IcReport, IcSearch, IcSettings, IcShield } from "./components/icons/Icons";
 import { GooglePasswordSetupPage, LoginPage, RegisterPage } from "./pages/AuthPages";
 import { SettingsPage } from "./pages/SettingsPage";
 import {
@@ -54,7 +57,9 @@ import { LiveConcertsPage, type LiveRoom } from "./pages/live/LiveConcertsPage";
 import { ListenerLiveRoom } from "./pages/live/ListenerLiveRoom";
 import { RoleRoute } from "./routes/RoleRoute";
 import { routePatterns, routes } from "./routes/appRoutes";
+import { getAssetUrl } from "./services/mediaService";
 import { useAuth } from "./hooks/useAuth";
+import { useIsMobileViewport } from "./hooks/useIsMobileViewport";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
 import { libraryService } from "./services/libraryService";
@@ -1121,6 +1126,7 @@ function ArtistEditTrackRoute({ toast, user }: ArtistEditTrackRouteProps) {
 
 export default function StreamButed() {
   const navigate = useNavigate();
+  const isMobile = useIsMobileViewport();
   const {
     user,
     isLoadingSession,
@@ -1146,6 +1152,7 @@ export default function StreamButed() {
   const [oauthError, setOauthError] = useState("");
   const [oauthStatus, setOauthStatus] = useState("");
   const [showSuspendedDialog, setShowSuspendedDialog] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(() =>
     readSidebarPreference("streambuted:sidebar:admin")
   );
@@ -1156,6 +1163,8 @@ export default function StreamButed() {
   const playbackControllerRef = useRef<PlaybackControllerHandle | null>(null);
 
   const toast = useCallback((msg: string) => setToastMsg(msg), []);
+  const openMobileMenu = useCallback(() => setIsMobileMenuOpen(true), []);
+  const closeMobileMenu = useCallback(() => setIsMobileMenuOpen(false), []);
   const toggleAdminSidebar = useCallback(() => {
     setIsAdminSidebarCollapsed((current) => {
       const next = !current;
@@ -1170,6 +1179,12 @@ export default function StreamButed() {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    if (!isMobile && isMobileMenuOpen) {
+      setIsMobileMenuOpen(false);
+    }
+  }, [isMobile, isMobileMenuOpen]);
 
   const playSingleTrack = useCallback(
     (track: AppTrack) => {
@@ -1416,7 +1431,43 @@ export default function StreamButed() {
   }
 
   const defaultRoute = getDefaultRoute(user);
+  const mainMobileNavItems: readonly MobileNavItem[] = [
+    { to: routes.home, end: true, label: "Inicio", icon: <IcHome /> },
+    { to: routes.search, label: "Buscar", icon: <IcSearch /> },
+    { to: routes.library, label: "Biblioteca", icon: <IcLib /> },
+    { to: routes.lives, label: "En vivo", icon: <IcCamera /> },
+    { to: routes.settings, label: "Ajustes", icon: <IcSettings /> },
+  ];
+  const adminMobileNavItems: readonly MobileNavItem[] = [
+    { to: routes.adminOverview, end: true, label: "Resumen", icon: <IcOverview /> },
+    { to: routes.adminReports, label: "Reportes", icon: <IcReport /> },
+    { to: routes.adminModeration, label: "Moderacion", icon: <IcShield /> },
+    { to: routes.settings, label: "Ajustes", icon: <IcSettings /> },
+  ];
   const requestLogout = () => setShowLogoutConfirmation(true);
+  const showArtistMobileMenu = isMobile && user.role === "artist";
+  const mobileProfileTarget =
+    user.role === "artist" && user.id
+      ? routes.artistProfile(user.id)
+      : routes.settings;
+  const mobileProfileLabel =
+    user.role === "artist"
+      ? `Abrir perfil publico de ${user.username}`
+      : "Abrir ajustes";
+  const mobileProfileNode = (
+    <Link className="mobile-profile-link" to={mobileProfileTarget} aria-label={mobileProfileLabel}>
+      <div className="mobile-profile-avatar">
+        {user.profileImageAssetId ? (
+          <img
+            src={getAssetUrl(user.profileImageAssetId)}
+            alt={`Foto de perfil de ${user.username || "usuario"}`}
+          />
+        ) : (
+          user.username[0]?.toUpperCase()
+        )}
+      </div>
+    </Link>
+  );
   const logoutDialog = (
     <ConfirmDialog
       open={showLogoutConfirmation}
@@ -1443,68 +1494,235 @@ export default function StreamButed() {
     />
   );
 
+  const adminRoutes = (
+    <Routes>
+      <Route
+        path={routes.adminOverview}
+        element={
+          <RoleRoute allowedRoles={["admin"]}>
+            <AdminOverviewPage />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.adminUsers}
+        element={
+          <RoleRoute allowedRoles={["admin"]}>
+            <Navigate to={routes.adminModeration} replace />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.adminContent}
+        element={
+          <RoleRoute allowedRoles={["admin"]}>
+            <Navigate to={routes.adminModeration} replace />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.adminReports}
+        element={
+          <RoleRoute allowedRoles={["admin"]}>
+            <AdminAnalyticsPage />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.adminModeration}
+        element={
+          <RoleRoute allowedRoles={["admin"]}>
+            <AdminModerationPage toast={toast} />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.settings}
+        element={<SettingsPage user={user} toast={toast} onRequestLogout={requestLogout} />}
+      />
+      <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
+      <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
+      <Route path={routes.authCallback} element={<Navigate to={defaultRoute} replace />} />
+      <Route path="*" element={<Navigate to={defaultRoute} replace />} />
+    </Routes>
+  );
+
+  const listenerArtistRoutes = (
+    <Routes>
+      <Route path={routes.home} element={<HomePage />} />
+      <Route
+        path={routes.search}
+        element={<SearchPage onPlayTrack={playSingleTrack} currentTrack={currentTrack} />}
+      />
+      <Route
+        path={routes.library}
+        element={
+          <LibraryPage
+            currentTrack={currentTrack}
+            onPlayCollectionTrack={playAlbumTrack}
+            toast={toast}
+          />
+        }
+      />
+      <Route
+        path={routePatterns.libraryPlaylist}
+        element={
+          <PlaylistDetailRoute
+            currentTrack={currentTrack}
+            onPlayTrack={playAlbumTrack}
+            toast={toast}
+          />
+        }
+      />
+      <Route
+        path={routePatterns.album}
+        element={<AlbumDetailRoute onPlayTrack={playAlbumTrack} currentTrack={currentTrack} />}
+      />
+      <Route
+        path={routePatterns.artistProfile}
+        element={
+          <ArtistProfileRoute
+            currentUser={user}
+            onPlayTrack={playSingleTrack}
+            currentTrack={currentTrack}
+          />
+        }
+      />
+      <Route
+        path={routePatterns.artistDiscography}
+        element={
+          <ArtistDiscographyRoute
+            currentUser={user}
+            onPlayTrack={playSingleTrack}
+            currentTrack={currentTrack}
+          />
+        }
+      />
+      <Route
+        path={routes.lives}
+        element={
+          <LiveConcertsPage
+            userRole={user.role}
+            onJoinRoom={(room) => navigate(routes.liveRoom(room.id), { state: { room } })}
+            onStartBroadcast={() => navigate(routes.artistLive)}
+          />
+        }
+      />
+      <Route path={routePatterns.liveRoom} element={<ListenerLiveRoomRoute />} />
+      <Route
+        path={routes.artistLive}
+        element={
+          <RoleRoute allowedRoles={["artist"]}>
+            <ArtistLiveRoom />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.artistDashboard}
+        element={
+          <RoleRoute allowedRoles={["artist"]}>
+            <ArtistDashboardPage
+              user={user}
+              onPlayTrack={playSingleTrack}
+              currentTrack={currentTrack}
+            />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.artistTracks}
+        element={
+          <RoleRoute allowedRoles={["artist"]}>
+            <MyTracksPage
+              currentTrack={currentTrack}
+              onPlayTrack={playSingleTrack}
+              toast={toast}
+              user={user}
+            />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.artistAlbums}
+        element={
+          <RoleRoute allowedRoles={["artist"]}>
+            <MyAlbumsPage
+              currentTrack={currentTrack}
+              onPlayTrack={playAlbumTrack}
+              toast={toast}
+              user={user}
+            />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.artistUpload}
+        element={
+          <RoleRoute allowedRoles={["artist"]}>
+            <ArtistUploadRoute toast={toast} user={user} />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.artistAlbumNew}
+        element={
+          <RoleRoute allowedRoles={["artist"]}>
+            <CreateAlbumPage toast={toast} />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routePatterns.artistTrackEdit}
+        element={
+          <RoleRoute allowedRoles={["artist"]}>
+            <ArtistEditTrackRoute toast={toast} user={user} />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.artistAnalytics}
+        element={
+          <RoleRoute allowedRoles={["artist"]}>
+            <ArtistAnalyticsPage user={user} />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path={routes.settings}
+        element={<SettingsPage user={user} toast={toast} onRequestLogout={requestLogout} />}
+      />
+      <Route path="/admin/*" element={<Navigate to={routes.home} replace />} />
+      <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
+      <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
+      <Route path={routes.authCallback} element={<Navigate to={defaultRoute} replace />} />
+      <Route path="*" element={<Navigate to={defaultRoute} replace />} />
+    </Routes>
+  );
+
   if (user.role === "admin") {
     return (
       <div className="app-shell">
-        <div className={`app-body${isAdminSidebarCollapsed ? " sidebar-is-collapsed" : ""}`}>
-          <AdminSidebar
-            collapsed={isAdminSidebarCollapsed}
-            onToggle={toggleAdminSidebar}
-            user={user}
-          />
-          <div className="main-content">
-            <Routes>
-              <Route
-                path={routes.adminOverview}
-                element={
-                  <RoleRoute allowedRoles={["admin"]}>
-                    <AdminOverviewPage />
-                  </RoleRoute>
-                }
-              />
-              <Route
-                path={routes.adminUsers}
-                element={
-                  <RoleRoute allowedRoles={["admin"]}>
-                    <Navigate to={routes.adminModeration} replace />
-                  </RoleRoute>
-                }
-              />
-              <Route
-                path={routes.adminContent}
-                element={
-                  <RoleRoute allowedRoles={["admin"]}>
-                    <Navigate to={routes.adminModeration} replace />
-                  </RoleRoute>
-                }
-              />
-              <Route
-                path={routes.adminReports}
-                element={
-                  <RoleRoute allowedRoles={["admin"]}>
-                    <AdminAnalyticsPage />
-                  </RoleRoute>
-                }
-              />
-              <Route
-                path={routes.adminModeration}
-                element={
-                  <RoleRoute allowedRoles={["admin"]}>
-                    <AdminModerationPage toast={toast} />
-                  </RoleRoute>
-                }
-              />
-              <Route
-                path={routes.settings}
-                element={<SettingsPage user={user} toast={toast} onRequestLogout={requestLogout} />}
-              />
-              <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
-              <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
-              <Route path={routes.authCallback} element={<Navigate to={defaultRoute} replace />} />
-              <Route path="*" element={<Navigate to={defaultRoute} replace />} />
-            </Routes>
-          </div>
-        </div>
+        <ResponsiveAppShell
+          brandSubtitle=""
+          isMobile={isMobile}
+          isSidebarCollapsed={isAdminSidebarCollapsed}
+          mobileMenuOpen={isMobileMenuOpen}
+          mobileProfile={mobileProfileNode}
+          mobileSidebar={null}
+          onCloseMobileMenu={closeMobileMenu}
+          onOpenMobileMenu={openMobileMenu}
+          showMobileMenuButton={false}
+          sidebar={
+            <AdminSidebar
+              collapsed={isAdminSidebarCollapsed}
+              onToggle={toggleAdminSidebar}
+              user={user}
+            />
+          }
+        >
+          {adminRoutes}
+        </ResponsiveAppShell>
+        {isMobile ? <MobileTabBar items={adminMobileNavItems} /> : null}
         {logoutDialog}
         {suspendedDialog}
         {toastNode}
@@ -1514,164 +1732,35 @@ export default function StreamButed() {
 
   return (
     <div className="app-shell">
-      <div className={`app-body${isMainSidebarCollapsed ? " sidebar-is-collapsed" : ""}`}>
-        <MainSidebar
-          collapsed={isMainSidebarCollapsed}
-          onToggle={toggleMainSidebar}
-          user={user}
-        />
-        <div className="main-content">
-          <Routes>
-            <Route path={routes.home} element={<HomePage />} />
-            <Route
-              path={routes.search}
-              element={<SearchPage onPlayTrack={playSingleTrack} currentTrack={currentTrack} />}
-            />
-            <Route
-              path={routes.library}
-              element={
-                <LibraryPage
-                  currentTrack={currentTrack}
-                  onPlayCollectionTrack={playAlbumTrack}
-                  toast={toast}
-                />
-              }
-            />
-            <Route
-              path={routePatterns.libraryPlaylist}
-              element={
-                <PlaylistDetailRoute
-                  currentTrack={currentTrack}
-                  onPlayTrack={playAlbumTrack}
-                  toast={toast}
-                />
-              }
-            />
-            <Route
-              path={routePatterns.album}
-              element={<AlbumDetailRoute onPlayTrack={playAlbumTrack} currentTrack={currentTrack} />}
-            />
-            <Route
-              path={routePatterns.artistProfile}
-              element={
-                <ArtistProfileRoute
-                  currentUser={user}
-                  onPlayTrack={playSingleTrack}
-                  currentTrack={currentTrack}
-                />
-              }
-            />
-            <Route
-              path={routePatterns.artistDiscography}
-              element={
-                <ArtistDiscographyRoute
-                  currentUser={user}
-                  onPlayTrack={playSingleTrack}
-                  currentTrack={currentTrack}
-                />
-              }
-            />
-            <Route
-              path={routes.lives}
-              element={
-                <LiveConcertsPage
-                  userRole={user.role}
-                  onJoinRoom={(room) => navigate(routes.liveRoom(room.id), { state: { room } })}
-                  onStartBroadcast={() => navigate(routes.artistLive)}
-                />
-              }
-            />
-            <Route path={routePatterns.liveRoom} element={<ListenerLiveRoomRoute />} />
-            <Route
-              path={routes.artistLive}
-              element={
-                <RoleRoute allowedRoles={["artist"]}>
-                  <ArtistLiveRoom />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={routes.artistDashboard}
-              element={
-                <RoleRoute allowedRoles={["artist"]}>
-                  <ArtistDashboardPage
-                    user={user}
-                    onPlayTrack={playSingleTrack}
-                    currentTrack={currentTrack}
-                  />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={routes.artistTracks}
-              element={
-                <RoleRoute allowedRoles={["artist"]}>
-                  <MyTracksPage
-                    currentTrack={currentTrack}
-                    onPlayTrack={playSingleTrack}
-                    toast={toast}
-                    user={user}
-                  />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={routes.artistAlbums}
-              element={
-                <RoleRoute allowedRoles={["artist"]}>
-                  <MyAlbumsPage
-                    currentTrack={currentTrack}
-                    onPlayTrack={playAlbumTrack}
-                    toast={toast}
-                    user={user}
-                  />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={routes.artistUpload}
-              element={
-                <RoleRoute allowedRoles={["artist"]}>
-                  <ArtistUploadRoute toast={toast} user={user} />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={routes.artistAlbumNew}
-              element={
-                <RoleRoute allowedRoles={["artist"]}>
-                  <CreateAlbumPage toast={toast} />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={routePatterns.artistTrackEdit}
-              element={
-                <RoleRoute allowedRoles={["artist"]}>
-                  <ArtistEditTrackRoute toast={toast} user={user} />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={routes.artistAnalytics}
-              element={
-                <RoleRoute allowedRoles={["artist"]}>
-                  <ArtistAnalyticsPage user={user} />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={routes.settings}
-              element={<SettingsPage user={user} toast={toast} onRequestLogout={requestLogout} />}
-            />
-            <Route path="/admin/*" element={<Navigate to={routes.home} replace />} />
-            <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
-            <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
-            <Route path={routes.authCallback} element={<Navigate to={defaultRoute} replace />} />
-            <Route path="*" element={<Navigate to={defaultRoute} replace />} />
-          </Routes>
-        </div>
-      </div>
+      <ResponsiveAppShell
+        brandSubtitle=""
+        isMobile={isMobile}
+        isSidebarCollapsed={isMainSidebarCollapsed}
+        mobileMenuOpen={isMobileMenuOpen}
+        mobileProfile={mobileProfileNode}
+        mobileSidebar={showArtistMobileMenu ? (
+          <MainSidebar
+            collapsed={false}
+            onToggle={closeMobileMenu}
+            showCollapseButton={false}
+            showDiscoverSection={false}
+            showManageSection
+            user={user}
+          />
+        ) : null}
+        onCloseMobileMenu={closeMobileMenu}
+        onOpenMobileMenu={openMobileMenu}
+        showMobileMenuButton={showArtistMobileMenu}
+        sidebar={
+          <MainSidebar
+            collapsed={isMainSidebarCollapsed}
+            onToggle={toggleMainSidebar}
+            user={user}
+          />
+        }
+      >
+        {listenerArtistRoutes}
+      </ResponsiveAppShell>
       <PlaybackController
         ref={playbackControllerRef}
         user={user}
@@ -1683,6 +1772,7 @@ export default function StreamButed() {
         setPlaybackQueue={setPlaybackQueue}
         toast={toast}
       />
+      {isMobile ? <MobileTabBar items={mainMobileNavItems} /> : null}
       {logoutDialog}
       {suspendedDialog}
       {toastNode}

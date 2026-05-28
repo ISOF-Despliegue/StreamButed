@@ -1,4 +1,5 @@
-import { IcChevron, IcMusic, IcShuffle, IcSkipBack, IcPlay, IcPause, IcSkipFwd, IcRepeat, IcVolume } from '../icons/Icons';
+import { useState } from 'react';
+import { IcChevron, IcMusic, IcShuffle, IcSkipBack, IcPlay, IcPause, IcSkipFwd, IcRepeat, IcVolume, IcQueue } from '../icons/Icons';
 import { getAssetUrl } from '../../services/mediaService';
 import { ProgressBar } from '../ui/ProgressBar';
 import { formatDuration } from '../../utils/formatters';
@@ -45,6 +46,7 @@ export function ExpandedPlayer({
   onToggleLike = undefined,
   toast = undefined
 }) {
+  const [showMobileQueue, setShowMobileQueue] = useState(false);
   if (!track) return null;
 
   const artistName = track.artist || track.artistName || 'Artista';
@@ -74,7 +76,7 @@ export function ExpandedPlayer({
         <div className="ep-meta">
           <div className="ep-title">{track.title}</div>
           <div className="ep-artist">{artistName}</div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+          <div className="ep-actions-row">
             <TrackLibraryActions
               className="player-track-actions"
               trackId={trackId}
@@ -83,6 +85,16 @@ export function ExpandedPlayer({
               onToggleLike={onToggleLike}
               toast={toast}
             />
+            <button
+              aria-label={showMobileQueue ? 'Ocultar cola de reproduccion' : 'Mostrar cola de reproduccion'}
+              aria-pressed={showMobileQueue}
+              className={`btn-icon ep-mobile-queue-toggle${showMobileQueue ? ' active' : ''}`}
+              onClick={() => setShowMobileQueue((current) => !current)}
+              title="Cola de reproduccion"
+              type="button"
+            >
+              <IcQueue />
+            </button>
           </div>
           {playback.error && (
             <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>{playback.error}</div>
@@ -143,6 +155,37 @@ export function ExpandedPlayer({
             <div className="volume-fill" style={{ width: `${volume}%` }} />
           </button>
         </div>
+        {showMobileQueue ? (
+          <div className="ep-mobile-queue-panel">
+            <div className="ep-sidebar-title">En cola</div>
+            {queue.map((t) => {
+              const id = t.trackId || t.id;
+              const activeId = track.trackId || track.id;
+
+              return (
+                <button
+                  className={`queue-item${id === activeId ? ' active' : ''}`}
+                  key={`mobile-${id}`}
+                  onClick={() => onSelectTrack(t)}
+                  type="button"
+                >
+                  <div className="queue-thumb">
+                    {t.coverAssetId ? (
+                      <img src={getAssetUrl(t.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)', fontSize: 12 }}><IcMusic /></div>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <div className="queue-name">{t.title}</div>
+                    <div className="queue-artist">{t.artist || t.artistName || 'Artista'}</div>
+                  </div>
+                  <div className="queue-dur">{formatDuration(resolveQueueDuration(t, playback, activeId))}</div>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       <div className="ep-sidebar">
