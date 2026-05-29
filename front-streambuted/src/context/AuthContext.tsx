@@ -67,6 +67,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [refreshSession]);
 
   useEffect(() => {
+    const desktopAuth = window.streambuted?.isElectron ? window.streambuted.auth : undefined;
+    if (!desktopAuth) {
+      return undefined;
+    }
+
+    const unsubscribeResult = desktopAuth.onOAuthResult((response) => {
+      void commitSession(response.accessToken);
+    });
+    const unsubscribeError = desktopAuth.onOAuthError((message) => {
+      browserLogger.warn("Desktop OAuth failed.", message);
+    });
+
+    return () => {
+      unsubscribeResult();
+      unsubscribeError();
+    };
+  }, [commitSession]);
+
+  useEffect(() => {
     return authTokenStore.subscribe(setAccessToken);
   }, []);
 
