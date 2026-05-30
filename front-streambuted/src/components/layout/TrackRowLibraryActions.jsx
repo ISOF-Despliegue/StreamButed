@@ -66,6 +66,7 @@ export function TrackRowLibraryActions({ className = '', toast = undefined, trac
         typeof libraryService.likeTrack !== 'function' ||
         typeof libraryService.unlikeTrack !== 'function'
       ) {
+        setLikeState((current) => ({ ...current, isLoading: false }));
         return;
       }
 

@@ -907,13 +907,13 @@ PasswordResetDialog.propTypes = {
 
 LoginPage.propTypes = {
   externalError: PropTypes.string,
-  onCompletePasswordReset: PropTypes.func.isRequired,
+  onCompletePasswordReset: PropTypes.func,
   onGoogleLogin: PropTypes.func.isRequired,
   onLogin: PropTypes.func.isRequired,
   onRegister: PropTypes.func.isRequired,
-  onResendPasswordResetCode: PropTypes.func.isRequired,
-  onStartPasswordReset: PropTypes.func.isRequired,
-  onVerifyPasswordResetCode: PropTypes.func.isRequired,
+  onResendPasswordResetCode: PropTypes.func,
+  onStartPasswordReset: PropTypes.func,
+  onVerifyPasswordResetCode: PropTypes.func,
 };
 
 RegisterPage.propTypes = {

@@ -87,10 +87,10 @@ export interface AuthContextValue {
     request: RegistrationVerificationActionRequest
   ) => Promise<RegistrationVerificationResponse>;
   cancelRegistration: (request: RegistrationVerificationActionRequest) => Promise<void>;
-  startPasswordReset?: (request: StartPasswordResetRequest) => Promise<RegistrationVerificationResponse>;
-  resendPasswordResetCode?: (request: PasswordResetActionRequest) => Promise<RegistrationVerificationResponse>;
-  verifyPasswordResetCode?: (request: VerifyPasswordResetCodeRequest) => Promise<void>;
-  completePasswordReset?: (request: CompletePasswordResetRequest) => Promise<void>;
+  startPasswordReset: (request: StartPasswordResetRequest) => Promise<RegistrationVerificationResponse>;
+  resendPasswordResetCode: (request: PasswordResetActionRequest) => Promise<RegistrationVerificationResponse>;
+  verifyPasswordResetCode: (request: VerifyPasswordResetCodeRequest) => Promise<void>;
+  completePasswordReset: (request: CompletePasswordResetRequest) => Promise<void>;
   completeGooglePasswordSetup: (request: SetupPasswordRequest) => Promise<CurrentUser>;
   refreshSession: () => Promise<CurrentUser | null>;
   logout: () => Promise<void>;

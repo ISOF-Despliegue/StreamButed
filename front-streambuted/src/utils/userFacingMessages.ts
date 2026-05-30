@@ -21,10 +21,17 @@ export function toUserFacingMessage(message: string | null | undefined): string 
   }
 
   if (
+    normalized.includes("código de recuperación es incorrecto") ||
+    normalized.includes("password reset code is incorrect") ||
+    normalized.includes("password reset code invalid")
+  ) {
+    return "El código de recuperación es incorrecto.";
+  }
+
+  if (
     normalized.includes("verification code is incorrect") ||
     normalized.includes("verification code invalid") ||
-    normalized.includes("codigo de verificacion es incorrecto") ||
-    normalized.includes("codigo de recuperacion es incorrecto")
+    normalized.includes("código de verificación es incorrecto")
   ) {
     return "El código de verificación es incorrecto.";
   }
@@ -34,7 +41,7 @@ export function toUserFacingMessage(message: string | null | undefined): string 
   }
 
   if (
-    normalized.includes("codigo de recuperacion expiro") ||
+    normalized.includes("código de recuperación expiró") ||
     normalized.includes("password reset code has expired")
   ) {
     return "El código de recuperación expiró. Solicita uno nuevo.";
