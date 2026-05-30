@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
-import { IcMusic, IcPlay, IcX } from '../../components/icons/Icons';
+import { TrackRowLibraryActions } from '../../components/layout/TrackRowLibraryActions';
+import { IcCheck, IcEdit, IcMusic, IcPlay, IcPlus, IcX } from '../../components/icons/Icons';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { FilePicker } from '../../components/ui/FilePicker';
 import { InlineState } from '../../components/ui/InlineState';
@@ -9,6 +10,7 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import { TrackRow } from '../../components/ui/TrackRow';
 import { useSearchController } from '../../hooks/useSearchController';
 import { browserLogger } from '../../utils/browserLogger';
+import { catalogService } from '../../services/catalogService';
 import { libraryService } from '../../services/libraryService';
 import {
   emitPlaylistCreated,
@@ -73,6 +75,130 @@ function PlaylistSummaryCard({ playlist, onOpen, onDelete }) {
   );
 }
 
+function PlaylistEditorFields({
+  coverPreviewUrl,
+  file,
+  helperText = PLAYLIST_IMAGE_HELPER,
+  name,
+  onFileChange,
+  onNameChange,
+  showName = true,
+}) {
+  return (
+    <>
+      {showName && (
+        <div className="form-group">
+          <label className="form-label" htmlFor="playlist-name">Nombre</label>
+          <input
+            id="playlist-name"
+            aria-label="Nombre de playlist"
+            data-dialog-autofocus
+            value={name}
+            onChange={onNameChange}
+            placeholder="Nueva playlist"
+            maxLength={PLAYLIST_NAME_MAX_LENGTH}
+          />
+          <div className="char-count">{name.length}/{PLAYLIST_NAME_MAX_LENGTH}</div>
+        </div>
+      )}
+      <div className="form-group">
+        <div className="form-label">Portada</div>
+        <FilePicker
+          accept="image/png,image/jpeg,image/webp"
+          file={file}
+          onChange={onFileChange}
+          helperText={helperText}
+          buttonLabel="Seleccionar archivo"
+        />
+        {coverPreviewUrl && (
+          <div style={{ marginTop: 10 }}>
+            <img
+              src={coverPreviewUrl}
+              alt="Previsualizacion de portada de playlist"
+              style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+            />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function PlaylistAddTrackButton({ disabled = false, isAdded = false, onClick }) {
+  return (
+    <button
+      aria-label={isAdded ? 'La canción ya esta en la playlist' : 'Agregar canción a la playlist'}
+      className={`btn-icon${isAdded ? ' active' : ''}`}
+      disabled={disabled || isAdded}
+      onClick={onClick}
+      title={isAdded ? 'Ya esta en la playlist' : 'Agregar canción'}
+      type="button"
+    >
+      {isAdded ? <IcCheck /> : <IcPlus />}
+    </button>
+  );
+}
+
+function PlaylistSongResults({
+  emptyMessage,
+  isAddingTrack,
+  onAddTrack,
+  playlistTrackIds,
+  tracks,
+}) {
+  if (tracks.length === 0) {
+    return <InlineState title={emptyMessage} />;
+  }
+
+  return (
+    <table className="track-list">
+      <thead><tr>
+        <th style={{ width: 40 }}>#</th>
+        <th>Titulo</th>
+        <th>Genero</th>
+        <th style={{ width: 88 }}>Agregar</th>
+      </tr></thead>
+      <tbody>
+        {tracks.map((track, index) => {
+          const isAdded = playlistTrackIds.has(track.trackId);
+
+          return (
+            <tr key={track.trackId} className="track-row track-row-static">
+              <td><span className="track-num">{index + 1}</span></td>
+              <td>
+                <div className="track-title-cell">
+                  <div className="track-thumb">
+                    {track.coverAssetId ? (
+                      <img src={getAssetUrl(track.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="track-name">{track.title}</div>
+                    <div className="track-artist-label">{track.artistName || 'Artista'}</div>
+                  </div>
+                </div>
+              </td>
+              <td><span className="track-meta-text">{track.genre || 'Sin genero'}</span></td>
+              <td className="track-actions-cell" onClick={event => event.stopPropagation()}>
+                <PlaylistAddTrackButton
+                  disabled={isAddingTrack}
+                  isAdded={isAdded}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void onAddTrack(track.trackId);
+                  }}
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   const navigate = useNavigate();
   const [library, setLibrary] = useState(null);
@@ -109,8 +235,8 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
     try {
       const likedSongs = await libraryService.getLikedSongs();
       setLibrary((current) => (current ? { ...current, likedSongs } : current));
-    } catch (error) {
-      browserLogger.warn('Failed to refresh liked songs library section.', error);
+    } catch (refreshError) {
+      browserLogger.warn('Failed to refresh liked songs library section.', refreshError);
     }
   }, []);
 
@@ -351,38 +477,13 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
           resetCreateDialog();
         }}
       >
-        <div className="form-group">
-          <label className="form-label" htmlFor="playlist-name">Nombre</label>
-          <input
-            id="playlist-name"
-            aria-label="Nombre de playlist"
-            data-dialog-autofocus
-            value={playlistName}
-            onChange={event => setPlaylistName(event.target.value)}
-            placeholder="Nueva playlist"
-            maxLength={PLAYLIST_NAME_MAX_LENGTH}
-          />
-          <div className="char-count">{playlistName.length}/{PLAYLIST_NAME_MAX_LENGTH}</div>
-        </div>
-        <div className="form-group">
-          <div className="form-label">Portada</div>
-          <FilePicker
-            accept="image/png,image/jpeg,image/webp"
-            file={playlistCoverFile}
-            onChange={event => setPlaylistCoverFile(event.target.files?.[0] ?? null)}
-            helperText={PLAYLIST_IMAGE_HELPER}
-            buttonLabel="Seleccionar archivo"
-          />
-          {playlistCoverPreviewUrl && (
-            <div style={{ marginTop: 10 }}>
-              <img
-                src={playlistCoverPreviewUrl}
-                alt="Previsualizacion de portada de playlist"
-                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
-              />
-            </div>
-          )}
-        </div>
+        <PlaylistEditorFields
+          coverPreviewUrl={playlistCoverPreviewUrl}
+          file={playlistCoverFile}
+          name={playlistName}
+          onFileChange={event => setPlaylistCoverFile(event.target.files?.[0] ?? null)}
+          onNameChange={event => setPlaylistName(event.target.value)}
+        />
       </ConfirmDialog>
 
       <ConfirmDialog
@@ -401,7 +502,22 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingCurrent, setIsAddingCurrent] = useState(false);
-  const [isUpdatingCover, setIsUpdatingCover] = useState(false);
+  const [isEditingPlaylist, setIsEditingPlaylist] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAddSongsDialogOpen, setIsAddSongsDialogOpen] = useState(false);
+  const [isLoadingLikedSongs, setIsLoadingLikedSongs] = useState(false);
+  const [isSearchingTracks, setIsSearchingTracks] = useState(false);
+  const [isAddingDialogTrack, setIsAddingDialogTrack] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCoverFile, setEditCoverFile] = useState(null);
+  const [editCoverPreviewUrl, setEditCoverPreviewUrl] = useState('');
+  const [activeAddSongsTab, setActiveAddSongsTab] = useState('liked');
+  const [likedSongsSearchValue, setLikedSongsSearchValue] = useState('');
+  const [likedSongsSearchTerm, setLikedSongsSearchTerm] = useState('');
+  const [likedSongCandidates, setLikedSongCandidates] = useState([]);
+  const [searchCandidates, setSearchCandidates] = useState([]);
+  const [searchError, setSearchError] = useState('');
+  const [hasSearchedSongs, setHasSearchedSongs] = useState(false);
   const [error, setError] = useState('');
   const [playlistTrackSearchTerm, setPlaylistTrackSearchTerm] = useState('');
 
@@ -412,6 +528,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       setIsLoading(true);
       setError('');
     }
+
     try {
       setPlaylist(await libraryService.getPlaylist(playlistId));
     } catch (err) {
@@ -455,10 +572,93 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     })
   ), [loadPlaylist, playlist?.isSystem, playlistId]);
 
+  useEffect(() => {
+    if (!editCoverFile) {
+      setEditCoverPreviewUrl('');
+      return undefined;
+    }
+
+    const previewUrl = URL.createObjectURL(editCoverFile);
+    setEditCoverPreviewUrl(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [editCoverFile]);
+
   const playlistTrackSearchController = useSearchController({
     onClear: useCallback(() => setPlaylistTrackSearchTerm(''), []),
     onSearch: useCallback(searchTerm => setPlaylistTrackSearchTerm(searchTerm), []),
   });
+
+  const searchSongsController = useSearchController({
+    onClear: useCallback(() => {
+      setSearchCandidates([]);
+      setSearchError('');
+      setHasSearchedSongs(false);
+    }, []),
+    onSearch: useCallback(async (searchTerm) => {
+      setIsSearchingTracks(true);
+      setSearchError('');
+      setHasSearchedSongs(true);
+
+      try {
+        const response = await catalogService.searchCatalog({
+          searchTerm,
+          limit: 20,
+          offset: 0,
+        });
+        setSearchCandidates(
+          (response.tracks ?? []).map(track => ({
+            ...track,
+            artistName: track.artistName ?? track.artist ?? 'Artista',
+            albumTitle: track.albumTitle ?? null,
+          }))
+        );
+      } catch (searchFailure) {
+        setSearchCandidates([]);
+        setSearchError(getErrorMessage(searchFailure, 'No se pudieron buscar canciones.'));
+      } finally {
+        setIsSearchingTracks(false);
+      }
+    }, []),
+  });
+
+  const resetEditDialog = useCallback(() => {
+    setIsEditDialogOpen(false);
+    setEditName('');
+    setEditCoverFile(null);
+  }, []);
+
+  const openEditDialog = useCallback(() => {
+    setEditName(playlist?.name ?? '');
+    setEditCoverFile(null);
+    setIsEditDialogOpen(true);
+  }, [playlist]);
+
+  const openAddSongsDialog = useCallback(async () => {
+    setIsAddSongsDialogOpen(true);
+    setActiveAddSongsTab('liked');
+    setLikedSongsSearchValue('');
+    setLikedSongsSearchTerm('');
+    setSearchCandidates([]);
+    setSearchError('');
+    setHasSearchedSongs(false);
+
+    if (likedSongCandidates.length > 0 || isLoadingLikedSongs) {
+      return;
+    }
+
+    setIsLoadingLikedSongs(true);
+    try {
+      const likedSongs = await libraryService.getLikedSongs();
+      setLikedSongCandidates(likedSongs.tracks ?? []);
+    } catch (loadError) {
+      toast(getErrorMessage(loadError, 'No se pudieron cargar tus me gusta.'));
+    } finally {
+      setIsLoadingLikedSongs(false);
+    }
+  }, [isLoadingLikedSongs, likedSongCandidates.length, toast]);
 
   const addCurrentTrack = async () => {
     const trackId = getTrackIdentifier(currentTrack);
@@ -477,6 +677,24 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     }
   };
 
+  const addTrackFromDialog = async (trackId) => {
+    if (!playlistId || isAddingDialogTrack) {
+      return;
+    }
+
+    setIsAddingDialogTrack(true);
+    try {
+      const updatedPlaylist = await libraryService.addTrackToPlaylist(playlistId, trackId);
+      setPlaylist(updatedPlaylist);
+      emitPlaylistUpdated(updatedPlaylist);
+      toast('Canción agregada a la playlist');
+    } catch (dialogError) {
+      toast(getErrorMessage(dialogError, 'No se pudo agregar la canción a la playlist.'));
+    } finally {
+      setIsAddingDialogTrack(false);
+    }
+  };
+
   const removeTrack = async (trackId) => {
     if (!playlistId) return;
 
@@ -490,22 +708,33 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     }
   };
 
-  const updatePlaylistCover = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !playlistId || isUpdatingCover) return;
+  const savePlaylistEdits = async () => {
+    if (!playlistId || isEditingPlaylist) {
+      return;
+    }
 
-    setIsUpdatingCover(true);
+    const normalizedName = editName.trim();
+    if (!playlist.isSystem && !normalizedName) {
+      toast('Todos los campos son obligatorios.');
+      return;
+    }
+
+    setIsEditingPlaylist(true);
     try {
-      const upload = await mediaService.uploadPlaylistCover(file);
-      const updated = await libraryService.updatePlaylist(playlistId, { coverAssetId: upload.assetId });
-      setPlaylist(current => (current ? { ...current, coverAssetId: updated.coverAssetId } : current));
-      emitPlaylistUpdated(updated);
-      toast('Portada actualizada');
-    } catch (err) {
-      toast(getErrorMessage(err, 'No se pudo actualizar la portada de la playlist.'));
+      const upload = editCoverFile ? await mediaService.uploadPlaylistCover(editCoverFile) : null;
+      const updatedPlaylist = await libraryService.updatePlaylist(playlistId, {
+        ...(playlist.isSystem ? {} : { name: normalizedName }),
+        ...(upload ? { coverAssetId: upload.assetId } : {}),
+      });
+      setPlaylist((current) => (current ? { ...current, ...updatedPlaylist } : current));
+      emitPlaylistUpdated(updatedPlaylist);
+      resetEditDialog();
+      toast('Playlist actualizada');
+    } catch (editError) {
+      resetEditDialog();
+      toast(getErrorMessage(editError, 'No se pudo actualizar la playlist.'));
     } finally {
-      setIsUpdatingCover(false);
+      setIsEditingPlaylist(false);
     }
   };
 
@@ -526,9 +755,17 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   }
 
   const tracks = playlist.tracks.map(toPlayableTrack);
+  const playlistTrackIds = new Set((playlist.tracks ?? []).map(track => track.trackId));
   const isSystemPlaylist = Boolean(playlist.isSystem);
   const currentTrackId = getTrackIdentifier(currentTrack);
   const hasCurrentTrack = Boolean(currentTrackId && tracks.some(track => track.trackId === currentTrackId));
+  const filteredLikedSongCandidates = likedSongsSearchTerm
+    ? likedSongCandidates.filter(track => (
+      includesSearchTerm(track.title, likedSongsSearchTerm) ||
+      includesSearchTerm(track.artistName, likedSongsSearchTerm) ||
+      includesSearchTerm(track.albumTitle, likedSongsSearchTerm)
+    ))
+    : likedSongCandidates;
   const filteredTracks = playlistTrackSearchTerm
     ? tracks.filter(track => (
       includesSearchTerm(track.title, playlistTrackSearchTerm) ||
@@ -553,17 +790,17 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <label className="btn-ghost">
-            {isUpdatingCover ? 'Subiendo...' : 'Cambiar portada'}
-            <input
-              className="file-picker-input"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              disabled={isUpdatingCover}
-              onChange={updatePlaylistCover}
-            />
-          </label>
+        <div className="playlist-detail-actions">
+          <button className="btn-ghost" onClick={openEditDialog} type="button">
+            <IcEdit />
+            <span>Editar</span>
+          </button>
+          {!isSystemPlaylist && (
+            <button className="btn-ghost" onClick={() => void openAddSongsDialog()} type="button">
+              <IcPlus />
+              <span>Agregar canciones</span>
+            </button>
+          )}
           {!isSystemPlaylist && (
             <button
               className="btn-ghost"
@@ -590,7 +827,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           title={isSystemPlaylist ? 'Aun no has dado me gusta a canciones' : 'Playlist vacia'}
           message={isSystemPlaylist
             ? 'Usa el corazon del reproductor para guardarlas aqui.'
-            : 'Reproduce una canción y agrégala desde este detalle.'}
+            : 'Usa "Agregar canciones" o agrega la pista actual desde este detalle.'}
         />
       ) : (
         <>
@@ -610,9 +847,9 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
               <thead><tr>
                 <th style={{ width: 40 }}>#</th>
                 <th>Titulo</th>
-                <th>Categoria</th>
+                <th style={{ width: isSystemPlaylist ? 120 : 220 }}>Acciones</th>
+                <th>Genero</th>
                 <th className="track-duration-col">Duracion</th>
-                {!isSystemPlaylist && <th style={{ width: 110 }}>Acciones</th>}
               </tr></thead>
               <tbody>
                 {filteredTracks.map((track, index) => (
@@ -621,21 +858,27 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
                     track={track}
                     index={index}
                     isPlaying={currentTrack?.trackId === track.trackId}
+                    actionsPosition="before-meta"
                     onPlay={() => onPlayTrack(track, tracks, playlist.playlistId)}
                     metaText={track.genre || 'Sin genero'}
-                    actions={!isSystemPlaylist ? (
-                      <button
-                        className="btn-ghost"
-                        style={{ padding: '6px 10px', fontSize: 12 }}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void removeTrack(track.trackId);
-                        }}
-                        type="button"
-                      >
-                        Quitar
-                      </button>
-                    ) : undefined}
+                    actions={(
+                      <div className="track-actions-group">
+                        <TrackRowLibraryActions className="track-actions-group" toast={toast} trackId={track.trackId} />
+                        {!isSystemPlaylist && (
+                          <button
+                            className="btn-ghost"
+                            style={{ padding: '6px 10px', fontSize: 12 }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void removeTrack(track.trackId);
+                            }}
+                            type="button"
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </div>
+                    )}
                   />
                 ))}
               </tbody>
@@ -643,6 +886,110 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={isEditDialogOpen}
+        title="Editar playlist"
+        message=""
+        confirmLabel="Guardar"
+        tone="primary"
+        isLoading={isEditingPlaylist}
+        disabled={!isSystemPlaylist && !editName.trim()}
+        onConfirm={savePlaylistEdits}
+        onCancel={() => {
+          if (isEditingPlaylist) return;
+          resetEditDialog();
+        }}
+      >
+        <PlaylistEditorFields
+          coverPreviewUrl={editCoverPreviewUrl || (playlist.coverAssetId ? getAssetUrl(playlist.coverAssetId) : '')}
+          file={editCoverFile}
+          name={editName}
+          onFileChange={event => setEditCoverFile(event.target.files?.[0] ?? null)}
+          onNameChange={event => setEditName(event.target.value)}
+          showName={!isSystemPlaylist}
+        />
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={isAddSongsDialogOpen}
+        title="Agregar canciones"
+        message=""
+        confirmLabel="Cerrar"
+        showCancel={false}
+        tone="primary"
+        onConfirm={() => setIsAddSongsDialogOpen(false)}
+        onCancel={() => setIsAddSongsDialogOpen(false)}
+      >
+        <div className="playlist-picker-tabs">
+          <button
+            className={`role-tab${activeAddSongsTab === 'liked' ? ' active' : ''}`}
+            onClick={() => setActiveAddSongsTab('liked')}
+            type="button"
+          >
+            Tus Me Gusta
+          </button>
+          <button
+            className={`role-tab${activeAddSongsTab === 'search' ? ' active' : ''}`}
+            onClick={() => setActiveAddSongsTab('search')}
+            type="button"
+          >
+            Buscar canciones
+          </button>
+        </div>
+
+        {activeAddSongsTab === 'liked' ? (
+          <div className="playlist-picker-panel">
+            <SearchInput
+              cooldownUntil={0}
+              placeholder="Buscar en tus me gusta"
+              value={likedSongsSearchValue}
+              onChange={(value) => {
+                setLikedSongsSearchValue(value);
+                setLikedSongsSearchTerm(value.trim());
+              }}
+              onSubmit={() => setLikedSongsSearchTerm(likedSongsSearchValue.trim())}
+            />
+            {isLoadingLikedSongs ? (
+              <InlineState title="Cargando tus me gusta..." />
+            ) : (
+              <PlaylistSongResults
+                emptyMessage="No encontramos canciones en tus me gusta."
+                isAddingTrack={isAddingDialogTrack}
+                onAddTrack={addTrackFromDialog}
+                playlistTrackIds={playlistTrackIds}
+                tracks={filteredLikedSongCandidates}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="playlist-picker-panel">
+            <SearchInput
+              cooldownUntil={searchSongsController.cooldownUntil}
+              placeholder="Buscar canciones"
+              value={searchSongsController.searchValue}
+              onChange={searchSongsController.setSearchValue}
+              onSubmit={searchSongsController.submitSearch}
+            />
+            {isSearchingTracks && <InlineState title="Buscando canciones..." />}
+            {!isSearchingTracks && searchError && (
+              <InlineState title="No se pudo buscar" message={searchError} />
+            )}
+            {!isSearchingTracks && !searchError && hasSearchedSongs && (
+              <PlaylistSongResults
+                emptyMessage="No encontramos canciones para esta busqueda."
+                isAddingTrack={isAddingDialogTrack}
+                onAddTrack={addTrackFromDialog}
+                playlistTrackIds={playlistTrackIds}
+                tracks={searchCandidates}
+              />
+            )}
+            {!isSearchingTracks && !searchError && !hasSearchedSongs && (
+              <InlineState title="Busca canciones para agregarlas a esta playlist." />
+            )}
+          </div>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }
@@ -668,6 +1015,37 @@ PlaylistSummaryCard.propTypes = {
   onDelete: PropTypes.func.isRequired,
   onOpen: PropTypes.func.isRequired,
   playlist: playlistPropType.isRequired,
+};
+
+PlaylistEditorFields.propTypes = {
+  coverPreviewUrl: PropTypes.string,
+  file: PropTypes.instanceOf(File),
+  helperText: PropTypes.string,
+  name: PropTypes.string.isRequired,
+  onFileChange: PropTypes.func.isRequired,
+  onNameChange: PropTypes.func.isRequired,
+  showName: PropTypes.bool,
+};
+
+PlaylistAddTrackButton.propTypes = {
+  disabled: PropTypes.bool,
+  isAdded: PropTypes.bool,
+  onClick: PropTypes.func.isRequired,
+};
+
+PlaylistSongResults.propTypes = {
+  emptyMessage: PropTypes.string.isRequired,
+  isAddingTrack: PropTypes.bool,
+  onAddTrack: PropTypes.func.isRequired,
+  playlistTrackIds: PropTypes.instanceOf(Set).isRequired,
+  tracks: PropTypes.arrayOf(PropTypes.shape({
+    albumTitle: PropTypes.string,
+    artistName: PropTypes.string,
+    coverAssetId: PropTypes.string,
+    genre: PropTypes.string,
+    trackId: PropTypes.string,
+    title: PropTypes.string,
+  })).isRequired,
 };
 
 LibraryPage.propTypes = {

@@ -107,8 +107,8 @@ function MainSidebarComponent({
       ? [
           { to: routes.artistDashboard, end: true, label: 'Panel', icon: <IcDashboard /> },
           { to: routes.artistTracks, label: 'Mis pistas', icon: <span className="nav-note-icon" aria-hidden="true">♪</span> },
-          { to: routes.artistAlbums, label: 'Albumes', icon: <IcMusic /> },
-          { to: routes.artistAnalytics, label: 'Analiticas', icon: <IcChart /> },
+          { to: routes.artistAlbums, label: 'Álbumes', icon: <IcMusic /> },
+          { to: routes.artistAnalytics, label: 'Analíticas', icon: <IcChart /> },
           { to: routes.artistUpload, label: 'Subir +', icon: <IcUpload /> },
           { to: routes.artistLive, label: 'Transmitir', icon: <IcCamera /> },
         ]
@@ -201,8 +201,8 @@ function AdminSidebarComponent({
 
   const items = [
     { to: routes.adminOverview, end: true, label: 'Resumen', icon: <IcOverview /> },
-    { to: routes.adminReports, label: 'Analiticas', icon: <IcReport /> },
-    { to: routes.adminModeration, label: 'Moderacion', icon: <IcShield /> },
+    { to: routes.adminReports, label: 'Analíticas', icon: <IcReport /> },
+    { to: routes.adminModeration, label: 'Moderación', icon: <IcShield /> },
     { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
   ];
 
@@ -218,7 +218,7 @@ function AdminSidebarComponent({
 
       {showNavigation ? (
         <>
-          <SidebarSectionLabel>Administracion</SidebarSectionLabel>
+          <SidebarSectionLabel>Administración</SidebarSectionLabel>
           <div className="sidebar-section" style={{ paddingTop: 4 }}>
             {items.map((item) => (
               <SidebarNavItem key={item.to} item={item} />

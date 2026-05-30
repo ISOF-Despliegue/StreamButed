@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
+import { TrackRowLibraryActions } from '../../components/layout/TrackRowLibraryActions';
 import { IcMusic } from '../../components/icons/Icons';
 import { AlbumCard } from '../../components/ui/AlbumCard';
 import { SearchInput } from '../../components/ui/SearchInput';
@@ -293,7 +294,7 @@ export function HomePage() {
   );
 }
 
-export function SearchPage({ onPlayTrack, currentTrack }) {
+export function SearchPage({ onPlayTrack, currentTrack, toast = undefined }) {
   const navigate = useNavigate();
   const [results, setResults] = useState({ artists: [], albums: [], tracks: [] });
   const [isLoading, setIsLoading] = useState(false);
@@ -424,6 +425,7 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
               <thead><tr>
                 <th style={{ width: 40 }}>#</th>
                 <th>Título</th>
+                <th style={{ width: 110 }}>Acciones</th>
                 <th>Género</th>
                 <th>Álbum</th>
                 <th className="track-duration-col">Duración</th>
@@ -437,8 +439,10 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
                     isPlaying={currentTrack?.trackId === track.trackId}
                     onPlay={() => onPlayTrack(track)}
                     onArtistClick={artistId => navigate(routes.artistProfile(artistId))}
+                    actionsPosition="before-meta"
                     metaText={track.genre || 'Sin género'}
                     contextText={track.albumTitle}
+                    actions={<TrackRowLibraryActions className="track-actions-group" toast={toast} trackId={track.trackId} />}
                   />
                 ))}
               </tbody>
@@ -467,7 +471,7 @@ export function SearchPage({ onPlayTrack, currentTrack }) {
   );
 }
 
-export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
+export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack, toast = undefined }) {
   const navigate = useNavigate();
   const [album, setAlbum] = useState(null);
   const [tracks, setTracks] = useState([]);
@@ -560,6 +564,7 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
             <thead><tr>
               <th style={{ width: 40 }}>#</th>
               <th>Título</th>
+              <th style={{ width: 110 }}>Acciones</th>
               <th>Género</th>
               <th className="track-duration-col">Duración</th>
             </tr></thead>
@@ -576,6 +581,8 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
                     album.albumId
                   )}
                   onArtistClick={artistId => navigate(routes.artistProfile(artistId))}
+                  actionsPosition="before-meta"
+                  actions={<TrackRowLibraryActions className="track-actions-group" toast={toast} trackId={track.trackId} />}
                 />
               ))}
             </tbody>
@@ -586,7 +593,7 @@ export function AlbumDetailPage({ albumId, onPlayTrack, currentTrack }) {
   );
 }
 
-export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentTrack }) {
+export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentTrack, toast = undefined }) {
   const navigate = useNavigate();
   const [artist, setArtist] = useState(null);
   const [tracks, setTracks] = useState([]);
@@ -704,6 +711,7 @@ export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentT
               <thead><tr>
                 <th style={{ width: 40 }}>#</th>
                 <th>Título</th>
+                <th style={{ width: 110 }}>Acciones</th>
                 <th>Género</th>
                 <th className="track-duration-col">Duración</th>
               </tr></thead>
@@ -714,8 +722,10 @@ export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentT
                     track={{ ...track, artist: resolvedDisplayName }}
                     index={index}
                     isPlaying={currentTrack?.trackId === track.trackId}
+                    actionsPosition="before-meta"
                     metaText={track.genre || 'Sin género'}
                     onPlay={() => onPlayTrack({ ...track, artist: resolvedDisplayName })}
+                    actions={<TrackRowLibraryActions className="track-actions-group" toast={toast} trackId={track.trackId} />}
                   />
                 ))}
               </tbody>
@@ -755,7 +765,7 @@ export function ArtistProfilePage({ artistId, currentUser, onPlayTrack, currentT
   );
 }
 
-export function ArtistDiscographyPage({ artistId, currentUser, onPlayTrack, currentTrack }) {
+export function ArtistDiscographyPage({ artistId, currentUser, onPlayTrack, currentTrack, toast = undefined }) {
   const navigate = useNavigate();
   const [artist, setArtist] = useState(null);
   const [tracks, setTracks] = useState([]);
@@ -856,6 +866,7 @@ export function ArtistDiscographyPage({ artistId, currentUser, onPlayTrack, curr
             <thead><tr>
               <th style={{ width: 40 }}>#</th>
               <th>Título</th>
+              <th style={{ width: 110 }}>Acciones</th>
               <th>Género</th>
               <th className="track-duration-col">Duración</th>
             </tr></thead>
@@ -866,7 +877,9 @@ export function ArtistDiscographyPage({ artistId, currentUser, onPlayTrack, curr
                   track={{ ...track, artist: resolvedDisplayName }}
                   index={index}
                   isPlaying={currentTrack?.trackId === track.trackId}
+                  actionsPosition="before-meta"
                   onPlay={() => onPlayTrack({ ...track, artist: resolvedDisplayName })}
+                  actions={<TrackRowLibraryActions className="track-actions-group" toast={toast} trackId={track.trackId} />}
                 />
               ))}
             </tbody>
@@ -905,12 +918,14 @@ HomePage.propTypes = {};
 SearchPage.propTypes = {
   currentTrack: listenerTrackPropType,
   onPlayTrack: PropTypes.func.isRequired,
+  toast: PropTypes.func,
 };
 
 AlbumDetailPage.propTypes = {
   albumId: PropTypes.string,
   currentTrack: listenerTrackPropType,
   onPlayTrack: PropTypes.func.isRequired,
+  toast: PropTypes.func,
 };
 
 ArtistProfilePage.propTypes = {
@@ -924,6 +939,7 @@ ArtistProfilePage.propTypes = {
   }),
   currentTrack: listenerTrackPropType,
   onPlayTrack: PropTypes.func.isRequired,
+  toast: PropTypes.func,
 };
 
 ArtistDiscographyPage.propTypes = ArtistProfilePage.propTypes;

@@ -63,7 +63,7 @@ import { useIsMobileViewport } from "./hooks/useIsMobileViewport";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
 import { libraryService } from "./services/libraryService";
-import { emitLikedSongsChanged } from "./services/libraryEvents";
+import { emitLikedSongsChanged, subscribeToLibraryEvents } from "./services/libraryEvents";
 import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
 import { authService } from "./services/authService";
 import { browserLogger } from "./utils/browserLogger";
@@ -897,14 +897,16 @@ type SinglePlaybackRouteProps = Readonly<{
 
 type ArtistProfileRouteProps = SinglePlaybackRouteProps & Readonly<{
   currentUser: CurrentUser;
+  toast: (msg: string) => void;
 }>;
 
 type AlbumPlaybackRouteProps = Readonly<{
   currentTrack: AppTrack | null;
   onPlayTrack: (track: AppTrack, tracks: AppTrack[], albumId: string) => void;
+  toast: (msg: string) => void;
 }>;
 
-function AlbumDetailRoute({ currentTrack, onPlayTrack }: AlbumPlaybackRouteProps) {
+function AlbumDetailRoute({ currentTrack, onPlayTrack, toast }: AlbumPlaybackRouteProps) {
   const { albumId } = useParams();
 
   if (!albumId) {
@@ -921,11 +923,12 @@ function AlbumDetailRoute({ currentTrack, onPlayTrack }: AlbumPlaybackRouteProps
       albumId={albumId}
       currentTrack={currentTrack}
       onPlayTrack={onPlayTrack}
+      toast={toast}
     />
   );
 }
 
-function ArtistProfileRoute({ currentTrack, currentUser, onPlayTrack }: ArtistProfileRouteProps) {
+function ArtistProfileRoute({ currentTrack, currentUser, onPlayTrack, toast }: ArtistProfileRouteProps) {
   const { artistId } = useParams();
 
   if (!artistId) {
@@ -943,6 +946,7 @@ function ArtistProfileRoute({ currentTrack, currentUser, onPlayTrack }: ArtistPr
       currentUser={currentUser}
       currentTrack={currentTrack}
       onPlayTrack={onPlayTrack}
+      toast={toast}
     />
   );
 }
@@ -975,7 +979,7 @@ function PlaylistDetailRoute({ currentTrack, onPlayTrack, toast }: PlaylistDetai
   );
 }
 
-function ArtistDiscographyRoute({ currentTrack, currentUser, onPlayTrack }: ArtistProfileRouteProps) {
+function ArtistDiscographyRoute({ currentTrack, currentUser, onPlayTrack, toast }: ArtistProfileRouteProps) {
   const { artistId } = useParams();
 
   if (!artistId) {
@@ -993,6 +997,7 @@ function ArtistDiscographyRoute({ currentTrack, currentUser, onPlayTrack }: Arti
       currentUser={currentUser}
       currentTrack={currentTrack}
       onPlayTrack={onPlayTrack}
+      toast={toast}
     />
   );
 }
@@ -1135,6 +1140,10 @@ export default function StreamButed() {
     verifyRegistration,
     resendRegistrationCode,
     cancelRegistration,
+    startPasswordReset,
+    resendPasswordResetCode,
+    verifyPasswordResetCode,
+    completePasswordReset,
     completeGooglePasswordSetup,
     logout,
   } = useAuth();
@@ -1213,11 +1222,14 @@ export default function StreamButed() {
     }
 
     let mounted = true;
-    setCurrentTrackLikeState({ trackId, isLiked: false, isLoading: true });
 
-    libraryService
-      .getTrackLikeStatus(trackId)
-      .then((status) => {
+    const loadLikeStatus = async (silent = false) => {
+      if (!silent) {
+        setCurrentTrackLikeState({ trackId, isLiked: false, isLoading: true });
+      }
+
+      try {
+        const status = await libraryService.getTrackLikeStatus(trackId);
         if (mounted) {
           setCurrentTrackLikeState({
             trackId,
@@ -1225,16 +1237,28 @@ export default function StreamButed() {
             isLoading: false,
           });
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         browserLogger.warn("Failed to load like status for current track.", error);
         if (mounted) {
-          setCurrentTrackLikeState({ trackId, isLiked: false, isLoading: false });
+          setCurrentTrackLikeState((state) => ({
+            trackId,
+            isLiked: silent ? state.isLiked : false,
+            isLoading: false,
+          }));
         }
-      });
+      }
+    };
+
+    void loadLikeStatus();
+    const unsubscribe = subscribeToLibraryEvents((event) => {
+      if (event.type === "liked-songs-changed") {
+        void loadLikeStatus(true);
+      }
+    });
 
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, [currentTrack, user]);
 
@@ -1311,6 +1335,31 @@ export default function StreamButed() {
     resetNavigation(updatedUser);
   };
 
+  const handleStartPasswordReset = async (request: { email: string }) => {
+    return startPasswordReset(request);
+  };
+
+  const handleResendPasswordResetCode = async (request: { attemptId: string; email: string }) => {
+    return resendPasswordResetCode(request);
+  };
+
+  const handleVerifyPasswordResetCode = async (request: {
+    attemptId: string;
+    email: string;
+    code: string;
+  }) => {
+    await verifyPasswordResetCode(request);
+  };
+
+  const handleCompletePasswordReset = async (request: {
+    attemptId: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+  }) => {
+    await completePasswordReset(request);
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oauthStatus = params.get("oauth");
@@ -1381,6 +1430,10 @@ export default function StreamButed() {
       <LoginPage
         onLogin={handleLogin}
         onRegister={() => navigate(routes.register)}
+        onStartPasswordReset={handleStartPasswordReset}
+        onResendPasswordResetCode={handleResendPasswordResetCode}
+        onVerifyPasswordResetCode={handleVerifyPasswordResetCode}
+        onCompletePasswordReset={handleCompletePasswordReset}
         onGoogleLogin={() => handleGoogleAuth("register")}
         externalError={oauthError}
       />
@@ -1552,7 +1605,7 @@ export default function StreamButed() {
       <Route path={routes.home} element={<HomePage />} />
       <Route
         path={routes.search}
-        element={<SearchPage onPlayTrack={playSingleTrack} currentTrack={currentTrack} />}
+        element={<SearchPage onPlayTrack={playSingleTrack} currentTrack={currentTrack} toast={toast} />}
       />
       <Route
         path={routes.library}
@@ -1576,7 +1629,7 @@ export default function StreamButed() {
       />
       <Route
         path={routePatterns.album}
-        element={<AlbumDetailRoute onPlayTrack={playAlbumTrack} currentTrack={currentTrack} />}
+        element={<AlbumDetailRoute onPlayTrack={playAlbumTrack} currentTrack={currentTrack} toast={toast} />}
       />
       <Route
         path={routePatterns.artistProfile}
@@ -1585,6 +1638,7 @@ export default function StreamButed() {
             currentUser={user}
             onPlayTrack={playSingleTrack}
             currentTrack={currentTrack}
+            toast={toast}
           />
         }
       />
@@ -1595,6 +1649,7 @@ export default function StreamButed() {
             currentUser={user}
             onPlayTrack={playSingleTrack}
             currentTrack={currentTrack}
+            toast={toast}
           />
         }
       />

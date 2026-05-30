@@ -759,6 +759,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         onUploadAlbumConsumed?.();
       }
     } catch (err) {
+      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
@@ -942,6 +943,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
       onTrackCreated?.(createdTrack);
       toast('Canción agregada al álbum');
     } catch (err) {
+      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
@@ -1077,6 +1079,7 @@ export function CreateAlbumPage({ toast }) {
       setCreatedTracks([]);
       toast('Álbum creado');
     } catch (err) {
+      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
@@ -1378,6 +1381,7 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
       setCoverFile(null);
       onDone();
     } catch (err) {
+      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
