@@ -9,6 +9,7 @@ import {
   emitPlaylistDeleted,
   emitPlaylistUpdated,
 } from "../../services/libraryEvents";
+import { catalogService } from "../../services/catalogService";
 import { libraryService } from "../../services/libraryService";
 import { mediaService } from "../../services/mediaService";
 
@@ -31,6 +32,12 @@ jest.mock("../../services/mediaService", () => ({
   getUploadFileHelperText: jest.fn(() => "Usa un nombre valido."),
   mediaService: {
     uploadPlaylistCover: jest.fn(),
+  },
+}));
+
+jest.mock("../../services/catalogService", () => ({
+  catalogService: {
+    searchCatalog: jest.fn(),
   },
 }));
 
@@ -141,6 +148,11 @@ describe("LibraryPage", () => {
     } as never);
     jest.mocked(mediaService.uploadPlaylistCover).mockResolvedValue({
       assetId: "cover-1",
+    } as never);
+    jest.mocked(catalogService.searchCatalog).mockResolvedValue({
+      artists: [],
+      albums: [],
+      tracks: [],
     } as never);
 
     Object.defineProperty(global.URL, "createObjectURL", {
@@ -278,7 +290,7 @@ describe("LibraryPage", () => {
 
     await screen.findByText("Quedate");
     expect(screen.getByText("Sol eterno")).toBeInTheDocument();
-    expect(screen.getByText("Categoria")).toBeInTheDocument();
+    expect(screen.getByText("Genero")).toBeInTheDocument();
     expect(screen.getByText("Pop")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Agregar pista actual" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Quitar" })).not.toBeInTheDocument();
@@ -289,6 +301,27 @@ describe("LibraryPage", () => {
       expect(screen.getByText("Quedate")).toBeInTheDocument();
       expect(screen.queryByText("Sol eterno")).not.toBeInTheDocument();
     });
+  });
+
+  it("renders only one pair of library action buttons per track row in playlist details", async () => {
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(librarySummary.likedSongs as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="liked-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    const row = (await screen.findByText("Quedate")).closest("tr");
+
+    expect(
+      within(row as HTMLElement).getAllByRole("button").filter((button) => (
+        /canciones que te gustan|Agregar a playlist/i.test(button.getAttribute("aria-label") ?? "")
+      ))
+    ).toHaveLength(2);
   });
 
   it("refreshes liked songs detail when the current likes change elsewhere", async () => {
@@ -553,6 +586,37 @@ describe("LibraryPage", () => {
     await waitFor(() => expect(libraryService.addTrackToPlaylist).toHaveBeenCalledWith("playlist-1", "track-3"));
   });
 
+  it("adds songs from liked tracks in the add-songs dialog", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+    jest.mocked(libraryService.getLikedSongs).mockResolvedValue({
+      ...librarySummary.likedSongs,
+      trackCount: 3,
+      tracks: [...librarySummary.likedSongs.tracks, currentTrack],
+    } as never);
+    jest.mocked(libraryService.addTrackToPlaylist).mockResolvedValue({
+      ...privatePlaylist,
+      tracks: [...privatePlaylist.tracks, currentTrack],
+    } as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Agregar canciones" }));
+    await screen.findByText("Nuevo pulso");
+    await user.click(screen.getAllByRole("button", { name: "Agregar canción a la playlist" })[0]);
+
+    await waitFor(() =>
+      expect(libraryService.addTrackToPlaylist).toHaveBeenCalledWith("playlist-1", "track-3")
+    );
+  });
+
   it("removes tracks from a private playlist detail", async () => {
     const user = userEvent.setup();
     jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
@@ -596,14 +660,74 @@ describe("LibraryPage", () => {
     );
 
     await screen.findByRole("button", { name: "Reproducir" });
+    await user.click(screen.getByRole("button", { name: "Editar" }));
     await user.upload(
-      container.querySelector('.my-tracks-header input[type="file"]') as HTMLInputElement,
+      screen.getByRole("dialog").querySelector('input[type="file"]') as HTMLInputElement,
       new File(["cover"], "cover.png", { type: "image/png" })
     );
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
 
     await waitFor(() =>
-      expect(libraryService.updatePlaylist).toHaveBeenCalledWith("playlist-1", { coverAssetId: "cover-1" })
+      expect(libraryService.updatePlaylist).toHaveBeenCalledWith("playlist-1", {
+        name: "Road mix",
+        coverAssetId: "cover-1",
+      })
     );
+  });
+
+  it("keeps the playlist detail rendered after saving playlist edits from a summary response", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+    jest.mocked(libraryService.updatePlaylist).mockResolvedValue({
+      playlistId: "playlist-1",
+      name: "Road mix renovada",
+      coverAssetId: null,
+      isSystem: false,
+      systemKey: null,
+      trackCount: 2,
+      createdAt: "2026-05-24T00:00:00Z",
+      updatedAt: "2026-05-25T00:00:00Z",
+    } as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Editar" }));
+    await user.clear(screen.getByLabelText("Nombre de playlist"));
+    await user.type(screen.getByLabelText("Nombre de playlist"), "Road mix renovada");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(await screen.findByText("Quedate")).toBeInTheDocument();
+  });
+
+  it("closes the playlist edit dialog when saving fails", async () => {
+    const user = userEvent.setup();
+    const toast = jest.fn();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+    jest.mocked(libraryService.updatePlaylist).mockRejectedValueOnce(new Error("already exists"));
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={toast}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Editar" }));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(toast).toHaveBeenCalled();
   });
 
   it("shows an empty search result inside private playlist details", async () => {
@@ -623,6 +747,26 @@ describe("LibraryPage", () => {
     await user.type(screen.getByPlaceholderText("Buscar en esta playlist"), "zzzz{enter}");
 
     expect(await screen.findByText("Sin canciones para esta busqueda")).toBeInTheDocument();
+  });
+
+  it("keeps the add-songs search prompt visible before a song search actually runs", async () => {
+    const user = userEvent.setup();
+    jest.mocked(libraryService.getPlaylist).mockResolvedValue(privatePlaylist as never);
+
+    renderWithRouter(
+      <PlaylistDetailPage
+        playlistId="playlist-1"
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Agregar canciones" }));
+    await user.click(screen.getByRole("button", { name: "Buscar canciones" }));
+    await user.type(screen.getByPlaceholderText("Buscar canciones"), "ab");
+
+    expect(screen.getByText("Busca canciones para agregarlas a esta playlist.")).toBeInTheDocument();
   });
 
   it("marks playlist details unavailable when the playlist is deleted elsewhere", async () => {

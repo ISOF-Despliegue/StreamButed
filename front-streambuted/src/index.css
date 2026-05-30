@@ -635,10 +635,26 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   width: 110px;
   text-align: right;
 }
+.track-actions-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.track-library-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
 .track-row {
   border-radius: var(--r8);
   transition: background .12s;
   cursor: pointer;
+}
+.track-row-static {
+  cursor: default;
 }
 .track-row:hover { background: var(--bg2); }
 .track-row.playing { background: var(--accent-dim); }
@@ -709,12 +725,34 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
 }
 .track-title-cell { display: flex; align-items: center; gap: 10px; }
 .track-name { font-weight: 500; color: var(--t1); }
+.track-artist-label {
+  color: var(--t2);
+  font-size: 13px;
+}
 .track-row.playing .track-name { color: var(--accent); }
 .track-artist-link {
   background: transparent; color: var(--t2); font-size: 13px;
   padding: 0; text-align: left;
 }
 .track-artist-link:hover { color: var(--accent); text-decoration: underline; }
+.track-meta-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.track-meta-leading {
+  display: inline-flex;
+  align-items: center;
+}
+.track-meta-text {
+  color: var(--t3);
+  font-size: 13px;
+}
+.track-meta-leading .track-actions-group,
+.track-meta-leading .player-track-actions {
+  justify-content: flex-start;
+}
 .track-duration { color: var(--t3); font-size: 13px; display: inline-block; min-width: 44px; text-align: right; }
 
 /* Sections */
@@ -729,6 +767,22 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
 .search-input-wrap { position: relative; max-width: 560px; width: 100%; }
 .search-input-wrap-wide { max-width: 760px; }
 .search-input-wrap input { padding-left: 42px; font-size: 15px; height: 44px; border-radius: 22px; }
+.password-field { position: relative; }
+.password-field input { padding-right: 44px; }
+.password-visibility-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--t3);
+  cursor: pointer;
+}
+.auth-inline-link { margin: -4px 0 12px; text-align: left; }
 .search-icon,
 .search-icon-button {
   position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
@@ -920,6 +974,7 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   letter-spacing: .06em;
   text-transform: uppercase;
   padding: 6px 8px 8px;
+  text-align: center;
 }
 .player-playlist-option {
   width: 100%;
@@ -1587,6 +1642,31 @@ button:disabled {
   justify-content: space-between;
   margin-bottom: 20px;
 }
+.playlist-detail-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.playlist-detail-actions .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.playlist-picker-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.playlist-picker-tabs .role-tab.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: 999px;
+}
+.playlist-picker-panel {
+  display: grid;
+  gap: 14px;
+}
 
 @media (max-width: 760px) {
   .app-shell {
@@ -1682,6 +1762,9 @@ button:disabled {
   .my-tracks-header > div:last-child {
     display: flex;
     flex-wrap: wrap;
+    width: 100%;
+  }
+  .playlist-detail-actions {
     width: 100%;
   }
 

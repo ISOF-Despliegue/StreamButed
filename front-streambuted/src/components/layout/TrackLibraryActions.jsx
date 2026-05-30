@@ -109,7 +109,7 @@ export function TrackLibraryActions({
   };
 
   return (
-    <div className={className}>
+    <div className={`track-library-actions${className ? ` ${className}` : ''}`}>
       <button
         aria-label={isLiked ? 'Quitar de canciones que te gustan' : 'Guardar en canciones que te gustan'}
         aria-pressed={isLiked}

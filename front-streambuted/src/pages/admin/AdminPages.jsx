@@ -273,7 +273,7 @@ function getSearchPlaceholder(activeTab) {
   }
 
   if (activeTab === 'albums') {
-    return 'Buscar albumes';
+    return 'Buscar álbumes';
   }
 
   return 'Buscar cuentas';
@@ -770,7 +770,7 @@ export function AdminModerationPage({ toast }) {
 
       {!isLoading && !error && activeTab === 'albums' && (
         <ModerationTable
-          emptyTitle={moderationSearchTerm ? 'Sin albumes para esta busqueda' : 'No hay álbumes registrados'}
+          emptyTitle={moderationSearchTerm ? 'Sin álbumes para esta busqueda' : 'No hay álbumes registrados'}
           headers={['Álbum', 'Artista', 'Canciones', 'Estado', 'Fecha', 'Acción']}
           label="álbumes"
           pagination={albumPagination}

@@ -13,12 +13,16 @@ import { userService } from "../services/userService";
 import { browserLogger } from "../utils/browserLogger";
 import type {
   AuthContextValue,
+  CompletePasswordResetRequest,
   LoginRequest,
+  PasswordResetActionRequest,
   RegistrationVerificationActionRequest,
   RegistrationVerificationResponse,
   RegisterRequest,
   SetupPasswordRequest,
+  StartPasswordResetRequest,
   UpdateProfileRequest,
+  VerifyPasswordResetCodeRequest,
   VerifyRegistrationRequest,
 } from "../types/auth.types";
 import type { CurrentUser } from "../types/user.types";
@@ -130,6 +134,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
     []
   );
 
+  const startPasswordReset = useCallback(
+    async (request: StartPasswordResetRequest): Promise<RegistrationVerificationResponse> => {
+      return authService.startPasswordReset(request);
+    },
+    []
+  );
+
+  const resendPasswordResetCode = useCallback(
+    async (request: PasswordResetActionRequest): Promise<RegistrationVerificationResponse> => {
+      return authService.resendPasswordResetCode(request);
+    },
+    []
+  );
+
+  const verifyPasswordResetCode = useCallback(
+    async (request: VerifyPasswordResetCodeRequest): Promise<void> => {
+      await authService.verifyPasswordResetCode(request);
+    },
+    []
+  );
+
+  const completePasswordReset = useCallback(
+    async (request: CompletePasswordResetRequest): Promise<void> => {
+      await authService.completePasswordReset(request);
+    },
+    []
+  );
+
   const logout = useCallback(async (): Promise<void> => {
     try {
       await authService.logout();
@@ -169,6 +201,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       verifyRegistration,
       resendRegistrationCode,
       cancelRegistration,
+      startPasswordReset,
+      resendPasswordResetCode,
+      verifyPasswordResetCode,
+      completePasswordReset,
       completeGooglePasswordSetup,
       refreshSession,
       logout,
@@ -186,6 +222,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       verifyRegistration,
       resendRegistrationCode,
       cancelRegistration,
+      startPasswordReset,
+      resendPasswordResetCode,
+      verifyPasswordResetCode,
+      completePasswordReset,
       completeGooglePasswordSetup,
       updateProfile,
       user,

@@ -508,6 +508,39 @@ describe("artist upload forms", () => {
     });
   });
 
+  it("closes the edit confirmation dialog when saving a track fails", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.updateTrack).mockRejectedValueOnce(new Error("forbidden"));
+
+    render(
+      <EditTrackPage
+        track={{
+          trackId: "track-1",
+          artistId: "artist-1",
+          albumId: null,
+          title: "Song",
+          genre: "Rock",
+          audioAssetId: "audio-1",
+          coverAssetId: null,
+          status: "PUBLICADO",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        }}
+        user={{ id: "artist-1" }}
+        onCancel={jest.fn()}
+        onDone={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("renders track and album covers in artist tables", async () => {
     jest.mocked(catalogService.listArtistTracks).mockResolvedValue([
       {

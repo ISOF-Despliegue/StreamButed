@@ -161,6 +161,47 @@ describe("LoginPage", () => {
 
     expect(onGoogleLogin).toHaveBeenCalledTimes(1);
   });
+
+  it("completes the forgot-password flow after verifying the recovery code", async () => {
+    const user = userEvent.setup();
+    const onStartPasswordReset = jest.fn().mockResolvedValue({
+      attemptId: "attempt-1",
+      email: "listener@example.com",
+      status: "pending",
+      expiresInSeconds: 900,
+      message: "Recovery code sent.",
+    });
+    const onVerifyPasswordResetCode = jest.fn().mockResolvedValue(undefined);
+    const onCompletePasswordReset = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <LoginPage
+        onLogin={jest.fn()}
+        onRegister={jest.fn()}
+        onGoogleLogin={jest.fn()}
+        onStartPasswordReset={onStartPasswordReset}
+        onResendPasswordResetCode={jest.fn()}
+        onVerifyPasswordResetCode={onVerifyPasswordResetCode}
+        onCompletePasswordReset={onCompletePasswordReset}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "¿Olvidaste tu contraseña?" }));
+    await user.type(screen.getByRole("dialog").querySelector("#reset-email") as HTMLInputElement, "listener@example.com");
+    await user.click(screen.getByRole("button", { name: "Enviar código" }));
+    await user.type(await screen.findByPlaceholderText("123456"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verificar código" }));
+    await user.type(await screen.findByPlaceholderText("Ingresa tu nueva contraseña"), "SecurePass1!");
+    await user.type(screen.getByPlaceholderText("Confirma tu nueva contraseña"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: "Actualizar contraseña" }));
+
+    expect(onCompletePasswordReset).toHaveBeenCalledWith({
+      attemptId: "attempt-1",
+      email: "listener@example.com",
+      password: "SecurePass1!",
+      confirmPassword: "SecurePass1!",
+    });
+  });
 });
 
 describe("RegisterPage", () => {

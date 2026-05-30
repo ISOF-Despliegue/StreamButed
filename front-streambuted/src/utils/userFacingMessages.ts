@@ -23,13 +23,21 @@ export function toUserFacingMessage(message: string | null | undefined): string 
   if (
     normalized.includes("verification code is incorrect") ||
     normalized.includes("verification code invalid") ||
-    normalized.includes("codigo de verificacion es incorrecto")
+    normalized.includes("codigo de verificacion es incorrecto") ||
+    normalized.includes("codigo de recuperacion es incorrecto")
   ) {
     return "El código de verificación es incorrecto.";
   }
 
   if (normalized.includes("verification code has expired")) {
     return "El código de verificación expiró. Solicita uno nuevo.";
+  }
+
+  if (
+    normalized.includes("codigo de recuperacion expiro") ||
+    normalized.includes("password reset code has expired")
+  ) {
+    return "El código de recuperación expiró. Solicita uno nuevo.";
   }
 
   if (normalized.includes("verification code must contain 6 digits")) {
@@ -88,6 +96,13 @@ export function toUserFacingMessage(message: string | null | undefined): string 
     normalized.includes("email already exists")
   ) {
     return "Ese correo ya está registrado. Inicia sesión o usa otro correo.";
+  }
+
+  if (
+    normalized.includes("no existe ninguna cuenta asociada a ese correo") ||
+    normalized.includes("password reset account not found")
+  ) {
+    return "No existe ninguna cuenta asociada a ese correo.";
   }
 
   if (
