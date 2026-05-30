@@ -317,6 +317,8 @@ function registerIpcHandlers(): void {
 
     const startUrl = new URL(getDesktopAuthStartUrl());
     startUrl.searchParams.set("state", state);
+    startUrl.searchParams.set("provider", "google");
+    startUrl.searchParams.set("mode", "login");
     if (!isAllowedExternalUrl(startUrl.toString(), undefined, isDev)) {
       pendingDesktopOAuth = null;
       throw new Error("La URL de autenticacion desktop no esta permitida.");

@@ -219,6 +219,8 @@ function DesktopAuthStartPage() {
   const [message, setMessage] = useState("Preparando autenticacion desktop...");
   const [error, setError] = useState("");
   const state = searchParams.get("state")?.trim() ?? "";
+  const provider = searchParams.get("provider")?.trim().toLowerCase() ?? "";
+  const mode = searchParams.get("mode") === "register" ? "register" : "login";
 
   useEffect(() => {
     if (!DESKTOP_AUTH_STATE_PATTERN.test(state)) {
@@ -228,6 +230,11 @@ function DesktopAuthStartPage() {
 
     if (!savePendingDesktopAuth(state)) {
       setError("La solicitud de autenticacion desktop expiro. Intenta iniciar sesion desde la app de escritorio nuevamente.");
+      return;
+    }
+
+    if (provider === "google") {
+      window.location.assign(authService.getGoogleAuthUrl(mode));
       return;
     }
 
@@ -256,7 +263,7 @@ function DesktopAuthStartPage() {
     return () => {
       mounted = false;
     };
-  }, [accessToken, navigate, state]);
+  }, [accessToken, mode, navigate, provider, state]);
 
   return (
     <div className="auth-shell">
@@ -1533,7 +1540,7 @@ export default function StreamButed() {
       <LoginPage
         onLogin={handleLogin}
         onRegister={() => navigate(routes.register)}
-        onGoogleLogin={() => handleGoogleAuth("register")}
+        onGoogleLogin={() => handleGoogleAuth("login")}
         externalError={oauthError}
       />
     );
