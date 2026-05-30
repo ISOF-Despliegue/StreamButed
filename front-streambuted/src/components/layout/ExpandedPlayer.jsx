@@ -61,7 +61,7 @@ export function ExpandedPlayer({
 
   return (
     <div className="expanded-player-overlay">
-      <div className="ep-main">
+      <div className={`ep-main${showMobileQueue ? ' queue-open' : ''}`}>
         <button className="ep-close" onClick={onClose}><IcChevron dir="down" /></button>
         <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 20, textTransform: 'uppercase' }}>
           {playback.isLoading ? 'Cargando audio' : 'Reproducción'}

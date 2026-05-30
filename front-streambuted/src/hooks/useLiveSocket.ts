@@ -3,7 +3,7 @@ import { io, type Socket } from "socket.io-client";
 import { getGatewayBaseUrl } from "../services/gatewayUrl";
 import { browserLogger } from "../utils/browserLogger";
 
-const LIVE_WS_PATH = "/live/ws/socket.io/";
+const LIVE_WS_PATH = import.meta.env.VITE_SOCKET_PATH || "/live/ws/socket.io/";
 
 export type ConnectionState =
   | "idle"
@@ -33,7 +33,7 @@ export function useLiveSocket(token: string | null): UseLiveSocketReturn {
 
     setConnectionState("connecting");
 
-    const gatewayUrl = getGatewayBaseUrl();
+    const gatewayUrl = (import.meta.env.VITE_SOCKET_URL || getGatewayBaseUrl()).replace(/\/+$/, "");
     const socket = io(gatewayUrl, {
       path: LIVE_WS_PATH,
       transports: ["websocket", "polling"],

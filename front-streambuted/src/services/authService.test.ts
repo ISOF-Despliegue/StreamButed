@@ -9,9 +9,10 @@ jest.mock("./apiClient", () => ({
 describe("authService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    delete (window as Window & { streambuted?: unknown }).streambuted;
   });
 
-  it("routes email and verification auth flows to the expected endpoints", async () => {
+  it("routes browser auth flows to the expected endpoints", async () => {
     jest.mocked(apiRequest).mockResolvedValue(undefined as never);
 
     await authService.login({ email: "listener@example.com", password: "SecurePass1!" });
@@ -37,8 +38,30 @@ describe("authService", () => {
       password: "SecurePass1!",
       confirmPassword: "SecurePass1!",
     });
+    await authService.startPasswordReset({
+      email: "listener@example.com",
+    });
+    await authService.resendPasswordResetCode({
+      attemptId: "attempt-1",
+      email: "listener@example.com",
+    });
+    await authService.verifyPasswordResetCode({
+      attemptId: "attempt-1",
+      email: "listener@example.com",
+      code: "123456",
+    });
+    await authService.completePasswordReset({
+      attemptId: "attempt-1",
+      email: "listener@example.com",
+      password: "SecurePass1!",
+      confirmPassword: "SecurePass1!",
+    });
     await authService.refresh();
     await authService.logout();
+    await authService.createDesktopHandoffCode({
+      state: "desktop-state",
+      redirectUri: "streambuted://auth/callback",
+    });
 
     expect(apiRequest).toHaveBeenNthCalledWith(1, "/auth/login", {
       method: "POST",
@@ -81,11 +104,48 @@ describe("authService", () => {
         confirmPassword: "SecurePass1!",
       },
     });
-    expect(apiRequest).toHaveBeenNthCalledWith(7, "/auth/refresh", {
+    expect(apiRequest).toHaveBeenNthCalledWith(7, "/auth/password/reset", {
+      method: "POST",
+      body: {
+        email: "listener@example.com",
+      },
+    });
+    expect(apiRequest).toHaveBeenNthCalledWith(8, "/auth/password/reset/resend", {
+      method: "POST",
+      body: {
+        attemptId: "attempt-1",
+        email: "listener@example.com",
+      },
+    });
+    expect(apiRequest).toHaveBeenNthCalledWith(9, "/auth/password/reset/verify", {
+      method: "POST",
+      body: {
+        attemptId: "attempt-1",
+        email: "listener@example.com",
+        code: "123456",
+      },
+    });
+    expect(apiRequest).toHaveBeenNthCalledWith(10, "/auth/password/reset/complete", {
+      method: "POST",
+      body: {
+        attemptId: "attempt-1",
+        email: "listener@example.com",
+        password: "SecurePass1!",
+        confirmPassword: "SecurePass1!",
+      },
+    });
+    expect(apiRequest).toHaveBeenNthCalledWith(11, "/auth/refresh", {
       method: "POST",
     });
-    expect(apiRequest).toHaveBeenNthCalledWith(8, "/auth/logout", {
+    expect(apiRequest).toHaveBeenNthCalledWith(12, "/auth/logout", {
       method: "POST",
+    });
+    expect(apiRequest).toHaveBeenNthCalledWith(13, "/auth/desktop/handoff-codes", {
+      method: "POST",
+      body: {
+        state: "desktop-state",
+        redirectUri: "streambuted://auth/callback",
+      },
     });
   });
 
@@ -98,5 +158,41 @@ describe("authService", () => {
     );
     expect(buildApiUrl).toHaveBeenCalledWith("/auth/google?mode=login");
     expect(buildApiUrl).toHaveBeenCalledWith("/auth/google?mode=register");
+  });
+
+  it("uses the Electron bridge for login, refresh, and logout when available", async () => {
+    const desktopAuth: NonNullable<NonNullable<Window["streambuted"]>["auth"]> = {
+      login: jest.fn().mockResolvedValue({ accessToken: "desktop-login-token" }),
+      refresh: jest.fn().mockResolvedValue({ accessToken: "desktop-refresh-token" }),
+      logout: jest.fn().mockResolvedValue(undefined),
+      startGoogleOAuth: jest.fn().mockResolvedValue(undefined),
+      onOAuthResult: jest.fn(() => () => {}),
+      onOAuthError: jest.fn(() => () => {}),
+    };
+
+    window.streambuted = {
+      isElectron: true,
+      platform: "win32",
+      auth: desktopAuth,
+      versions: {
+        chrome: "1",
+        electron: "1",
+        node: "1",
+      },
+    };
+
+    await expect(
+      authService.login({ email: "listener@example.com", password: "SecurePass1!" })
+    ).resolves.toEqual({ accessToken: "desktop-login-token" });
+    await expect(authService.refresh()).resolves.toEqual({ accessToken: "desktop-refresh-token" });
+    await expect(authService.logout()).resolves.toBeUndefined();
+
+    expect(desktopAuth.login).toHaveBeenCalledWith({
+      email: "listener@example.com",
+      password: "SecurePass1!",
+    });
+    expect(desktopAuth.refresh).toHaveBeenCalledTimes(1);
+    expect(desktopAuth.logout).toHaveBeenCalledTimes(1);
+    expect(apiRequest).not.toHaveBeenCalled();
   });
 });

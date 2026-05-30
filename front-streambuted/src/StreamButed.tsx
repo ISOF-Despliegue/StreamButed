@@ -155,6 +155,131 @@ function NotAvailableState({ title, message }: Readonly<{ title: string; message
   );
 }
 
+const DESKTOP_AUTH_PENDING_KEY = "streambuted:desktop-auth:pending";
+const DESKTOP_AUTH_REDIRECT_URI = "streambuted://auth/callback";
+const DESKTOP_AUTH_STATE_PATTERN = /^[A-Za-z0-9_-]{16,512}$/;
+const DESKTOP_AUTH_PENDING_TTL_MS = 5 * 60 * 1000;
+
+type PendingDesktopAuth = {
+  state: string;
+  createdAt: number;
+};
+
+function parsePendingDesktopAuth(rawValue: string | null): PendingDesktopAuth | null {
+  if (!rawValue) return null;
+  try {
+    const parsed = JSON.parse(rawValue) as PendingDesktopAuth;
+    if (!DESKTOP_AUTH_STATE_PATTERN.test(parsed.state) || typeof parsed.createdAt !== "number") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function isPendingDesktopAuthExpired(pending: PendingDesktopAuth): boolean {
+  return Date.now() - pending.createdAt > DESKTOP_AUTH_PENDING_TTL_MS;
+}
+
+export function readPendingDesktopAuth(): PendingDesktopAuth | null {
+  const parsed = parsePendingDesktopAuth(window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY));
+  if (!parsed || isPendingDesktopAuthExpired(parsed)) {
+    clearPendingDesktopAuth();
+    return null;
+  }
+  return parsed;
+}
+
+function savePendingDesktopAuth(state: string): boolean {
+  const existingPending = parsePendingDesktopAuth(window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY));
+  if (existingPending && existingPending.state === state) {
+    if (isPendingDesktopAuthExpired(existingPending)) {
+      clearPendingDesktopAuth();
+      return false;
+    }
+    return true;
+  }
+
+  window.sessionStorage.setItem(
+    DESKTOP_AUTH_PENDING_KEY,
+    JSON.stringify({ state, createdAt: Date.now() })
+  );
+  return true;
+}
+
+function clearPendingDesktopAuth(): void {
+  window.sessionStorage.removeItem(DESKTOP_AUTH_PENDING_KEY);
+}
+
+function DesktopAuthStartPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { accessToken } = useAuth();
+  const [message, setMessage] = useState("Preparando autenticacion desktop...");
+  const [error, setError] = useState("");
+  const state = searchParams.get("state")?.trim() ?? "";
+  const provider = searchParams.get("provider")?.trim().toLowerCase() ?? "";
+  const mode = searchParams.get("mode") === "register" ? "register" : "login";
+
+  useEffect(() => {
+    if (!DESKTOP_AUTH_STATE_PATTERN.test(state)) {
+      setError("La solicitud de autenticacion desktop no es valida.");
+      return;
+    }
+
+    if (!savePendingDesktopAuth(state)) {
+      setError("La solicitud de autenticacion desktop expiro. Intenta iniciar sesion desde la app de escritorio nuevamente.");
+      return;
+    }
+
+    if (provider === "google") {
+      window.location.assign(authService.getGoogleAuthUrl(mode));
+      return;
+    }
+
+    if (!accessToken) {
+      navigate(routes.login, { replace: true });
+      return;
+    }
+
+    let mounted = true;
+    setMessage("Conectando StreamButed Desktop...");
+    authService
+      .createDesktopHandoffCode({ state, redirectUri: DESKTOP_AUTH_REDIRECT_URI })
+      .then((response) => {
+        if (!mounted) return;
+        clearPendingDesktopAuth();
+        const callbackUrl = new URL(DESKTOP_AUTH_REDIRECT_URI);
+        callbackUrl.searchParams.set("code", response.code);
+        callbackUrl.searchParams.set("state", response.state);
+        window.location.assign(callbackUrl.toString());
+      })
+      .catch((caughtError) => {
+        if (!mounted) return;
+        setError(toUserFacingMessage(caughtError instanceof Error ? caughtError.message : "No se pudo completar la autenticacion desktop."));
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [accessToken, mode, navigate, provider, state]);
+
+  return (
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="auth-logo"><div className="auth-logo-mark">S</div></div>
+        <div className="auth-title">StreamButed Desktop</div>
+        {error ? (
+          <div className="form-error" role="alert">{error}</div>
+        ) : (
+          <div className="auth-sub">{message}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 type PlaybackControllerHandle = {
   playSingleTrack: (track: AppTrack) => void;
   playAlbumTrack: (track: AppTrack, tracks: AppTrack[], albumId: string) => void;
@@ -1131,6 +1256,7 @@ function ArtistEditTrackRoute({ toast, user }: ArtistEditTrackRouteProps) {
 
 export default function StreamButed() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobileViewport();
   const {
     user,
@@ -1300,7 +1426,11 @@ export default function StreamButed() {
     playbackControllerRef.current?.reset();
     setCurrentTrack(null);
     setPlaybackQueue(EMPTY_QUEUE);
-    navigate(nextUser ? getDefaultRoute(nextUser) : routes.login, { replace: true });
+    const pendingDesktopAuth = nextUser ? readPendingDesktopAuth() : null;
+    const nextRoute = pendingDesktopAuth
+      ? `${routes.desktopAuthStart}?state=${encodeURIComponent(pendingDesktopAuth.state)}`
+      : nextUser ? getDefaultRoute(nextUser) : routes.login;
+    navigate(nextRoute, { replace: true });
   }, [navigate]);
 
   const handleLogin = async (credentials: { email: string; password: string }) => {
@@ -1321,7 +1451,13 @@ export default function StreamButed() {
     resetNavigation(registeredUser);
   };
 
-  const handleGoogleAuth = (mode: "login" | "register") => {
+  const handleGoogleAuth = async (mode: "login" | "register") => {
+    const desktopAuth = window.streambuted?.isElectron ? window.streambuted.auth : undefined;
+    if (desktopAuth) {
+      await desktopAuth.startGoogleOAuth();
+      return;
+    }
+
     window.location.assign(authService.getGoogleAuthUrl(mode));
   };
 
@@ -1359,6 +1495,29 @@ export default function StreamButed() {
   }) => {
     await completePasswordReset(request);
   };
+
+  useEffect(() => {
+    if (location.pathname === routes.desktopAuthStart) {
+      const params = new URLSearchParams(location.search);
+      const desktopState = params.get("state")?.trim() ?? "";
+      if (DESKTOP_AUTH_STATE_PATTERN.test(desktopState)) {
+        savePendingDesktopAuth(desktopState);
+      }
+    }
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!user || user.passwordSetupRequired || location.pathname === routes.desktopAuthStart) {
+      return;
+    }
+
+    const pendingDesktopAuth = readPendingDesktopAuth();
+    if (pendingDesktopAuth) {
+      navigate(`${routes.desktopAuthStart}?state=${encodeURIComponent(pendingDesktopAuth.state)}`, {
+        replace: true,
+      });
+    }
+  }, [location.pathname, navigate, user]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1434,7 +1593,7 @@ export default function StreamButed() {
         onResendPasswordResetCode={handleResendPasswordResetCode}
         onVerifyPasswordResetCode={handleVerifyPasswordResetCode}
         onCompletePasswordReset={handleCompletePasswordReset}
-        onGoogleLogin={() => handleGoogleAuth("register")}
+        onGoogleLogin={() => handleGoogleAuth("login")}
         externalError={oauthError}
       />
     );
@@ -1444,6 +1603,7 @@ export default function StreamButed() {
         <Routes>
           <Route path={routes.login} element={loginPage} />
           <Route path={routes.authCallback} element={loginPage} />
+          <Route path={routes.desktopAuthStart} element={<DesktopAuthStartPage />} />
           <Route
             path={routes.register}
             element={
@@ -1596,6 +1756,7 @@ export default function StreamButed() {
       <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
       <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
       <Route path={routes.authCallback} element={<Navigate to={defaultRoute} replace />} />
+      <Route path={routes.desktopAuthStart} element={<DesktopAuthStartPage />} />
       <Route path="*" element={<Navigate to={defaultRoute} replace />} />
     </Routes>
   );
@@ -1750,6 +1911,7 @@ export default function StreamButed() {
       <Route path={routes.login} element={<Navigate to={defaultRoute} replace />} />
       <Route path={routes.register} element={<Navigate to={defaultRoute} replace />} />
       <Route path={routes.authCallback} element={<Navigate to={defaultRoute} replace />} />
+      <Route path={routes.desktopAuthStart} element={<DesktopAuthStartPage />} />
       <Route path="*" element={<Navigate to={defaultRoute} replace />} />
     </Routes>
   );
