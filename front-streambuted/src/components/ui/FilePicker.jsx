@@ -1,6 +1,19 @@
 import { useEffect, useId, useRef } from 'react';
 import PropTypes from 'prop-types';
 
+const DISPLAY_TEXT_REPLACEMENTS = {
+  '<': '‹',
+  '>': '›',
+  '&': '＆',
+  '"': '＂',
+  "'": '＇',
+  '`': '｀',
+};
+
+function toSafeDisplayText(value) {
+  return String(value ?? '').replace(/[<>&"'`]/g, (character) => DISPLAY_TEXT_REPLACEMENTS[character]);
+}
+
 export function FilePicker({
   accept,
   file,
@@ -33,7 +46,7 @@ export function FilePicker({
         </label>
       </div>
       <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-        {file ? file.name : helperText}
+        {toSafeDisplayText(file ? file.name : helperText)}
       </div>
     </div>
   );

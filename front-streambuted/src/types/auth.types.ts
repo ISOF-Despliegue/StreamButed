@@ -16,6 +16,10 @@ export interface SetupPasswordRequest {
   confirmPassword: string;
 }
 
+export interface StartPasswordResetRequest {
+  email: string;
+}
+
 export interface RegistrationVerificationResponse {
   attemptId: string;
   email: string;
@@ -33,6 +37,24 @@ export interface VerifyRegistrationRequest {
 export interface RegistrationVerificationActionRequest {
   attemptId: string;
   email: string;
+}
+
+export interface PasswordResetActionRequest {
+  attemptId: string;
+  email: string;
+}
+
+export interface VerifyPasswordResetCodeRequest {
+  attemptId: string;
+  email: string;
+  code: string;
+}
+
+export interface CompletePasswordResetRequest {
+  attemptId: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
 }
 
 export interface AuthResponse {
@@ -65,6 +87,10 @@ export interface AuthContextValue {
     request: RegistrationVerificationActionRequest
   ) => Promise<RegistrationVerificationResponse>;
   cancelRegistration: (request: RegistrationVerificationActionRequest) => Promise<void>;
+  startPasswordReset: (request: StartPasswordResetRequest) => Promise<RegistrationVerificationResponse>;
+  resendPasswordResetCode: (request: PasswordResetActionRequest) => Promise<RegistrationVerificationResponse>;
+  verifyPasswordResetCode: (request: VerifyPasswordResetCodeRequest) => Promise<void>;
+  completePasswordReset: (request: CompletePasswordResetRequest) => Promise<void>;
   completeGooglePasswordSetup: (request: SetupPasswordRequest) => Promise<CurrentUser>;
   refreshSession: () => Promise<CurrentUser | null>;
   logout: () => Promise<void>;

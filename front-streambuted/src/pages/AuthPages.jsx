@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { PasswordField } from '../components/ui/PasswordField';
 import { TEXT_LIMITS } from '../constants/textLimits';
 import { toUserFacingMessage } from '../utils/userFacingMessages';
 
@@ -80,7 +81,7 @@ function getBannedAccountMessage(error) {
     return 'La cuenta se encuentra suspendida permanentemente.';
   }
 
-  return `La cuenta se encuentra suspendida. Se reactivará en ${formatRemainingBanTime(payload.remainingSeconds)}.`;
+    return `La cuenta se encuentra suspendida. Se reactivará en ${formatRemainingBanTime(payload.remainingSeconds)}.`;
 }
 
 function validatePasswordRules(password) {
@@ -113,12 +114,268 @@ function formatVerificationTtl(expiresInSeconds) {
   return minutes === 1 ? '1 minuto' : `${minutes} minutos`;
 }
 
-export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = '' }) {
+function PasswordResetDialog({
+  isOpen,
+  onCancel,
+  onCompletePasswordReset,
+  onResendPasswordResetCode,
+  onStartPasswordReset,
+  onVerifyPasswordResetCode,
+}) {
+  const [step, setStep] = useState('request');
+  const [email, setEmail] = useState('');
+  const [verification, setVerification] = useState(null);
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const closeDialog = () => {
+    setStep('request');
+    setEmail('');
+    setVerification(null);
+    setCode('');
+    setPassword('');
+    setConfirmPassword('');
+    setNotice('');
+    setError('');
+    setIsSubmitting(false);
+    onCancel();
+  };
+
+  const startReset = async () => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      return setError('Todos los campos son obligatorios.');
+    }
+    if (normalizedEmail.length > EMAIL_MAX_LENGTH) {
+      return setError('El correo no puede superar 320 caracteres.');
+    }
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      return setError('Correo inválido.');
+    }
+
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const response = await onStartPasswordReset({ email: normalizedEmail });
+      setVerification(response);
+      setStep('verify');
+      setCode('');
+      setNotice(`Código enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
+    } catch (startError) {
+      setError(getErrorMessage(startError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resendCode = async () => {
+    if (!verification) return;
+
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const response = await onResendPasswordResetCode({
+        attemptId: verification.attemptId,
+        email: verification.email,
+      });
+      setVerification(response);
+      setCode('');
+      setNotice(`Nuevo código enviado a ${response.email}. Expira en ${formatVerificationTtl(response.expiresInSeconds)}.`);
+    } catch (resendError) {
+      setError(getErrorMessage(resendError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (!verification) return;
+
+    const normalizedCode = code.trim();
+    if (!normalizedCode) {
+      return setError('Todos los campos son obligatorios.');
+    }
+    if (!/^\d{6}$/.test(normalizedCode)) {
+      return setError('Ingresa el código de 6 dígitos.');
+    }
+
+    setError('');
+    setNotice('');
+    setIsSubmitting(true);
+    try {
+      await onVerifyPasswordResetCode({
+        attemptId: verification.attemptId,
+        email: verification.email,
+        code: normalizedCode,
+      });
+      setStep('complete');
+      setNotice('Código verificado. Define tu nueva contraseña.');
+    } catch (verifyError) {
+      setError(getErrorMessage(verifyError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const completeReset = async () => {
+    if (!verification) return;
+    if (!password || !confirmPassword) {
+      return setError('Todos los campos son obligatorios.');
+    }
+
+    const passwordError = validatePasswordRules(password);
+    if (passwordError) {
+      return setError(passwordError);
+    }
+
+    if (password !== confirmPassword) {
+      return setError('Las contraseñas no coinciden.');
+    }
+
+    setError('');
+    setNotice('');
+    setIsSubmitting(true);
+    try {
+      await onCompletePasswordReset({
+        attemptId: verification.attemptId,
+        email: verification.email,
+        password,
+        confirmPassword,
+      });
+      closeDialog();
+    } catch (completeError) {
+      setError(getErrorMessage(completeError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <ConfirmDialog
+      open={isOpen}
+      title="Recuperar contraseña"
+      message=""
+      confirmLabel={step === 'complete' ? 'Actualizar contraseña' : step === 'verify' ? 'Verificar código' : 'Enviar código'}
+      cancelLabel="Cerrar"
+      tone="primary"
+      isLoading={isSubmitting}
+      disabled={false}
+      onConfirm={() => {
+        if (step === 'request') {
+          void startReset();
+          return;
+        }
+        if (step === 'verify') {
+          void verifyCode();
+          return;
+        }
+        void completeReset();
+      }}
+      onCancel={closeDialog}
+    >
+      {step === 'request' && (
+        <div className="form-group">
+          <label className="form-label" htmlFor="reset-email">Correo</label>
+          <input
+            id="reset-email"
+            data-dialog-autofocus
+            type="email"
+            placeholder="Ingresa tu correo"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            maxLength={EMAIL_MAX_LENGTH}
+          />
+        </div>
+      )}
+
+      {step === 'verify' && verification && (
+        <>
+          <div className="form-group">
+            <label className="form-label" htmlFor="reset-code">Código de recuperación</label>
+            <input
+              id="reset-code"
+              data-dialog-autofocus
+              value={code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={(event) => event.key === 'Enter' && void verifyCode()}
+              placeholder="123456"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+            />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 14 }}>
+            Correo: {verification.email}
+          </div>
+          <button className="btn-ghost" type="button" onClick={() => void resendCode()} disabled={isSubmitting}>
+            Solicitar nuevo código
+          </button>
+        </>
+      )}
+
+      {step === 'complete' && verification && (
+        <>
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 14 }}>
+            Correo: {verification.email}
+          </div>
+          <PasswordField
+            id="reset-password"
+            label="Nueva contraseña"
+            placeholder="Ingresa tu nueva contraseña"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="new-password"
+            maxLength={PASSWORD_MAX_LENGTH}
+          />
+          <PasswordField
+            id="reset-confirm-password"
+            label="Confirmar nueva contraseña"
+            placeholder="Confirma tu nueva contraseña"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            onKeyDown={(event) => event.key === 'Enter' && void completeReset()}
+            autoComplete="new-password"
+            maxLength={PASSWORD_MAX_LENGTH}
+          />
+        </>
+      )}
+
+      {notice && (
+        <output role="status" style={{ display: 'block', fontSize: 13, color: 'var(--success)', marginTop: 12 }}>
+          {notice}
+        </output>
+      )}
+
+      {error && (
+        <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginTop: 12 }}>
+          {error}
+        </div>
+      )}
+    </ConfirmDialog>
+  );
+}
+
+export function LoginPage({
+  onLogin,
+  onRegister,
+  onGoogleLogin,
+  onStartPasswordReset = async (_request) => ({ attemptId: '', email: '', expiresInSeconds: 0 }),
+  onResendPasswordResetCode = async (_request) => ({ attemptId: '', email: '', expiresInSeconds: 0 }),
+  onVerifyPasswordResetCode = async (_request) => {},
+  onCompletePasswordReset = async (_request) => {},
+  externalError = '',
+}) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [bannedMessage, setBannedMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false);
 
   const handleLogin = async () => {
     const normalizedEmail = email.trim();
@@ -171,18 +428,25 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
           />
         </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="login-password">Contraseña</label>
-          <input
-            id="login-password"
-            type="password"
-            placeholder="Ingresa tu contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-            autoComplete="current-password"
-            maxLength={PASSWORD_MAX_LENGTH}
-          />
+        <PasswordField
+          id="login-password"
+          label="Contraseña"
+          placeholder="Ingresa tu contraseña"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          onKeyDown={(event) => event.key === 'Enter' && void handleLogin()}
+          autoComplete="current-password"
+          maxLength={PASSWORD_MAX_LENGTH}
+        />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            className="auth-link auth-inline-link"
+            onClick={() => setIsPasswordResetOpen(true)}
+            type="button"
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
         </div>
 
         {(error || externalError) && (
@@ -224,6 +488,15 @@ export function LoginPage({ onLogin, onRegister, onGoogleLogin, externalError = 
         confirmLabel="Entendido"
         onConfirm={() => setBannedMessage('')}
         onCancel={() => setBannedMessage('')}
+      />
+
+      <PasswordResetDialog
+        isOpen={isPasswordResetOpen}
+        onCancel={() => setIsPasswordResetOpen(false)}
+        onCompletePasswordReset={onCompletePasswordReset}
+        onResendPasswordResetCode={onResendPasswordResetCode}
+        onStartPasswordReset={onStartPasswordReset}
+        onVerifyPasswordResetCode={onVerifyPasswordResetCode}
       />
     </div>
   );
@@ -390,47 +663,54 @@ export function RegisterPage({
             : '¡Regístrate como oyente en StreamButed!'}
         </div>
 
-        {!isVerifyingRegistration && (['email', 'username', 'password', 'confirm']).map((key, index) => {
-          const inputId = `register-${key}`;
-          const isPasswordField = key === 'password' || key === 'confirm';
-          let inputType = 'text';
-          if (isPasswordField) {
-            inputType = 'password';
-          } else if (key === 'email') {
-            inputType = 'email';
-          }
-          const placeholders = [
-            'Ingresa tu correo',
-            'Elige un nombre de usuario',
-            'Crea una contraseña',
-            'Confirma tu contraseña',
-          ];
-          const labels = ['Correo', 'Nombre de usuario', 'Contraseña', 'Confirmar contraseña'];
-          let maxLength = PASSWORD_MAX_LENGTH;
-          if (key === 'email') {
-            maxLength = EMAIL_MAX_LENGTH;
-          } else if (key === 'username') {
-            maxLength = USERNAME_MAX_LENGTH;
-          }
-
-          return (
-            <div className="form-group" key={key}>
-              <label className="form-label" htmlFor={inputId}>
-                {labels[index]}
-              </label>
+        {!isVerifyingRegistration && (
+          <>
+            <div className="form-group">
+              <label className="form-label" htmlFor="register-email">Correo</label>
               <input
-                id={inputId}
-                type={inputType}
-                placeholder={placeholders[index]}
-                value={form[key]}
-                onChange={set(key)}
-                autoComplete={key === 'confirm' ? 'new-password' : key}
-                maxLength={maxLength}
-                minLength={isPasswordField ? PASSWORD_MIN_LENGTH : undefined}
+                id="register-email"
+                type="email"
+                placeholder="Ingresa tu correo"
+                value={form.email}
+                onChange={set('email')}
+                autoComplete="email"
+                maxLength={EMAIL_MAX_LENGTH}
               />
             </div>
-          );
-        })}
+            <div className="form-group">
+              <label className="form-label" htmlFor="register-username">Nombre de usuario</label>
+              <input
+                id="register-username"
+                type="text"
+                placeholder="Elige un nombre de usuario"
+                value={form.username}
+                onChange={set('username')}
+                autoComplete="username"
+                maxLength={USERNAME_MAX_LENGTH}
+              />
+            </div>
+            <PasswordField
+              id="register-password"
+              label="Contraseña"
+              placeholder="Crea una contraseña"
+              value={form.password}
+              onChange={set('password')}
+              autoComplete="new-password"
+              maxLength={PASSWORD_MAX_LENGTH}
+              minLength={PASSWORD_MIN_LENGTH}
+            />
+            <PasswordField
+              id="register-confirm"
+              label="Confirmar contraseña"
+              placeholder="Confirma tu contraseña"
+              value={form.confirm}
+              onChange={set('confirm')}
+              autoComplete="new-password"
+              maxLength={PASSWORD_MAX_LENGTH}
+              minLength={PASSWORD_MIN_LENGTH}
+            />
+          </>
+        )}
 
         {isVerifyingRegistration && (
           <>
@@ -456,7 +736,7 @@ export function RegisterPage({
         )}
 
         {notice && (
-          <output style={{ fontSize: 13, color: 'var(--success)', marginBottom: 12 }}>
+          <output role="status" style={{ fontSize: 13, color: 'var(--success)', marginBottom: 12 }}>
             {notice}
           </output>
         )}
@@ -572,32 +852,26 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
           />
         </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="google-setup-password">Contraseña</label>
-          <input
-            id="google-setup-password"
-            type="password"
-            placeholder="Crea tu contraseña"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="new-password"
-            maxLength={PASSWORD_MAX_LENGTH}
-          />
-        </div>
+        <PasswordField
+          id="google-setup-password"
+          label="Contraseña"
+          placeholder="Crea tu contraseña"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="new-password"
+          maxLength={PASSWORD_MAX_LENGTH}
+        />
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="google-setup-confirm">Confirmar contraseña</label>
-          <input
-            id="google-setup-confirm"
-            type="password"
-            placeholder="Confirma tu contraseña"
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            onKeyDown={(event) => event.key === 'Enter' && handleSubmit()}
-            autoComplete="new-password"
-            maxLength={PASSWORD_MAX_LENGTH}
-          />
-        </div>
+        <PasswordField
+          id="google-setup-confirm"
+          label="Confirmar contraseña"
+          placeholder="Confirma tu contraseña"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          onKeyDown={(event) => event.key === 'Enter' && handleSubmit()}
+          autoComplete="new-password"
+          maxLength={PASSWORD_MAX_LENGTH}
+        />
 
         <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 14 }}>
           Debe incluir una mayúscula, un número y un símbolo especial.
@@ -622,11 +896,24 @@ export function GooglePasswordSetupPage({ email, onSubmit, externalError = '' })
   );
 }
 
+PasswordResetDialog.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  onCompletePasswordReset: PropTypes.func.isRequired,
+  onResendPasswordResetCode: PropTypes.func.isRequired,
+  onStartPasswordReset: PropTypes.func.isRequired,
+  onVerifyPasswordResetCode: PropTypes.func.isRequired,
+};
+
 LoginPage.propTypes = {
   externalError: PropTypes.string,
+  onCompletePasswordReset: PropTypes.func,
   onGoogleLogin: PropTypes.func.isRequired,
   onLogin: PropTypes.func.isRequired,
   onRegister: PropTypes.func.isRequired,
+  onResendPasswordResetCode: PropTypes.func,
+  onStartPasswordReset: PropTypes.func,
+  onVerifyPasswordResetCode: PropTypes.func,
 };
 
 RegisterPage.propTypes = {
@@ -643,4 +930,3 @@ GooglePasswordSetupPage.propTypes = {
   externalError: PropTypes.string,
   onSubmit: PropTypes.func.isRequired,
 };
-
