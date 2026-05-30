@@ -39,6 +39,10 @@ describe("authService", () => {
     });
     await authService.refresh();
     await authService.logout();
+    await authService.createDesktopHandoffCode({
+      state: "desktop-state",
+      redirectUri: "streambuted://auth/callback",
+    });
 
     expect(apiRequest).toHaveBeenNthCalledWith(1, "/auth/login", {
       method: "POST",
@@ -86,6 +90,13 @@ describe("authService", () => {
     });
     expect(apiRequest).toHaveBeenNthCalledWith(8, "/auth/logout", {
       method: "POST",
+    });
+    expect(apiRequest).toHaveBeenNthCalledWith(9, "/auth/desktop/handoff-codes", {
+      method: "POST",
+      body: {
+        state: "desktop-state",
+        redirectUri: "streambuted://auth/callback",
+      },
     });
   });
 

@@ -42,6 +42,17 @@ export interface AuthResponse {
   expiresIn: number;
 }
 
+export interface DesktopHandoffCodeRequest {
+  state: string;
+  redirectUri: string;
+}
+
+export interface DesktopHandoffCodeResponse {
+  code: string;
+  state: string;
+  expiresIn: number;
+}
+
 export interface AuthContextValue {
   user: CurrentUser | null;
   accessToken: string | null;

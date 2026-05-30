@@ -3,6 +3,7 @@ export const routes = {
   login: "/login",
   register: "/register",
   authCallback: "/auth/callback",
+  desktopAuthStart: "/desktop-auth/start",
   search: "/search",
   library: "/library",
   libraryPlaylist: (playlistId: string) => `/library/playlists/${encodeURIComponent(playlistId)}`,

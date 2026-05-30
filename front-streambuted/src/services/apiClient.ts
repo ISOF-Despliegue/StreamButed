@@ -140,18 +140,10 @@ async function refreshAccessToken(): Promise<string | null> {
 
   refreshAccessTokenPromise = (async () => {
     try {
-      const response = await fetch(buildApiUrl("/auth/refresh"), {
-        method: "POST",
-        credentials: "include",
-        headers: new Headers({ "Content-Type": "application/json" }),
-      });
-
-      if (!response.ok) {
-        authTokenStore.clear();
-        return null;
-      }
-
-      const payload = await response.json() as { accessToken?: string | null };
+      const desktopAuth = window.streambuted?.isElectron ? window.streambuted.auth : undefined;
+      const payload = desktopAuth
+        ? await desktopAuth.refresh()
+        : await refreshAccessTokenWithCookie();
       const refreshedToken = payload.accessToken ?? null;
 
       if (!refreshedToken) {
@@ -171,6 +163,21 @@ async function refreshAccessToken(): Promise<string | null> {
   })();
 
   return refreshAccessTokenPromise;
+}
+
+async function refreshAccessTokenWithCookie(): Promise<{ accessToken?: string | null }> {
+  const response = await fetch(buildApiUrl("/auth/refresh"), {
+    method: "POST",
+    credentials: "include",
+    headers: new Headers({ "Content-Type": "application/json" }),
+  });
+
+  if (!response.ok) {
+    authTokenStore.clear();
+    return {};
+  }
+
+  return response.json() as Promise<{ accessToken?: string | null }>;
 }
 
 async function sendApiRequest(

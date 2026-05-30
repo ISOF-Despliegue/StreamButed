@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import StreamButed from "./StreamButed";
+import StreamButed, { readPendingDesktopAuth } from "./StreamButed";
 import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
@@ -9,6 +9,7 @@ import { libraryService } from "./services/libraryService";
 
 const mockedUseAuth = jest.fn();
 const mockedBottomPlayer = jest.fn();
+const DESKTOP_AUTH_PENDING_KEY = "streambuted:desktop-auth:pending";
 
 jest.mock("./hooks/useAuth", () => ({
   useAuth: () => mockedUseAuth(),
@@ -362,6 +363,47 @@ const baseAuthValue = {
 const mockedPlaybackService = playbackService as jest.Mocked<typeof playbackService>;
 const mockedCatalogService = catalogService as jest.Mocked<typeof catalogService>;
 const mockedLibraryService = libraryService as jest.Mocked<typeof libraryService>;
+
+describe("desktop auth pending state", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    window.sessionStorage.clear();
+  });
+
+  it("keeps a valid pending desktop auth state", () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_000_000);
+    window.sessionStorage.setItem(
+      DESKTOP_AUTH_PENDING_KEY,
+      JSON.stringify({ state: "abcdefghijklmnopqrstuvwxyz012345", createdAt: 1_000_000 })
+    );
+
+    expect(readPendingDesktopAuth()).toEqual({
+      state: "abcdefghijklmnopqrstuvwxyz012345",
+      createdAt: 1_000_000,
+    });
+  });
+
+  it("clears an expired pending desktop auth state", () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_000_000 + 5 * 60 * 1000 + 1);
+    window.sessionStorage.setItem(
+      DESKTOP_AUTH_PENDING_KEY,
+      JSON.stringify({ state: "abcdefghijklmnopqrstuvwxyz012345", createdAt: 1_000_000 })
+    );
+
+    expect(readPendingDesktopAuth()).toBeNull();
+    expect(window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY)).toBeNull();
+  });
+
+  it("clears malformed pending desktop auth state", () => {
+    window.sessionStorage.setItem(
+      DESKTOP_AUTH_PENDING_KEY,
+      JSON.stringify({ state: "bad state with spaces", createdAt: Date.now() })
+    );
+
+    expect(readPendingDesktopAuth()).toBeNull();
+    expect(window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY)).toBeNull();
+  });
+});
 
 function authenticatedUser(role: "listener" | "artist" | "admin" = "listener") {
   return {

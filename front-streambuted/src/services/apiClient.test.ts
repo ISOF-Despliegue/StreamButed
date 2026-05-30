@@ -17,6 +17,10 @@ describe("apiClient", () => {
     expect(buildApiUrl("/auth/login")).toBe("http://localhost/api/v1/auth/login");
   });
 
+  it("does not duplicate the /api prefix when VITE_API_BASE_URL already ends with /api", () => {
+    expect(buildApiUrl("/auth/login")).not.toContain("/api/api/v1/");
+  });
+
   it("rejects absolute or unsafe API paths", () => {
     expect(() => buildApiUrl("https://evil.example/auth/login")).toThrow(
       "API path must be relative"
