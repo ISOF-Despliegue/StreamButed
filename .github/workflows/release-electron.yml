@@ -73,6 +73,7 @@ jobs:
           VITE_GATEWAY_URL: https://api.migueleelg0106.me
         run: npm run build && npx electron-builder --win --publish never
       - name: Create draft release with installer assets
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_version.outputs.tag }}
@@ -87,17 +88,24 @@ jobs:
       - name: Validate release assets and publish
         uses: actions/github-script@v7
         env:
+          RELEASE_ID: ${{ steps.create_release.outputs.id }}
           RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
+            const releaseId = Number(process.env.RELEASE_ID);
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            const { data: release } = await github.rest.repos.getReleaseByTag({
+            if (!releaseId) {
+              core.setFailed(`Release id was not returned for ${tag}.`);
+              return;
+            }
+
+            const { data: release } = await github.rest.repos.getRelease({
               owner,
               repo,
-              tag,
+              release_id: releaseId,
             });
 
             const assetNames = release.assets.map((asset) => asset.name);
