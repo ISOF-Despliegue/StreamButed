@@ -68,6 +68,7 @@
   "build": {
     "appId": "com.streambuted.desktop",
     "productName": "StreamButed",
+    "artifactName": "StreamButed-Setup-${version}.${ext}",
     "directories": {
       "output": "release"
     },
