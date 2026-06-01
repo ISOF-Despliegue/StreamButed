@@ -85,6 +85,7 @@
       }
     ],
     "win": {
+      "icon": "public/favicon-256.png",
       "target": [
         "nsis"
       ]

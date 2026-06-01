@@ -212,24 +212,92 @@ function clearPendingDesktopAuth(): void {
   window.sessionStorage.removeItem(DESKTOP_AUTH_PENDING_KEY);
 }
 
+type DesktopLaunchOutcome = "idle" | "success" | "cancelled";
+
 function DesktopAuthStartPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { accessToken } = useAuth();
-  const [message, setMessage] = useState("Preparando autenticacion desktop...");
+  const [message, setMessage] = useState("Preparando autenticación desktop...");
   const [error, setError] = useState("");
+  const launchOutcomeTimeoutRef = useRef<number | null>(null);
+  const launchVisibilityHandledRef = useRef(false);
+  const removeLaunchListenersRef = useRef<(() => void) | null>(null);
   const state = searchParams.get("state")?.trim() ?? "";
   const provider = searchParams.get("provider")?.trim().toLowerCase() ?? "";
   const mode = searchParams.get("mode") === "register" ? "register" : "login";
 
+  const clearLaunchOutcomeTimeout = useCallback(() => {
+    if (launchOutcomeTimeoutRef.current !== null) {
+      window.clearTimeout(launchOutcomeTimeoutRef.current);
+      launchOutcomeTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearLaunchListeners = useCallback(() => {
+    removeLaunchListenersRef.current?.();
+    removeLaunchListenersRef.current = null;
+  }, []);
+
+  const updateLaunchOutcome = useCallback((outcome: DesktopLaunchOutcome) => {
+    clearLaunchListeners();
+    clearLaunchOutcomeTimeout();
+    setError("");
+    if (outcome === "success") {
+      setMessage("Ya puedes cerrar esta ventana");
+      return;
+    }
+
+    if (outcome === "cancelled") {
+      setMessage("Inicio de sesión cancelado");
+      return;
+    }
+
+    setMessage("Conectando con StreamButed Desktop");
+  }, [clearLaunchListeners, clearLaunchOutcomeTimeout]);
+
+  const openDesktopCallback = useCallback((callbackUrl: string) => {
+    clearLaunchListeners();
+    clearLaunchOutcomeTimeout();
+    launchVisibilityHandledRef.current = false;
+    setError("");
+    setMessage("Conectando con StreamButed Desktop");
+
+    const markDesktopLaunchAccepted = () => {
+      if (document.hidden || !document.hasFocus()) {
+        launchVisibilityHandledRef.current = true;
+        updateLaunchOutcome("success");
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      markDesktopLaunchAccepted();
+    };
+    const handleWindowBlur = () => {
+      markDesktopLaunchAccepted();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    removeLaunchListenersRef.current = () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+    launchOutcomeTimeoutRef.current = window.setTimeout(() => {
+      updateLaunchOutcome(launchVisibilityHandledRef.current ? "success" : "cancelled");
+    }, 1600);
+
+    window.location.assign(callbackUrl);
+  }, [clearLaunchListeners, clearLaunchOutcomeTimeout, updateLaunchOutcome]);
+
   useEffect(() => {
     if (!DESKTOP_AUTH_STATE_PATTERN.test(state)) {
-      setError("La solicitud de autenticacion desktop no es valida.");
+      setError("La solicitud de autenticación desktop no es valida.");
       return;
     }
 
     if (!savePendingDesktopAuth(state)) {
-      setError("La solicitud de autenticacion desktop expiro. Intenta iniciar sesion desde la app de escritorio nuevamente.");
+      setError("La solicitud de autenticación desktop expiro. Intenta iniciar sesión desde la app de escritorio nuevamente.");
       return;
     }
 
@@ -244,7 +312,7 @@ function DesktopAuthStartPage() {
     }
 
     let mounted = true;
-    setMessage("Conectando StreamButed Desktop...");
+    setMessage("Conectando con StreamButed Desktop");
     authService
       .createDesktopHandoffCode({ state, redirectUri: DESKTOP_AUTH_REDIRECT_URI })
       .then((response) => {
@@ -253,17 +321,21 @@ function DesktopAuthStartPage() {
         const callbackUrl = new URL(DESKTOP_AUTH_REDIRECT_URI);
         callbackUrl.searchParams.set("code", response.code);
         callbackUrl.searchParams.set("state", response.state);
-        window.location.assign(callbackUrl.toString());
+        openDesktopCallback(callbackUrl.toString());
       })
       .catch((caughtError) => {
         if (!mounted) return;
+        clearLaunchListeners();
+        clearLaunchOutcomeTimeout();
         setError(toUserFacingMessage(caughtError instanceof Error ? caughtError.message : "No se pudo completar la autenticacion desktop."));
       });
 
     return () => {
       mounted = false;
+      clearLaunchListeners();
+      clearLaunchOutcomeTimeout();
     };
-  }, [accessToken, mode, navigate, provider, state]);
+  }, [accessToken, clearLaunchListeners, clearLaunchOutcomeTimeout, mode, navigate, openDesktopCallback, provider, state]);
 
   return (
     <div className="auth-shell">
@@ -1583,6 +1655,10 @@ export default function StreamButed() {
         </div>
       </div>
     );
+  }
+
+  if (location.pathname === routes.desktopAuthStart) {
+    return <DesktopAuthStartPage />;
   }
 
   if (!user) {
