@@ -9,7 +9,7 @@ import {
 } from "electron";
 import { autoUpdater, type ProgressInfo, type UpdateInfo } from "electron-updater";
 import crypto from "node:crypto";
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import {
   APP_ORIGIN,
@@ -101,6 +101,12 @@ function getRendererDistPath(): string {
   return path.resolve(__dirname, "../dist");
 }
 
+function getWindowIconPath(): string {
+  const preferredIconPath = path.resolve(__dirname, isDev ? "../public/favicon-256.png" : "../dist/favicon-256.png");
+  const fallbackIconPath = path.resolve(__dirname, isDev ? "../public/favicon.png" : "../dist/favicon.png");
+  return existsSync(preferredIconPath) ? preferredIconPath : fallbackIconPath;
+}
+
 function getSessionFilePath(): string {
   return path.join(app.getPath("userData"), "desktop-session.bin");
 }
@@ -175,6 +181,7 @@ function createMainWindow(): void {
     minWidth: 1024,
     minHeight: 700,
     title: "StreamButed",
+    icon: getWindowIconPath(),
     backgroundColor: "#0A0A0D",
     autoHideMenuBar: true,
     show: false,
