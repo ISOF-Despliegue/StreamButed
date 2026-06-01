@@ -429,7 +429,7 @@ function arrangeSuccessfulPlayback() {
   }));
   mockedPlaybackService.createStreamSession.mockImplementation(async (requestedTrackId: string) => ({
     trackId: requestedTrackId,
-    streamUrl: `https://example.com/${requestedTrackId}?playbackToken=token-${requestedTrackId}`,
+    streamUrl: `https://example.com/${requestedTrackId}/stream`,
     expiresAt: "2099-05-26T12:05:00.000Z",
   }));
   mockedPlaybackService.updatePlaybackProgress.mockImplementation(async (requestedTrackId: string, payload) => ({
@@ -465,7 +465,7 @@ describe("StreamButed suspension dialog", () => {
     });
     mockedPlaybackService.createStreamSession.mockResolvedValue({
       trackId: "track-1",
-      streamUrl: "https://example.com/stream?playbackToken=default-token",
+      streamUrl: "https://example.com/stream",
       expiresAt: "2099-05-26T12:05:00.000Z",
     });
     mockedPlaybackService.updatePlaybackProgress.mockResolvedValue({
@@ -598,7 +598,7 @@ describe("StreamButed suspension dialog", () => {
     mockedPlaybackService.createStreamSession
       .mockResolvedValueOnce({
         trackId: "track-1",
-        streamUrl: "https://example.com/stream?playbackToken=cached-token",
+        streamUrl: "https://example.com/stream/cached",
         expiresAt: "2099-05-26T12:05:00.000Z",
       });
     mockedPlaybackService.updatePlaybackProgress.mockResolvedValue({
@@ -661,7 +661,7 @@ describe("StreamButed suspension dialog", () => {
     });
 
     expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledTimes(1);
-    expect(audio.src).toContain("cached-token");
+    expect(audio.src).toBe("https://example.com/stream/cached");
   });
 
   it("refreshes the stream session when resuming with an expired playback token", async () => {
@@ -692,12 +692,12 @@ describe("StreamButed suspension dialog", () => {
     mockedPlaybackService.createStreamSession
       .mockResolvedValueOnce({
         trackId: "track-1",
-        streamUrl: "https://example.com/stream?playbackToken=expired-token",
+        streamUrl: "https://example.com/stream/expired",
         expiresAt: "2000-05-26T12:05:00.000Z",
       })
       .mockResolvedValueOnce({
         trackId: "track-1",
-        streamUrl: "https://example.com/stream?playbackToken=fresh-token",
+        streamUrl: "https://example.com/stream/fresh",
         expiresAt: "2099-05-26T12:10:00.000Z",
       });
     mockedPlaybackService.updatePlaybackProgress.mockResolvedValue({
@@ -755,7 +755,7 @@ describe("StreamButed suspension dialog", () => {
       expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledTimes(2);
     });
 
-    expect(audio.src).toContain("fresh-token");
+    expect(audio.src).toBe("https://example.com/stream/fresh");
     expect(mockedPlaybackService.updatePlaybackProgress).toHaveBeenLastCalledWith("track-1", {
       positionSeconds: 42,
       durationSeconds: 180,

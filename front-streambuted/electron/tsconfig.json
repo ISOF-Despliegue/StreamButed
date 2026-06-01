@@ -12,5 +12,5 @@
     "outDir": "../dist-electron",
     "types": ["node"]
   },
-  "include": ["main.ts", "preload.ts", "security.ts"]
+  "include": ["main.ts", "preload.ts", "security.ts", "*.d.ts"]
 }

@@ -17,7 +17,7 @@ describe("playbackService", () => {
     (globalThis.fetch as jest.Mock).mockResolvedValue(
       new Response(
         JSON.stringify({
-          streamUrl: "/api/v1/playback/tracks/track-1/stream?playbackToken=token",
+          streamUrl: "/api/v1/playback/tracks/track-1/stream",
           expiresAt: "2026-05-11T00:00:00Z",
           trackId: "track-1",
         }),
@@ -35,7 +35,7 @@ describe("playbackService", () => {
       expect.objectContaining({ method: "POST" })
     );
     expect(response.streamUrl).toBe(
-      "http://localhost/api/v1/playback/tracks/track-1/stream?playbackToken=token"
+      "http://localhost/api/v1/playback/tracks/track-1/stream"
     );
   });
 

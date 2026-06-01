@@ -966,6 +966,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       />
         <audio
           ref={audioRef}
+          crossOrigin="use-credentials"
           preload="metadata"
           onLoadedMetadata={handleLoadedMetadata}
           onDurationChange={handleDurationChange}

@@ -7,7 +7,7 @@ import {
   safeStorage,
   shell,
 } from "electron";
-import { autoUpdater } from "electron-updater";
+import { autoUpdater, type ProgressInfo, type UpdateInfo } from "electron-updater";
 import crypto from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -404,7 +404,7 @@ function registerUpdateHandling(): void {
     });
   });
 
-  autoUpdater.on("update-available", (info) => {
+  autoUpdater.on("update-available", (info: UpdateInfo) => {
     setUpdateStatus({
       state: "available",
       message: "Actualizacion disponible. Descargando...",
@@ -412,7 +412,7 @@ function registerUpdateHandling(): void {
     });
   });
 
-  autoUpdater.on("update-not-available", (info) => {
+  autoUpdater.on("update-not-available", (info: UpdateInfo) => {
     setUpdateStatus({
       state: "not-available",
       message: "Ya tienes la version mas reciente.",
@@ -420,7 +420,7 @@ function registerUpdateHandling(): void {
     });
   });
 
-  autoUpdater.on("download-progress", (progress) => {
+  autoUpdater.on("download-progress", (progress: ProgressInfo) => {
     setUpdateStatus({
       state: "downloading",
       message: `Descargando actualizacion ${Math.round(progress.percent)}%.`,
@@ -428,7 +428,7 @@ function registerUpdateHandling(): void {
     });
   });
 
-  autoUpdater.on("update-downloaded", (info) => {
+  autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
     setUpdateStatus({
       state: "downloaded",
       message: "Actualizacion lista. Reinicia para instalarla.",
@@ -436,7 +436,7 @@ function registerUpdateHandling(): void {
     });
   });
 
-  autoUpdater.on("error", (error) => {
+  autoUpdater.on("error", (error: unknown) => {
     setUpdateStatus({
       state: "error",
       message: error instanceof Error ? error.message : "No se pudo buscar actualizaciones.",
