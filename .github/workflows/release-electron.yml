@@ -1,0 +1,47 @@
+name: Release Electron App
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, for example 0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    name: Build and publish Windows installer
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: front-streambuted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: front-streambuted/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Set app version from release
+        shell: pwsh
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if (-not $version) {
+            $version = "${{ github.ref_name }}"
+          }
+          $version = $version.TrimStart("v")
+          npm version --no-git-tag-version $version
+      - name: Build and publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_API_BASE_URL: https://api.migueleelg0106.me/api
+          VITE_GATEWAY_URL: https://api.migueleelg0106.me
+        run: npm run release -- --win

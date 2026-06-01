@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { TrackRowLibraryActions } from '../../components/layout/TrackRowLibraryActions';
+import { AppUpdateButton } from '../../components/electron/AppUpdateButton';
 import { IcMusic } from '../../components/icons/Icons';
 import { AlbumCard } from '../../components/ui/AlbumCard';
 import { SearchInput } from '../../components/ui/SearchInput';
@@ -217,9 +218,14 @@ export function HomePage() {
   return (
     <div className="page-inner">
       <div className="page-header">
-        <div className="page-title">Inicio</div>
-        <div className="page-subtitle">
-          Explora música, artistas y álbumes publicados en StreamButed.
+        <div className="page-header-row">
+          <div>
+            <div className="page-title">Inicio</div>
+            <div className="page-subtitle">
+              Explora música, artistas y álbumes publicados en StreamButed.
+            </div>
+          </div>
+          <AppUpdateButton />
         </div>
       </div>
 

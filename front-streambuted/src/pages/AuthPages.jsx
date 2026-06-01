@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
+import { AppUpdateButton } from '../components/electron/AppUpdateButton';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PasswordField } from '../components/ui/PasswordField';
 import { TEXT_LIMITS } from '../constants/textLimits';
@@ -478,6 +479,10 @@ export function LoginPage({
           <button className="auth-link" onClick={onRegister} type="button">
             Regístrate
           </button>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <AppUpdateButton fullWidth />
         </div>
       </div>
 

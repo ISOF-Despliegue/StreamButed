@@ -2,6 +2,13 @@ export {};
 
 import type { AuthResponse, LoginRequest } from "./auth.types";
 
+type UpdateStatus = {
+  state: "idle" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
+  message: string;
+  version?: string;
+  percent?: number;
+};
+
 declare global {
   interface Window {
     streambuted?: {
@@ -14,6 +21,11 @@ declare global {
         startGoogleOAuth: () => Promise<void>;
         onOAuthResult: (listener: (response: AuthResponse) => void) => () => void;
         onOAuthError: (listener: (message: string) => void) => () => void;
+      };
+      updates?: {
+        check: () => Promise<UpdateStatus>;
+        install: () => Promise<UpdateStatus>;
+        onStatus: (listener: (status: UpdateStatus) => void) => () => void;
       };
       versions: {
         chrome: string;
