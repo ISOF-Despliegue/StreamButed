@@ -11,6 +11,13 @@ type LoginRequest = {
   password: string;
 };
 
+type UpdateStatus = {
+  state: "idle" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
+  message: string;
+  version?: string;
+  percent?: number;
+};
+
 const electronApi = Object.freeze({
   isElectron: true,
   platform: process.platform,
@@ -43,6 +50,23 @@ const electronApi = Object.freeze({
       ipcRenderer.on("auth:oauth-error", handler);
       return () => {
         ipcRenderer.removeListener("auth:oauth-error", handler);
+      };
+    },
+  }),
+  updates: Object.freeze({
+    check(): Promise<UpdateStatus> {
+      return ipcRenderer.invoke("updates:check");
+    },
+    install(): Promise<UpdateStatus> {
+      return ipcRenderer.invoke("updates:install");
+    },
+    onStatus(listener: (status: UpdateStatus) => void): () => void {
+      const handler = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => {
+        listener(status);
+      };
+      ipcRenderer.on("updates:status", handler);
+      return () => {
+        ipcRenderer.removeListener("updates:status", handler);
       };
     },
   }),

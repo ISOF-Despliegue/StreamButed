@@ -7,13 +7,13 @@ import {
   safeStorage,
   shell,
 } from "electron";
+import { autoUpdater } from "electron-updater";
 import crypto from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
   APP_ORIGIN,
   DEEP_LINK_PROTOCOL,
-  DESKTOP_CALLBACK_URL,
   buildRendererContentSecurityPolicy,
   isAllowedExternalUrl,
   isAllowedPermissionRequest,
@@ -26,7 +26,6 @@ const devServerUrl = "http://localhost:5173";
 const appProtocol = "app";
 const appOrigin = APP_ORIGIN;
 const deepLinkProtocol = DEEP_LINK_PROTOCOL;
-const desktopCallbackUrl = DESKTOP_CALLBACK_URL;
 const defaultApiBaseUrl = "https://api.migueleelg0106.me/api";
 const defaultDesktopAuthStartUrl = "https://migueleelg0106.me/desktop-auth/start";
 
@@ -43,6 +42,13 @@ type PendingDesktopOAuth = {
   handled: boolean;
 };
 
+type UpdateStatus = {
+  state: "idle" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
+  message: string;
+  version?: string;
+  percent?: number;
+};
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: appProtocol,
@@ -57,6 +63,23 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow: BrowserWindow | null = null;
 let pendingDesktopOAuth: PendingDesktopOAuth | null = null;
+let latestUpdateStatus: UpdateStatus = {
+  state: "idle",
+  message: "Listo para buscar actualizaciones.",
+};
+
+function getProtocolRegistrationArguments(): string[] {
+  if (app.isPackaged) {
+    return [];
+  }
+
+  const appEntryPoint = process.argv[1];
+  if (!appEntryPoint) {
+    return [];
+  }
+
+  return [path.resolve(appEntryPoint)];
+}
 
 function getApiBaseUrl(): string {
   return (process.env.VITE_API_BASE_URL || defaultApiBaseUrl).replace(/\/+$/, "");
@@ -365,8 +388,107 @@ function sendOAuthError(message: string): void {
   mainWindow?.webContents.send("auth:oauth-error", message);
 }
 
+function setUpdateStatus(status: UpdateStatus): UpdateStatus {
+  latestUpdateStatus = status;
+  mainWindow?.webContents.send("updates:status", status);
+  return status;
+}
+
+function registerUpdateHandling(): void {
+  autoUpdater.autoDownload = true;
+
+  autoUpdater.on("checking-for-update", () => {
+    setUpdateStatus({
+      state: "checking",
+      message: "Buscando actualizaciones...",
+    });
+  });
+
+  autoUpdater.on("update-available", (info) => {
+    setUpdateStatus({
+      state: "available",
+      message: "Actualizacion disponible. Descargando...",
+      version: info.version,
+    });
+  });
+
+  autoUpdater.on("update-not-available", (info) => {
+    setUpdateStatus({
+      state: "not-available",
+      message: "Ya tienes la version mas reciente.",
+      version: info.version,
+    });
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    setUpdateStatus({
+      state: "downloading",
+      message: `Descargando actualizacion ${Math.round(progress.percent)}%.`,
+      percent: progress.percent,
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    setUpdateStatus({
+      state: "downloaded",
+      message: "Actualizacion lista. Reinicia para instalarla.",
+      version: info.version,
+    });
+  });
+
+  autoUpdater.on("error", (error) => {
+    setUpdateStatus({
+      state: "error",
+      message: error instanceof Error ? error.message : "No se pudo buscar actualizaciones.",
+    });
+  });
+
+  ipcMain.handle("updates:check", async () => {
+    if (isDev || !app.isPackaged) {
+      return setUpdateStatus({
+        state: "not-available",
+        message: "Las actualizaciones solo estan disponibles en la app instalada.",
+        version: app.getVersion(),
+      });
+    }
+
+    setUpdateStatus({
+      state: "checking",
+      message: "Buscando actualizaciones...",
+    });
+
+    try {
+      await autoUpdater.checkForUpdates();
+    } catch (error) {
+      return setUpdateStatus({
+        state: "error",
+        message: error instanceof Error ? error.message : "No se pudo buscar actualizaciones.",
+      });
+    }
+
+    return latestUpdateStatus;
+  });
+
+  ipcMain.handle("updates:install", () => {
+    if (latestUpdateStatus.state !== "downloaded") {
+      return setUpdateStatus({
+        state: "error",
+        message: "No hay una actualizacion descargada para instalar.",
+      });
+    }
+
+    autoUpdater.quitAndInstall();
+    return latestUpdateStatus;
+  });
+}
+
 function registerDeepLinkHandling(): void {
-  app.setAsDefaultProtocolClient(deepLinkProtocol);
+  const protocolArguments = getProtocolRegistrationArguments();
+  if (protocolArguments.length > 0) {
+    app.setAsDefaultProtocolClient(deepLinkProtocol, process.execPath, protocolArguments);
+  } else {
+    app.setAsDefaultProtocolClient(deepLinkProtocol);
+  }
 
   const gotLock = app.requestSingleInstanceLock();
   if (!gotLock) {
@@ -393,6 +515,7 @@ function registerDeepLinkHandling(): void {
 
 registerDeepLinkHandling();
 registerIpcHandlers();
+registerUpdateHandling();
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);

@@ -4,6 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ISOF-Despliegue/StreamButed.git",
+    "directory": "front-streambuted"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -11,6 +16,9 @@
     "build:pages": "npm run typecheck && npm run build:renderer && node -e \"const fs=require('fs');fs.copyFileSync('dist/index.html','dist/404.html')\"",
     "build:electron": "tsc -p electron/tsconfig.json && node -e \"require('fs').copyFileSync('electron/package.json','dist-electron/package.json')\"",
     "build": "npm run typecheck && npm run build:renderer && npm run build:electron",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "release": "npm run build && electron-builder --publish always",
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "npm run build:electron && node scripts/run-electron.cjs dist-electron/main.js",
@@ -19,6 +27,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "mediasoup-client": "^3.20.0",
     "prop-types": "^15.8.1",
     "react": "^19.2.4",
@@ -43,6 +52,7 @@
     "babel-jest": "^30.3.0",
     "concurrently": "^9.2.1",
     "electron": "^42.0.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
@@ -54,5 +64,34 @@
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.4",
     "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "com.streambuted.desktop",
+    "productName": "StreamButed",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ISOF-Despliegue",
+        "repo": "StreamButed"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
