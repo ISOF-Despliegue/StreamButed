@@ -23,23 +23,44 @@ jobs:
         working-directory: front-streambuted
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create release tag from manual run
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: .
+        shell: pwsh
+        run: |
+          $version = "${{ github.event.inputs.version }}".TrimStart("v")
+          if (-not $version) {
+            throw "Version is required."
+          }
+          $tag = "v$version"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          $existingTag = git ls-remote --tags origin "refs/tags/$tag"
+          if ($existingTag) {
+            throw "Tag $tag already exists. Use a new version."
+          }
+          git tag $tag $env:GITHUB_SHA
+          git push origin $tag
       - uses: actions/setup-node@v4
+        if: github.event_name != 'workflow_dispatch'
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: front-streambuted/package-lock.json
       - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch'
         run: npm ci
       - name: Set app version from release
+        if: github.event_name != 'workflow_dispatch'
         shell: pwsh
         run: |
-          $version = "${{ github.event.inputs.version }}"
-          if (-not $version) {
-            $version = "${{ github.ref_name }}"
-          }
+          $version = "${{ github.ref_name }}"
           $version = $version.TrimStart("v")
           npm version --no-git-tag-version $version
       - name: Build and publish GitHub release
+        if: github.event_name != 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_API_BASE_URL: https://api.migueleelg0106.me/api
