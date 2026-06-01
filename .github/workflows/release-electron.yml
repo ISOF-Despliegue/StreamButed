@@ -26,6 +26,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Resolve release version
+        id: release_version
         working-directory: .
         shell: pwsh
         run: |
@@ -39,6 +40,8 @@ jobs:
           }
           "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
           "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
       - name: Create release tag from manual run
         if: github.event_name == 'workflow_dispatch'
         working-directory: .
@@ -46,12 +49,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          $existingTag = git ls-remote --tags origin "refs/tags/$env:RELEASE_TAG"
+          $tag = "${{ steps.release_version.outputs.tag }}"
+          $existingTag = git ls-remote --tags origin "refs/tags/$tag"
           if ($existingTag) {
-            throw "Tag $env:RELEASE_TAG already exists. Use a new version."
+            throw "Tag $tag already exists. Use a new version."
           }
-          git tag $env:RELEASE_TAG $env:GITHUB_SHA
-          git push origin $env:RELEASE_TAG
+          git tag $tag $env:GITHUB_SHA
+          git push origin $tag
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -62,7 +66,7 @@ jobs:
       - name: Set app version from release
         shell: pwsh
         run: |
-          npm version --no-git-tag-version $env:RELEASE_VERSION
+          npm version --no-git-tag-version ${{ steps.release_version.outputs.version }}
       - name: Build Windows installer
         env:
           VITE_API_BASE_URL: https://api.migueleelg0106.me/api
@@ -71,8 +75,8 @@ jobs:
       - name: Create draft release with installer assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: StreamButed ${{ env.RELEASE_TAG }}
+          tag_name: ${{ steps.release_version.outputs.tag }}
+          name: StreamButed ${{ steps.release_version.outputs.tag }}
           draft: true
           prerelease: false
           fail_on_unmatched_files: true
@@ -82,6 +86,8 @@ jobs:
             front-streambuted/release/latest.yml
       - name: Validate release assets and publish
         uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
