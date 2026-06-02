@@ -1474,6 +1474,11 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   align-items: end; margin-top: 16px;
 }
 .moderation-reason-field { grid-column: auto; }
+.moderation-action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
 .moderation-reason { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--t1); }
 .reason-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); flex-shrink: 0; }
 .approve-btn {
@@ -1645,6 +1650,56 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
 }
 .confirm-dialog-danger {
   background: rgba(239,68,68,0.1);
+}
+@media (max-width: 760px) {
+  .moderation-action-panel {
+    padding: 16px;
+  }
+
+  .moderation-form-grid {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .moderation-reason-field {
+    grid-column: 1 / -1 !important;
+  }
+
+  .moderation-action-buttons {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .moderation-action-buttons button {
+    width: 100%;
+  }
+
+  .confirm-dialog-backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .confirm-dialog {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(85dvh, 85svh);
+    overflow-y: auto;
+    border-radius: 18px 18px 0 0;
+    padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .confirm-dialog-title {
+    font-size: 19px;
+  }
+
+  .confirm-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .confirm-dialog-actions button {
+    width: 100%;
+    min-width: 0;
+  }
 }
 button:disabled {
   opacity: 0.48;

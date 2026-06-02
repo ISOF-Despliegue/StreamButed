@@ -431,7 +431,7 @@ function BanAccountPanel({ draft, isLoading, onCancel, onChange, onSubmit }) {
         </label>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+      <div className="moderation-action-buttons">
         <button className="btn-ghost" disabled={isLoading} type="button" onClick={onCancel}>Cancelar</button>
         <button className="btn-danger" disabled={isLoading} type="submit">
           {isLoading ? 'Aplicando...' : 'Confirmar suspensión'}
