@@ -824,9 +824,9 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
       {tracks.length === 0 ? (
         <InlineState
-          title={isSystemPlaylist ? 'Aun no has dado me gusta a canciones' : 'Playlist vacia'}
+          title={isSystemPlaylist ? 'Aún no has dado me gusta a canciones' : 'Playlist vacía'}
           message={isSystemPlaylist
-            ? 'Usa el corazon del reproductor para guardarlas aqui.'
+            ? 'Usa el corazón del reproductor para guardarlas aqui.'
             : 'Usa "Agregar canciones" o agrega la pista actual desde este detalle.'}
         />
       ) : (
