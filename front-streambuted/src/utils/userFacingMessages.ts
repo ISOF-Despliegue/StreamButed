@@ -148,7 +148,6 @@ export function getPublicErrorMessage(descriptor: PublicErrorDescriptor): string
 
   if (
     publicCode
-    && publicCode !== "ACCOUNT_BANNED"
     && (descriptor.message || descriptor.error || descriptor.code || (descriptor.status ?? 0) >= 500)
   ) {
     return PUBLIC_ERROR_MESSAGES[publicCode];

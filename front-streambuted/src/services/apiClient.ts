@@ -196,7 +196,7 @@ async function sendApiRequest(
 
   return fetch(buildApiUrl(path), {
     ...options,
-    cache: options.method && options.method !== "GET" && options.method !== "HEAD"
+    cache: options.method && options.method !== "GET"
       ? options.cache
       : "no-store",
     credentials: "include",
