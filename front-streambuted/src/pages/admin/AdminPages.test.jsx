@@ -22,6 +22,8 @@ jest.mock("../../services/catalogService", () => ({
     listAdminTracks: jest.fn(),
     retireAlbum: jest.fn(),
     retireTrack: jest.fn(),
+    reinstateAlbum: jest.fn(),
+    reinstateTrack: jest.fn(),
   },
 }));
 
@@ -133,12 +135,14 @@ const usersResponse = {
 
 describe("AdminPages", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     jest.mocked(analyticsService.getAdminSummary).mockResolvedValue(summary);
     jest.mocked(catalogService.listAdminTracks).mockResolvedValue(trackResponse);
     jest.mocked(catalogService.listAdminAlbums).mockResolvedValue(albumResponse);
     jest.mocked(catalogService.retireTrack).mockResolvedValue({});
     jest.mocked(catalogService.retireAlbum).mockResolvedValue({});
+    jest.mocked(catalogService.reinstateTrack).mockResolvedValue({});
+    jest.mocked(catalogService.reinstateAlbum).mockResolvedValue({});
     jest.mocked(userService.listAdminUsers).mockResolvedValue(usersResponse);
     jest.mocked(userService.banUser).mockResolvedValue({});
     jest.mocked(userService.unbanUser).mockResolvedValue({});
@@ -177,7 +181,7 @@ describe("AdminPages", () => {
   });
 
   it("requests and renders only 10 moderation rows", async () => {
-    const manyTracks = Array.from({ length: 12 }, (_, index) => ({
+    const manyTracks = Array.from({ length: 10 }, (_, index) => ({
       trackId: `track-${index + 1}`,
       title: `Cancion ${index + 1}`,
       genre: "Rock",
@@ -189,7 +193,7 @@ describe("AdminPages", () => {
     jest.mocked(catalogService.listAdminTracks).mockResolvedValueOnce({
       data: manyTracks,
       pagination: {
-        dataCount: 12,
+        dataCount: 10,
         limit: 10,
         offset: 0,
         total: 12,
@@ -208,7 +212,7 @@ describe("AdminPages", () => {
     });
   });
 
-  it("filters admin moderation locally with manual short searches", async () => {
+  it("searches songs through the backend instead of filtering the local list", async () => {
     const user = userEvent.setup();
     jest.mocked(catalogService.listAdminTracks).mockResolvedValueOnce({
       data: [
@@ -237,18 +241,110 @@ describe("AdminPages", () => {
         offset: 0,
         total: 2,
       },
+    }).mockResolvedValueOnce({
+      data: [
+        {
+          trackId: "track-2",
+          title: "Sol",
+          genre: "Pop",
+          artistName: "Beto",
+          albumTitle: "Dia",
+          status: "PUBLICADO",
+          createdAt: "2026-05-20T12:00:00Z",
+        },
+      ],
+      pagination: {
+        dataCount: 1,
+        limit: 10,
+        offset: 0,
+        total: 1,
+      },
     });
 
     render(<AdminModerationPage toast={jest.fn()} />);
 
     expect(await screen.findByText("Luna")).toBeInTheDocument();
-    jest.mocked(catalogService.listAdminTracks).mockClear();
-
     await user.type(screen.getByPlaceholderText("Buscar canciones"), "be{Enter}");
 
-    expect(screen.getByText("Sol")).toBeInTheDocument();
+    expect(await screen.findByText("Sol")).toBeInTheDocument();
     expect(screen.queryByText("Luna")).not.toBeInTheDocument();
-    expect(catalogService.listAdminTracks).not.toHaveBeenCalled();
+    expect(catalogService.listAdminTracks).toHaveBeenNthCalledWith(2, {
+      includeRetired: true,
+      limit: 10,
+      offset: 0,
+      q: "be",
+    });
+  });
+
+  it("routes album searches to the album moderation endpoint", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.listAdminAlbums).mockResolvedValueOnce(albumResponse)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            albumId: "album-2",
+            title: "Tardes",
+            artistName: "Beto",
+            trackCount: 4,
+            status: "PUBLICADO",
+            createdAt: "2026-05-20T12:00:00Z",
+          },
+        ],
+        pagination: {
+          ...pagination,
+          dataCount: 1,
+          total: 1,
+        },
+      });
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Álbumes" }));
+    expect(await screen.findByText("Noches")).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText("Buscar álbumes"), "ta{Enter}");
+    expect(await screen.findByText("Tardes")).toBeInTheDocument();
+    expect(catalogService.listAdminAlbums).toHaveBeenNthCalledWith(2, {
+      includeRetired: true,
+      limit: 10,
+      offset: 0,
+      q: "ta",
+    });
+  });
+
+  it("routes account searches to the account moderation endpoint", async () => {
+    const user = userEvent.setup();
+    jest.mocked(userService.listAdminUsers).mockResolvedValueOnce(usersResponse)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "user-3",
+            username: "diana",
+            email: "diana@example.com",
+            role: "listener",
+            isActive: true,
+            banStatus: "ACTIVE",
+            bannedUntil: null,
+            createdAt: "2026-05-20T12:00:00Z",
+          },
+        ],
+        pagination: {
+          ...pagination,
+          dataCount: 1,
+          total: 1,
+        },
+      });
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Cuentas" }));
+    expect(await screen.findByText("listener@example.com")).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText("Buscar cuentas"), "dia{Enter}");
+    expect(await screen.findByText("diana@example.com")).toBeInTheDocument();
+    expect(userService.listAdminUsers).toHaveBeenNthCalledWith(2, {
+      limit: 10,
+      offset: 0,
+      q: "dia",
+    });
   });
 
   it("loads albums and retires an album through the in-app confirmation", async () => {
@@ -266,6 +362,50 @@ describe("AdminPages", () => {
     await user.click(within(dialog).getByRole("button", { name: "Retirar álbum" }));
 
     await waitFor(() => expect(catalogService.retireAlbum).toHaveBeenCalledWith("album-1"));
+  });
+
+  it("reinstates a retired song through the in-app confirmation", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.listAdminTracks).mockResolvedValueOnce({
+      data: [
+        {
+          trackId: "track-1",
+          title: "Luna",
+          genre: "Rock",
+          artistName: "Ada",
+          albumTitle: null,
+          status: "RETIRADO",
+          visibilityReason: "ADMIN_RETIRED",
+          createdAt: "2026-05-20T12:00:00Z",
+        },
+      ],
+      pagination,
+    });
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    await user.click(await screen.findByRole("button", { name: "Reingresar" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/reingresar "Luna"/i)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Reingresar canción" }));
+
+    await waitFor(() => expect(catalogService.reinstateTrack).toHaveBeenCalledWith("track-1"));
+  });
+
+  it("omits artist-deleted tracks from moderation when the backend no longer returns them", async () => {
+    jest.mocked(catalogService.listAdminTracks).mockResolvedValueOnce({
+      data: [],
+      pagination: {
+        ...pagination,
+        dataCount: 0,
+        total: 0,
+      },
+    });
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    expect(await screen.findByText("No hay canciones registradas")).toBeInTheDocument();
   });
 
   it("loads accounts, bans a user, and reactivates a banned account", async () => {

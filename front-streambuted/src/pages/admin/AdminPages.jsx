@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
+import { emitLibraryRefreshRequested } from '../../services/libraryEvents';
 import { userService } from '../../services/userService';
 import { formatDate, formatNumber } from '../../utils/formatters';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
-import { includesSearchTerm } from '../../utils/searchText';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InlineState } from '../../components/ui/InlineState';
 import { SearchInput } from '../../components/ui/SearchInput';
@@ -227,46 +227,6 @@ function getRoleLabel(role) {
   return 'Oyente';
 }
 
-function filterModerationItems(items, searchTerm, getSearchValues) {
-  if (!searchTerm) {
-    return items;
-  }
-
-  return items.filter(item => (
-    getSearchValues(item).some(value => includesSearchTerm(String(value ?? ''), searchTerm))
-  ));
-}
-
-function getTrackSearchValues(track) {
-  return [
-    track.title,
-    track.artistName,
-    track.albumTitle ?? 'Sencillo',
-    track.genre,
-    getCatalogStatusLabel(track.status),
-  ];
-}
-
-function getAlbumSearchValues(album) {
-  return [
-    album.title,
-    album.artistName,
-    album.trackCount,
-    getCatalogStatusLabel(album.status),
-  ];
-}
-
-function getUserSearchValues(user) {
-  return [
-    user.username,
-    user.email,
-    getRoleLabel(user.role),
-    user.role,
-    user.isActive ? 'Activa' : 'Inactiva',
-    getBanStatusLabel(user.banStatus),
-  ];
-}
-
 function getSearchPlaceholder(activeTab) {
   if (activeTab === 'tracks') {
     return 'Buscar canciones';
@@ -277,15 +237,6 @@ function getSearchPlaceholder(activeTab) {
   }
 
   return 'Buscar cuentas';
-}
-
-function getDisplayPagination(basePagination, filteredCount, dataCount, hasSearchTerm) {
-  return {
-    ...basePagination,
-    dataCount,
-    limit: ADMIN_MODERATION_LIMIT,
-    total: hasSearchTerm ? filteredCount : basePagination.total,
-  };
 }
 
 function getBanConfirmationMessage(draft) {
@@ -334,6 +285,19 @@ function RetireActionButton({ disabled, onClick }) {
 }
 
 RetireActionButton.propTypes = {
+  disabled: PropTypes.bool.isRequired,
+  onClick: PropTypes.func.isRequired,
+};
+
+function ReinstateActionButton({ disabled, onClick }) {
+  return (
+    <button className="btn-ghost" disabled={disabled} onClick={onClick} type="button">
+      Reingresar
+    </button>
+  );
+}
+
+ReinstateActionButton.propTypes = {
   disabled: PropTypes.bool.isRequired,
   onClick: PropTypes.func.isRequired,
 };
@@ -513,23 +477,38 @@ export function AdminModerationPage({ toast }) {
     setIsLoading(true);
     setError('');
     setActionError('');
+    const searchParams = moderationSearchTerm ? { q: moderationSearchTerm } : {};
 
     try {
       if (activeTab === 'tracks') {
-        const response = await catalogService.listAdminTracks({ includeRetired: true, limit: ADMIN_MODERATION_LIMIT, offset: 0 });
+        const response = await catalogService.listAdminTracks({
+          includeRetired: true,
+          limit: ADMIN_MODERATION_LIMIT,
+          offset: 0,
+          ...searchParams,
+        });
         setTracks(response.data);
         setPagination({ ...response.pagination, dataCount: response.data.length });
         return;
       }
 
       if (activeTab === 'albums') {
-        const response = await catalogService.listAdminAlbums({ includeRetired: true, limit: ADMIN_MODERATION_LIMIT, offset: 0 });
+        const response = await catalogService.listAdminAlbums({
+          includeRetired: true,
+          limit: ADMIN_MODERATION_LIMIT,
+          offset: 0,
+          ...searchParams,
+        });
         setAlbums(response.data);
         setPagination({ ...response.pagination, dataCount: response.data.length });
         return;
       }
 
-      const response = await userService.listAdminUsers({ limit: ADMIN_MODERATION_LIMIT, offset: 0 });
+      const response = await userService.listAdminUsers({
+        limit: ADMIN_MODERATION_LIMIT,
+        offset: 0,
+        ...searchParams,
+      });
       setUsers(response.data);
       setPagination({ ...response.pagination, dataCount: response.data.length });
     } catch (err) {
@@ -537,56 +516,18 @@ export function AdminModerationPage({ toast }) {
     } finally {
       setIsLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, moderationSearchTerm]);
 
   useEffect(() => {
     void loadModerationItems();
   }, [loadModerationItems]);
-
-  const filteredTracks = useMemo(
-    () => filterModerationItems(tracks, moderationSearchTerm, getTrackSearchValues),
-    [moderationSearchTerm, tracks]
-  );
-  const visibleTracks = useMemo(
-    () => filteredTracks.slice(0, ADMIN_MODERATION_LIMIT),
-    [filteredTracks]
-  );
-  const trackPagination = useMemo(
-    () => getDisplayPagination(pagination, filteredTracks.length, visibleTracks.length, Boolean(moderationSearchTerm)),
-    [filteredTracks.length, moderationSearchTerm, pagination, visibleTracks.length]
-  );
-
-  const filteredAlbums = useMemo(
-    () => filterModerationItems(albums, moderationSearchTerm, getAlbumSearchValues),
-    [albums, moderationSearchTerm]
-  );
-  const visibleAlbums = useMemo(
-    () => filteredAlbums.slice(0, ADMIN_MODERATION_LIMIT),
-    [filteredAlbums]
-  );
-  const albumPagination = useMemo(
-    () => getDisplayPagination(pagination, filteredAlbums.length, visibleAlbums.length, Boolean(moderationSearchTerm)),
-    [filteredAlbums.length, moderationSearchTerm, pagination, visibleAlbums.length]
-  );
-
-  const filteredUsers = useMemo(
-    () => filterModerationItems(users, moderationSearchTerm, getUserSearchValues),
-    [moderationSearchTerm, users]
-  );
-  const visibleUsers = useMemo(
-    () => filteredUsers.slice(0, ADMIN_MODERATION_LIMIT),
-    [filteredUsers]
-  );
-  const userPagination = useMemo(
-    () => getDisplayPagination(pagination, filteredUsers.length, visibleUsers.length, Boolean(moderationSearchTerm)),
-    [filteredUsers.length, moderationSearchTerm, pagination, visibleUsers.length]
-  );
 
   const retireTrack = async (track) => {
     setIsActionLoading(true);
     setActionError('');
     try {
       await catalogService.retireTrack(track.trackId);
+      emitLibraryRefreshRequested();
       toast('Canción retirada.');
       setConfirmation(null);
       await loadModerationItems();
@@ -602,7 +543,40 @@ export function AdminModerationPage({ toast }) {
     setActionError('');
     try {
       await catalogService.retireAlbum(album.albumId);
+      emitLibraryRefreshRequested();
       toast('Álbum retirado.');
+      setConfirmation(null);
+      await loadModerationItems();
+    } catch (err) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const reinstateTrack = async (track) => {
+    setIsActionLoading(true);
+    setActionError('');
+    try {
+      await catalogService.reinstateTrack(track.trackId);
+      emitLibraryRefreshRequested();
+      toast('Canción reingresada.');
+      setConfirmation(null);
+      await loadModerationItems();
+    } catch (err) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const reinstateAlbum = async (album) => {
+    setIsActionLoading(true);
+    setActionError('');
+    try {
+      await catalogService.reinstateAlbum(album.albumId);
+      emitLibraryRefreshRequested();
+      toast('Álbum reingresado.');
       setConfirmation(null);
       await loadModerationItems();
     } catch (err) {
@@ -629,6 +603,26 @@ export function AdminModerationPage({ toast }) {
       message: `Confirma que deseas retirar "${album.title}".`,
       confirmLabel: 'Retirar álbum',
       onConfirm: () => retireAlbum(album),
+    });
+  };
+
+  const confirmReinstateTrack = (track) => {
+    setActionError('');
+    setConfirmation({
+      title: 'Reingresar canción',
+      message: `Confirma que deseas reingresar "${track.title}".`,
+      confirmLabel: 'Reingresar canción',
+      onConfirm: () => reinstateTrack(track),
+    });
+  };
+
+  const confirmReinstateAlbum = (album) => {
+    setActionError('');
+    setConfirmation({
+      title: 'Reingresar álbum',
+      message: `Confirma que deseas reingresar "${album.title}".`,
+      confirmLabel: 'Reingresar álbum',
+      onConfirm: () => reinstateAlbum(album),
     });
   };
 
@@ -746,8 +740,8 @@ export function AdminModerationPage({ toast }) {
           emptyTitle={moderationSearchTerm ? 'Sin canciones para esta busqueda' : 'No hay canciones registradas'}
           headers={['Canción', 'Artista', 'Álbum', 'Estado', 'Fecha', 'Acción']}
           label="canciones"
-          pagination={trackPagination}
-          rows={visibleTracks.map(track => ({
+          pagination={pagination}
+          rows={tracks.map(track => ({
             key: track.trackId,
             cells: [
               <div key="track-title">
@@ -758,11 +752,19 @@ export function AdminModerationPage({ toast }) {
               track.albumTitle ?? 'Sencillo',
               <CatalogStatusBadge key="track-status" status={track.status} />,
               <span key="track-created-at" style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</span>,
-              <RetireActionButton
-                key="track-action"
-                disabled={isActionLoading || track.status === 'RETIRADO'}
-                onClick={() => confirmRetireTrack(track)}
-              />,
+              track.status === 'RETIRADO' ? (
+                <ReinstateActionButton
+                  key="track-action"
+                  disabled={isActionLoading}
+                  onClick={() => confirmReinstateTrack(track)}
+                />
+              ) : (
+                <RetireActionButton
+                  key="track-action"
+                  disabled={isActionLoading}
+                  onClick={() => confirmRetireTrack(track)}
+                />
+              ),
             ],
           }))}
         />
@@ -773,8 +775,8 @@ export function AdminModerationPage({ toast }) {
           emptyTitle={moderationSearchTerm ? 'Sin álbumes para esta busqueda' : 'No hay álbumes registrados'}
           headers={['Álbum', 'Artista', 'Canciones', 'Estado', 'Fecha', 'Acción']}
           label="álbumes"
-          pagination={albumPagination}
-          rows={visibleAlbums.map(album => ({
+          pagination={pagination}
+          rows={albums.map(album => ({
             key: album.albumId,
             cells: [
               <span key="album-title" style={{ fontWeight: 600, color: 'var(--t1)' }}>{album.title}</span>,
@@ -782,11 +784,19 @@ export function AdminModerationPage({ toast }) {
               formatMetricNumber(album.trackCount),
               <CatalogStatusBadge key="album-status" status={album.status} />,
               <span key="album-created-at" style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</span>,
-              <RetireActionButton
-                key="album-action"
-                disabled={isActionLoading || album.status === 'RETIRADO'}
-                onClick={() => confirmRetireAlbum(album)}
-              />,
+              album.status === 'RETIRADO' ? (
+                <ReinstateActionButton
+                  key="album-action"
+                  disabled={isActionLoading}
+                  onClick={() => confirmReinstateAlbum(album)}
+                />
+              ) : (
+                <RetireActionButton
+                  key="album-action"
+                  disabled={isActionLoading}
+                  onClick={() => confirmRetireAlbum(album)}
+                />
+              ),
             ],
           }))}
         />
@@ -806,8 +816,8 @@ export function AdminModerationPage({ toast }) {
             emptyTitle={moderationSearchTerm ? 'Sin cuentas para esta busqueda' : 'No hay cuentas registradas'}
             headers={['Cuenta', 'Rol', 'Estado', 'Suspensión', 'Alta', 'Acción']}
             label="cuentas"
-            pagination={userPagination}
-            rows={visibleUsers.map(user => ({
+            pagination={pagination}
+            rows={users.map(user => ({
               key: user.id,
               cells: [
                 <div key="user-identity">

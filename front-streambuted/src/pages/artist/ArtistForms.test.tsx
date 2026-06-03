@@ -27,10 +27,12 @@ jest.mock("../../services/catalogService", () => ({
     updateTrack: jest.fn(),
     createAlbum: jest.fn(),
     getAlbum: jest.fn(),
+    listManagedArtistAlbums: jest.fn(),
+    listManagedArtistTracks: jest.fn(),
     listArtistAlbums: jest.fn(),
     listArtistTracks: jest.fn(),
-    retireAlbum: jest.fn(),
-    retireTrack: jest.fn(),
+    deleteAlbum: jest.fn(),
+    deleteTrack: jest.fn(),
   },
 }));
 
@@ -91,8 +93,8 @@ describe("artist upload forms", () => {
     jest.mocked(catalogService.createTrack).mockResolvedValue({} as never);
     jest.mocked(catalogService.createTrackInAlbum).mockResolvedValue({} as never);
     jest.mocked(catalogService.updateTrack).mockResolvedValue({} as never);
-    jest.mocked(catalogService.retireAlbum).mockResolvedValue({} as never);
-    jest.mocked(catalogService.retireTrack).mockResolvedValue({} as never);
+    jest.mocked(catalogService.deleteAlbum).mockResolvedValue({} as never);
+    jest.mocked(catalogService.deleteTrack).mockResolvedValue({} as never);
     jest.mocked(analyticsService.getArtistSummary).mockResolvedValue(artistAnalyticsSummary as never);
     jest.mocked(catalogService.createAlbum).mockResolvedValue({
       albumId: "album-1",
@@ -112,6 +114,8 @@ describe("artist upload forms", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     } as never);
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([]);
+    jest.mocked(catalogService.listManagedArtistTracks).mockResolvedValue([]);
     jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([]);
     jest.mocked(catalogService.listArtistTracks).mockResolvedValue([]);
     jest.mocked(getUploadFileNameError).mockReturnValue("");
@@ -151,6 +155,48 @@ describe("artist upload forms", () => {
     );
 
     expect(await screen.findByText(/temporalmente/)).toBeInTheDocument();
+  });
+
+  it("counts only published tracks in the artist dashboard summary", async () => {
+    jest.mocked(catalogService.listManagedArtistTracks).mockResolvedValue([
+      {
+        trackId: "track-1",
+        artistId: "artist-1",
+        albumId: null,
+        title: "Publicada",
+        genre: "Rock",
+        audioAssetId: "audio-1",
+        coverAssetId: null,
+        status: "PUBLICADO",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        trackId: "track-2",
+        artistId: "artist-1",
+        albumId: null,
+        title: "Retirada",
+        genre: "Rock",
+        audioAssetId: "audio-2",
+        coverAssetId: null,
+        status: "RETIRADO",
+        visibilityReason: "ADMIN_RETIRED",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+
+    renderWithRouter(
+      <ArtistDashboardPage
+        currentTrack={null}
+        onPlayTrack={jest.fn()}
+        user={{ id: "artist-1", username: "Ada" }}
+      />
+    );
+
+    expect(
+      within((await screen.findByText("Pistas publicadas")).closest(".stat-card") as HTMLElement).getByText("1")
+    ).toBeInTheDocument();
   });
 
   it("uploads media before creating a track", async () => {
@@ -415,7 +461,7 @@ describe("artist upload forms", () => {
 
   it("sends null albumId when editing a track back to single", async () => {
     const user = userEvent.setup();
-    jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([
       {
         albumId: "album-1",
         artistId: "artist-1",
@@ -542,7 +588,7 @@ describe("artist upload forms", () => {
   });
 
   it("renders track and album covers in artist tables", async () => {
-    jest.mocked(catalogService.listArtistTracks).mockResolvedValue([
+    jest.mocked(catalogService.listManagedArtistTracks).mockResolvedValue([
       {
         trackId: "track-1",
         artistId: "artist-1",
@@ -556,7 +602,7 @@ describe("artist upload forms", () => {
         updatedAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
-    jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([
       {
         albumId: "album-1",
         artistId: "artist-1",
@@ -589,9 +635,9 @@ describe("artist upload forms", () => {
     );
   });
 
-  it("retires a track after the artist confirms the action", async () => {
+  it("deletes a track after the artist confirms the action", async () => {
     const user = userEvent.setup();
-    jest.mocked(catalogService.listArtistTracks).mockResolvedValue([
+    jest.mocked(catalogService.listManagedArtistTracks).mockResolvedValue([
       {
         trackId: "track-1",
         artistId: "artist-1",
@@ -607,15 +653,63 @@ describe("artist upload forms", () => {
     ] as never);
     renderWithRouter(<MyTracksPage user={{ id: "artist-1" }} toast={jest.fn()} />);
 
-    await user.click(await screen.findByRole("button", { name: "Retirar" }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Retirar pista" }));
+    await user.click(await screen.findByRole("button", { name: "Eliminar" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Eliminar pista" }));
 
-    await waitFor(() => expect(catalogService.retireTrack).toHaveBeenCalledWith("track-1"));
+    await waitFor(() => expect(catalogService.deleteTrack).toHaveBeenCalledWith("track-1"));
   });
 
-  it("retires an album after the artist confirms the action", async () => {
+  it("hides retired albums from the edit-track selector", async () => {
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([
+      {
+        albumId: "album-1",
+        artistId: "artist-1",
+        title: "Publicado",
+        coverAssetId: "cover-1",
+        status: "PUBLICADO",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        albumId: "album-2",
+        artistId: "artist-1",
+        title: "Retirado",
+        coverAssetId: "cover-2",
+        status: "RETIRADO",
+        visibilityReason: "ADMIN_RETIRED",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+
+    render(
+      <EditTrackPage
+        track={{
+          trackId: "track-1",
+          artistId: "artist-1",
+          albumId: null,
+          title: "Song",
+          genre: "Rock",
+          audioAssetId: "audio-1",
+          coverAssetId: "cover-1",
+          status: "PUBLICADO",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        }}
+        user={{ id: "artist-1" }}
+        onCancel={jest.fn()}
+        onDone={jest.fn()}
+        toast={jest.fn()}
+      />
+    );
+
+    expect(await screen.findByRole("option", { name: "Publicado" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Retirado" })).not.toBeInTheDocument();
+  });
+
+  it("deletes an album after the artist confirms the action", async () => {
     const user = userEvent.setup();
-    jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([
       {
         albumId: "album-1",
         artistId: "artist-1",
@@ -628,10 +722,174 @@ describe("artist upload forms", () => {
     ] as never);
     renderWithRouter(<MyAlbumsPage user={{ id: "artist-1" }} toast={jest.fn()} />);
 
-    await user.click(await screen.findByRole("button", { name: "Retirar" }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Retirar/ }));
+    await user.click(await screen.findByRole("button", { name: "Eliminar" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Eliminar/ }));
 
-    await waitFor(() => expect(catalogService.retireAlbum).toHaveBeenCalledWith("album-1"));
+    await waitFor(() => expect(catalogService.deleteAlbum).toHaveBeenCalledWith("album-1"));
+  });
+
+  it("keeps admin-retired tracks visible to the artist", async () => {
+    jest.mocked(catalogService.listManagedArtistTracks).mockResolvedValue([
+      {
+        trackId: "track-1",
+        artistId: "artist-1",
+        albumId: null,
+        title: "Song",
+        genre: "Rock",
+        audioAssetId: "audio-1",
+        coverAssetId: null,
+        status: "RETIRADO",
+        visibilityReason: "ADMIN_RETIRED",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+
+    renderWithRouter(<MyTracksPage user={{ id: "artist-1" }} toast={jest.fn()} />);
+
+    expect(await screen.findByText("Retirado")).toBeInTheDocument();
+  });
+
+  it("disables edit for retired tracks in my tracks", async () => {
+    jest.mocked(catalogService.listManagedArtistTracks).mockResolvedValue([
+      {
+        trackId: "track-1",
+        artistId: "artist-1",
+        albumId: null,
+        title: "Song",
+        genre: "Rock",
+        audioAssetId: "audio-1",
+        coverAssetId: null,
+        status: "RETIRADO",
+        visibilityReason: "ADMIN_RETIRED",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+
+    renderWithRouter(<MyTracksPage user={{ id: "artist-1" }} toast={jest.fn()} />);
+
+    expect(await screen.findByRole("button", { name: "Editar" })).toBeDisabled();
+  });
+
+  it("disables add track for retired albums in my albums", async () => {
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([
+      {
+        albumId: "album-1",
+        artistId: "artist-1",
+        title: "Album",
+        coverAssetId: null,
+        status: "RETIRADO",
+        visibilityReason: "ADMIN_RETIRED",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+
+    renderWithRouter(<MyAlbumsPage user={{ id: "artist-1" }} toast={jest.fn()} />);
+
+    expect(await screen.findByRole("button", { name: "Agregar canción" })).toBeDisabled();
+  });
+
+  it("shows only published tracks in the album count", async () => {
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([
+      {
+        albumId: "album-1",
+        artistId: "artist-1",
+        title: "Album",
+        coverAssetId: null,
+        status: "PUBLICADO",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+    jest.mocked(catalogService.listManagedArtistTracks).mockResolvedValue([
+      {
+        trackId: "track-1",
+        artistId: "artist-1",
+        albumId: "album-1",
+        title: "Publicada",
+        genre: "Rock",
+        audioAssetId: "audio-1",
+        coverAssetId: null,
+        status: "PUBLICADO",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        trackId: "track-2",
+        artistId: "artist-1",
+        albumId: "album-1",
+        title: "Retirada",
+        genre: "Rock",
+        audioAssetId: "audio-2",
+        coverAssetId: null,
+        status: "RETIRADO",
+        visibilityReason: "ADMIN_RETIRED",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+
+    renderWithRouter(<MyAlbumsPage user={{ id: "artist-1" }} toast={jest.fn()} />);
+
+    expect(await screen.findByText("1")).toBeInTheDocument();
+  });
+
+  it("hides retired albums from the upload album selector", async () => {
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([
+      {
+        albumId: "album-1",
+        artistId: "artist-1",
+        title: "Publicado",
+        coverAssetId: null,
+        status: "PUBLICADO",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        albumId: "album-2",
+        artistId: "artist-1",
+        title: "Retirado",
+        coverAssetId: null,
+        status: "RETIRADO",
+        visibilityReason: "ADMIN_RETIRED",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+
+    render(<UploadSinglePage toast={jest.fn()} user={{ id: "artist-1" }} />);
+
+    expect(await screen.findByRole("option", { name: "Publicado" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Retirado" })).not.toBeInTheDocument();
+  });
+
+  it("blocks publishing into a retired locked album", async () => {
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([
+      {
+        albumId: "album-1",
+        artistId: "artist-1",
+        title: "Retirado",
+        coverAssetId: null,
+        status: "RETIRADO",
+        visibilityReason: "ADMIN_RETIRED",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as never);
+
+    render(
+      <UploadSinglePage
+        initialAlbumId="album-1"
+        onUploadAlbumConsumed={jest.fn()}
+        toast={jest.fn()}
+        user={{ id: "artist-1" }}
+      />
+    );
+
+    expect(await screen.findByText(/no acepta canciones nuevas/i)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Publicar canción" })).toBeDisabled();
   });
 
   it("shows the empty analytics breakdown when an artist has no tracked songs", async () => {
@@ -660,7 +918,7 @@ describe("artist upload forms", () => {
     expect(screen.getByText(/Selecciona una pista real/)).toBeInTheDocument();
   });
 
-  it("retires a track from the edit page after confirmation", async () => {
+  it("deletes a track from the edit page after confirmation", async () => {
     const user = userEvent.setup();
     render(
       <EditTrackPage
@@ -683,10 +941,10 @@ describe("artist upload forms", () => {
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Retirar pista" }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Retirar pista" }));
+    await user.click(screen.getByRole("button", { name: "Eliminar pista" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Eliminar pista" }));
 
-    await waitFor(() => expect(catalogService.retireTrack).toHaveBeenCalledWith("track-1"));
+    await waitFor(() => expect(catalogService.deleteTrack).toHaveBeenCalledWith("track-1"));
   });
 
   it("plays tracks from artist track table and opens albums without embedded track playback", async () => {
@@ -725,8 +983,8 @@ describe("artist upload forms", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
 
-    jest.mocked(catalogService.listArtistTracks).mockResolvedValue([singleTrack, albumTrack] as never);
-    jest.mocked(catalogService.listArtistAlbums).mockResolvedValue([album] as never);
+    jest.mocked(catalogService.listManagedArtistTracks).mockResolvedValue([singleTrack, albumTrack] as never);
+    jest.mocked(catalogService.listManagedArtistAlbums).mockResolvedValue([album] as never);
 
     const onPlayTrack = jest.fn();
     const tracksPage = renderWithRouter(

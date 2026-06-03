@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { TrackRowLibraryActions } from '../../components/layout/TrackRowLibraryActions';
 import { IcCheck, IcEdit, IcMusic, IcPlay, IcPlus, IcX } from '../../components/icons/Icons';
@@ -63,9 +63,6 @@ function PlaylistSummaryCard({ playlist, onOpen, onDelete }) {
         <PlaylistCover coverAssetId={playlist.coverAssetId} className="library-playlist-cover" />
         <div>
           <div className="library-playlist-title">{playlist.name}</div>
-          <div className="library-playlist-meta">
-            {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
-          </div>
         </div>
       </button>
       <button className="library-playlist-delete" onClick={onDelete} title="Eliminar playlist" type="button">
@@ -200,6 +197,7 @@ function PlaylistSongResults({
 }
 
 export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
+  const location = useLocation();
   const navigate = useNavigate();
   const [library, setLibrary] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -241,13 +239,20 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
   }, []);
 
   useEffect(() => {
-    void loadLibrary();
-  }, [loadLibrary]);
+    if (location.pathname === routes.library || location.pathname === '/') {
+      void loadLibrary();
+    }
+  }, [loadLibrary, location.pathname]);
 
   useEffect(() => (
     subscribeToLibraryEvents((event) => {
       if (event.type === 'liked-songs-changed') {
         void refreshLikedSongs();
+        return;
+      }
+
+      if (event.type === 'library-refresh-requested') {
+        void loadLibrary();
         return;
       }
 
@@ -304,7 +309,27 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
         ));
       }
     })
-  ), [refreshLikedSongs]);
+  ), [loadLibrary, refreshLikedSongs]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      void loadLibrary();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadLibrary();
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadLibrary]);
 
   useEffect(() => {
     if (!playlistCoverFile) {
@@ -551,6 +576,11 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   useEffect(() => (
     subscribeToLibraryEvents((event) => {
       if (event.type === 'liked-songs-changed' && playlist?.isSystem) {
+        void loadPlaylist({ silent: true });
+        return;
+      }
+
+      if (event.type === 'library-refresh-requested') {
         void loadPlaylist({ silent: true });
         return;
       }

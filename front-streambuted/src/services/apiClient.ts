@@ -1,7 +1,7 @@
 import { authTokenStore } from "./authTokenStore";
 import type { ApiErrorPayload, ApiRequestOptions } from "../types/api.types";
 import { browserLogger } from "../utils/browserLogger";
-import { toUserFacingMessage } from "../utils/userFacingMessages";
+import { getPublicErrorMessage } from "../utils/userFacingMessages";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "https://api.migueleelg0106.me/api";
@@ -23,12 +23,12 @@ function hasUnsafePathSegment(pathname: string): boolean {
     .some((segment) => {
       const lowerSegment = segment.toLowerCase();
       return (
-        segment === "." ||
-        segment === ".." ||
-        lowerSegment === "%2e" ||
-        lowerSegment === "%2e%2e" ||
-        lowerSegment.includes("%2f") ||
-        lowerSegment.includes("%5c")
+        segment === "."
+        || segment === ".."
+        || lowerSegment === "%2e"
+        || lowerSegment === "%2e%2e"
+        || lowerSegment.includes("%2f")
+        || lowerSegment.includes("%5c")
       );
     });
 }
@@ -196,6 +196,9 @@ async function sendApiRequest(
 
   return fetch(buildApiUrl(path), {
     ...options,
+    cache: options.method && options.method !== "GET" && options.method !== "HEAD"
+      ? options.cache
+      : "no-store",
     credentials: "include",
     headers,
     body: serializeBody(options.body),
@@ -226,13 +229,12 @@ async function parseErrorBody(response: Response): Promise<unknown> {
 function resolveErrorMessage(status: number, body: unknown): string {
   const payload = body as ApiErrorPayload | null;
 
-  if (payload?.message) return toUserFacingMessage(payload.message);
-  if (payload?.error) return toUserFacingMessage(payload.error);
-  if (status === 401) return "La sesión expiró. Inicia sesión nuevamente.";
-  if (status === 403) return "No tienes permisos para esta acción.";
-  if (status >= 500) return "La plataforma no está disponible en este momento.";
-
-  return "No se pudo completar la solicitud.";
+  return getPublicErrorMessage({
+    code: payload?.code ?? null,
+    error: payload?.error ?? null,
+    message: payload?.message ?? null,
+    status,
+  });
 }
 
 export async function apiRequest<T>(
@@ -250,7 +252,7 @@ export async function apiRequest<T>(
     response = await sendApiRequest(normalizedPath, options, token);
   } catch (error) {
     browserLogger.warn("Network request failed.", error);
-    throw new Error("No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.");
+    throw new Error(getPublicErrorMessage({ code: "network_unreachable" }));
   }
 
   if (response.status === 403) {
@@ -273,7 +275,7 @@ export async function apiRequest<T>(
         parsedErrorBody = undefined;
       } catch (error) {
         browserLogger.warn("Network request failed after session refresh.", error);
-        throw new Error("No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.");
+        throw new Error(getPublicErrorMessage({ code: "network_unreachable" }));
       }
     }
   }
@@ -286,7 +288,7 @@ export async function apiRequest<T>(
       throw new ApiError(response.status, resolveErrorMessage(response.status, bannedPayload), bannedPayload);
     }
     const message = response.status === 401 && attemptedRefresh
-      ? "La sesión expiró. Inicia sesión nuevamente."
+      ? "Tu sesión expiró. Inicia sesión nuevamente."
       : resolveErrorMessage(response.status, errorBody);
     throw new ApiError(response.status, message, errorBody);
   }

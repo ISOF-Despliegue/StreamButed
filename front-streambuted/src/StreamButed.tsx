@@ -475,6 +475,10 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           return;
         }
 
+        const previousTrack = currentTrack;
+        const previousTrackId = getTrackIdentifier(previousTrack);
+        const isSwitchAttempt = Boolean(previousTrackId && previousTrackId !== trackId);
+
         const requestId = playbackRequestIdRef.current + 1;
         playbackRequestIdRef.current = requestId;
 
@@ -482,13 +486,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           await saveCurrentProgress(false);
         }
 
-        setCurrentTrack(track);
-        setPlaybackQueue(nextQueue);
-        setPlaybackError("");
         setIsPlaybackLoading(true);
-        setIsPlaying(false);
-        setPlaybackPositionSeconds(0);
-        setPlaybackDurationSeconds(0);
 
         try {
           const [session, progress] = await Promise.all([
@@ -506,6 +504,12 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           }
 
           const restorePosition = resumeProgress ? (progress.positionSeconds ?? 0) : 0;
+          setCurrentTrack(track);
+          setPlaybackQueue(nextQueue);
+          setPlaybackError("");
+          setIsPlaying(false);
+          setPlaybackPositionSeconds(0);
+          setPlaybackDurationSeconds(0);
           pendingSeekSecondsRef.current = restorePosition > 0 ? restorePosition : null;
           setPlaybackPositionSeconds(restorePosition);
           setPlaybackDurationSeconds(progress.durationSeconds ?? 0);
@@ -537,7 +541,9 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         } catch (error) {
           browserLogger.error("Failed to start playback.", error);
           if (playbackRequestIdRef.current === requestId) {
-            setPlaybackError("No se pudo iniciar la reproducción.");
+            if (!isSwitchAttempt) {
+              setPlaybackError("No se pudo iniciar la reproducción.");
+            }
             toast("No se pudo iniciar la reproducción de esta pista.");
           }
         } finally {
@@ -546,7 +552,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           }
         }
       },
-      [cachePlaybackSession, saveCurrentProgress, setCurrentTrack, setPlaybackQueue, toast, volume]
+      [cachePlaybackSession, currentTrack, saveCurrentProgress, setCurrentTrack, setPlaybackQueue, toast, volume]
     );
 
     const playSingleTrack = useCallback(

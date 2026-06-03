@@ -40,20 +40,30 @@ export const catalogService = {
     return apiRequest<Track[]>(`/catalog/artists/${artistId}/tracks`);
   },
 
-  listAdminAlbums(params: { includeRetired?: boolean; limit?: number; offset?: number } = {}): Promise<AdminCatalogListResponse<AdminAlbum>> {
+  listManagedArtistAlbums(artistId: string): Promise<Album[]> {
+    return apiRequest<Album[]>(`/catalog/artists/${artistId}/albums/managed`);
+  },
+
+  listManagedArtistTracks(artistId: string): Promise<Track[]> {
+    return apiRequest<Track[]>(`/catalog/artists/${artistId}/tracks/managed`);
+  },
+
+  listAdminAlbums(params: { includeRetired?: boolean; limit?: number; offset?: number; q?: string } = {}): Promise<AdminCatalogListResponse<AdminAlbum>> {
     return apiRequest<AdminCatalogListResponse<AdminAlbum>>(
       withQuery("/catalog/admin/albums", {
         includeRetired: params.includeRetired === false ? "false" : "true",
+        q: params.q,
         limit: params.limit ?? 50,
         offset: params.offset ?? 0,
       })
     );
   },
 
-  listAdminTracks(params: { includeRetired?: boolean; limit?: number; offset?: number } = {}): Promise<AdminCatalogListResponse<AdminTrack>> {
+  listAdminTracks(params: { includeRetired?: boolean; limit?: number; offset?: number; q?: string } = {}): Promise<AdminCatalogListResponse<AdminTrack>> {
     return apiRequest<AdminCatalogListResponse<AdminTrack>>(
       withQuery("/catalog/admin/tracks", {
         includeRetired: params.includeRetired === false ? "false" : "true",
+        q: params.q,
         limit: params.limit ?? 50,
         offset: params.offset ?? 0,
       })
@@ -95,6 +105,18 @@ export const catalogService = {
     });
   },
 
+  reinstateAlbum(albumId: string): Promise<Album> {
+    return apiRequest<Album>(`/catalog/albums/${albumId}/reinstate`, {
+      method: "PATCH",
+    });
+  },
+
+  deleteAlbum(albumId: string): Promise<Album> {
+    return apiRequest<Album>(`/catalog/albums/${albumId}`, {
+      method: "DELETE",
+    });
+  },
+
   getTrack(trackId: string): Promise<Track> {
     return apiRequest<Track>(`/catalog/tracks/${trackId}`);
   },
@@ -123,6 +145,18 @@ export const catalogService = {
   retireTrack(trackId: string): Promise<Track> {
     return apiRequest<Track>(`/catalog/tracks/${trackId}/retire`, {
       method: "PATCH",
+    });
+  },
+
+  reinstateTrack(trackId: string): Promise<Track> {
+    return apiRequest<Track>(`/catalog/tracks/${trackId}/reinstate`, {
+      method: "PATCH",
+    });
+  },
+
+  deleteTrack(trackId: string): Promise<Track> {
+    return apiRequest<Track>(`/catalog/tracks/${trackId}`, {
+      method: "DELETE",
     });
   },
 };

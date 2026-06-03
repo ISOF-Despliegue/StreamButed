@@ -109,6 +109,30 @@ describe("LoginPage", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("clears the suspended dialog when the user edits the login form", async () => {
+    const user = userEvent.setup();
+    const error = Object.assign(new Error("La cuenta se encuentra suspendida."), {
+      details: {
+        code: "ACCOUNT_BANNED",
+        banType: "TEMPORARY",
+        bannedUntil: "2026-05-20T13:00:00Z",
+        remainingSeconds: 3660,
+      },
+    });
+    const onLogin = jest.fn().mockRejectedValue(error);
+
+    render(<LoginPage onLogin={onLogin} onRegister={jest.fn()} onGoogleLogin={jest.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Ingresa tu correo"), "listener@example.com");
+    await user.type(screen.getByLabelText("Contraseña"), "SecurePass1!");
+    await user.click(screen.getByRole("button", { name: /Iniciar sesión/i }));
+    await screen.findByRole("dialog");
+
+    await user.type(screen.getByPlaceholderText("Ingresa tu correo"), "x");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("explains permanent account bans in the app dialog", async () => {
     const user = userEvent.setup();
     const error = Object.assign(new Error("La cuenta se encuentra suspendida."), {

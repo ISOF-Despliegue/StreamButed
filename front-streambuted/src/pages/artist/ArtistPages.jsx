@@ -17,6 +17,7 @@ import {
   getUploadFileNameError,
   mediaService,
 } from '../../services/mediaService';
+import { emitLibraryRefreshRequested } from '../../services/libraryEvents';
 import { routes } from '../../routes/appRoutes';
 import { formatDate, formatNumber } from '../../utils/formatters';
 import { includesSearchTerm } from '../../utils/searchText';
@@ -32,6 +33,18 @@ function getErrorMessage(error) {
 
 function getCatalogStatusLabel(status) {
   return status === 'RETIRADO' ? 'Retirado' : 'Publicado';
+}
+
+function getCatalogStatusColor(status) {
+  return status === 'RETIRADO' ? 'var(--danger)' : 'var(--t2)';
+}
+
+function isCatalogRetired(item) {
+  return item?.status === 'RETIRADO';
+}
+
+function isCatalogPublished(item) {
+  return item?.status === 'PUBLICADO';
 }
 
 function getArtistPlayableTrack(track, username) {
@@ -191,8 +204,8 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
 
     try {
       const [trackResponse, albumResponse, artistAnalytics] = await Promise.all([
-        catalogService.listArtistTracks(user.id),
-        catalogService.listArtistAlbums(user.id),
+        catalogService.listManagedArtistTracks(user.id),
+        catalogService.listManagedArtistAlbums(user.id),
         analyticsService.getArtistSummary(user.id).catch(err => {
           setAnalyticsError(getErrorMessage(err));
           return null;
@@ -211,6 +224,11 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
   useEffect(() => {
     void loadCatalog();
   }, [loadCatalog]);
+
+  const publishedTracks = useMemo(
+    () => tracks.filter(track => isCatalogPublished(track)),
+    [tracks]
+  );
 
   return (
     <div className="page-inner">
@@ -232,7 +250,7 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
       {!isLoading && !error && (
         <>
           <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 24 }}>
-            <div className="stat-card"><div className="stat-card-label">Pistas publicadas</div><div className="stat-card-value">{tracks.length}</div></div>
+            <div className="stat-card"><div className="stat-card-label">Pistas publicadas</div><div className="stat-card-value">{publishedTracks.length}</div></div>
             <div className="stat-card"><div className="stat-card-label">Álbumes</div><div className="stat-card-value">{albums.length}</div></div>
             <div className="stat-card"><div className="stat-card-label">Reproducciones</div><div className="stat-card-value">{formatMetricNumber(analyticsSummary?.totalPlays)}</div></div>
             <div className="stat-card">
@@ -258,7 +276,7 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
               <table className="track-list">
                 <thead><tr><th style={{ width: 40 }}>#</th><th>Título</th><th>Género</th><th className="track-duration-col">Duración</th></tr></thead>
                 <tbody>
-                  {tracks.slice(0, 10).map((track, index) => (
+                  {publishedTracks.slice(0, 10).map((track, index) => (
                     <TrackRow
                       key={track.trackId}
                       track={{ ...track, artist: user.username }}
@@ -322,8 +340,8 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
 
     try {
       const [trackResponse, albumResponse] = await Promise.all([
-        catalogService.listArtistTracks(user.id),
-        catalogService.listArtistAlbums(user.id),
+        catalogService.listManagedArtistTracks(user.id),
+        catalogService.listManagedArtistAlbums(user.id),
       ]);
       setTracks(trackResponse);
       setAlbums(albumResponse);
@@ -357,8 +375,9 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
 
     try {
       setIsRetiringTrack(true);
-      await catalogService.retireTrack(trackToRetire.trackId);
-      toast('Pista retirada');
+      await catalogService.deleteTrack(trackToRetire.trackId);
+      emitLibraryRefreshRequested();
+      toast('Pista eliminada.');
       setTrackToRetire(null);
       await loadTracks();
     } catch (err) {
@@ -426,12 +445,20 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
                     </td>
                     <td style={{ color: 'var(--t2)' }}>{track.genre || 'Sin género'}</td>
                     <td style={{ color: 'var(--t2)' }}>{track.albumId && albumTitleById.has(track.albumId) ? albumTitleById.get(track.albumId) : 'Sencillo'}</td>
-                    <td style={{ color: 'var(--t2)' }}>{getCatalogStatusLabel(track.status)}</td>
+                    <td style={{ color: getCatalogStatusColor(track.status) }}>{getCatalogStatusLabel(track.status)}</td>
                     <td style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }} onClick={() => navigate(routes.artistTrackEdit(track.trackId))}>Editar</button>
-                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setTrackToRetire(track)}>Retirar</button>
+                        <button
+                          className="btn-ghost"
+                          style={{ padding: '5px 12px', fontSize: 12 }}
+                          onClick={() => navigate(routes.artistTrackEdit(track.trackId))}
+                          disabled={isCatalogRetired(track)}
+                          title={isCatalogRetired(track) ? 'No puedes editar una pista retirada.' : undefined}
+                        >
+                          Editar
+                        </button>
+                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setTrackToRetire(track)}>Eliminar</button>
                       </div>
                     </td>
                   </tr>
@@ -443,9 +470,9 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
       )}
       <ConfirmDialog
         open={Boolean(trackToRetire)}
-        title="Retirar pista"
-        message={`Esta acción retirará "${trackToRetire?.title ?? 'esta pista'}". Los oyentes ya no podrán reproducirla desde la app.`}
-        confirmLabel="Retirar pista"
+        title="Eliminar pista"
+        message={`Esta acción eliminará "${trackToRetire?.title ?? 'esta pista'}" de tu lista y dejará de estar disponible en la plataforma.`}
+        confirmLabel="Eliminar pista"
         isLoading={isRetiringTrack}
         onConfirm={retire}
         onCancel={() => setTrackToRetire(null)}
@@ -479,8 +506,8 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
 
     try {
       const [albumResponse, trackResponse] = await Promise.all([
-        catalogService.listArtistAlbums(user.id),
-        catalogService.listArtistTracks(user.id),
+        catalogService.listManagedArtistAlbums(user.id),
+        catalogService.listManagedArtistTracks(user.id),
       ]);
       setAlbums(albumResponse);
       setTracks(trackResponse);
@@ -500,8 +527,9 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
 
     try {
       setIsRetiringAlbum(true);
-      await catalogService.retireAlbum(albumToRetire.albumId);
-      toast('Álbum retirado');
+      await catalogService.deleteAlbum(albumToRetire.albumId);
+      emitLibraryRefreshRequested();
+      toast('Álbum eliminado.');
       setAlbumToRetire(null);
       await loadAlbums();
     } catch (err) {
@@ -517,7 +545,7 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
   };
 
   const getAlbumTracks = (albumId) => tracks.filter(track => track.albumId === albumId);
-  const countTracks = (albumId) => getAlbumTracks(albumId).length;
+  const countTracks = (albumId) => getAlbumTracks(albumId).filter(track => isCatalogPublished(track)).length;
   const albumSearchController = useSearchController({
     onClear: useCallback(() => setAlbumSearchTerm(''), []),
     onSearch: useCallback(searchTerm => setAlbumSearchTerm(searchTerm), []),
@@ -582,12 +610,20 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
                       </div>
                     </td>
                     <td style={{ color: 'var(--t2)' }}>{countTracks(album.albumId)}</td>
-                    <td style={{ color: 'var(--t2)' }}>{getCatalogStatusLabel(album.status)}</td>
+                    <td style={{ color: getCatalogStatusColor(album.status) }}>{getCatalogStatusLabel(album.status)}</td>
                     <td style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }} onClick={() => addTrackToAlbum(album.albumId)}>Agregar canción</button>
-                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setAlbumToRetire(album)}>Retirar</button>
+                        <button
+                          className="btn-ghost"
+                          style={{ padding: '5px 12px', fontSize: 12 }}
+                          onClick={() => addTrackToAlbum(album.albumId)}
+                          disabled={isCatalogRetired(album)}
+                          title={isCatalogRetired(album) ? 'No puedes agregar canciones a un álbum retirado.' : undefined}
+                        >
+                          Agregar canción
+                        </button>
+                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setAlbumToRetire(album)}>Eliminar</button>
                       </div>
                     </td>
                   </tr>
@@ -599,9 +635,9 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
       )}
       <ConfirmDialog
         open={Boolean(albumToRetire)}
-        title="Retirar álbum"
-        message={`Esta acción retirará "${albumToRetire?.title ?? 'este álbum'}" y afectará su disponibilidad para los oyentes.`}
-        confirmLabel="Retirar álbum"
+        title="Eliminar álbum"
+        message={`Esta acción eliminará "${albumToRetire?.title ?? 'este álbum'}" de tus álbumes y dejará de estar disponible en la plataforma.`}
+        confirmLabel="Eliminar álbum"
         isLoading={isRetiringAlbum}
         onConfirm={retire}
         onCancel={() => setAlbumToRetire(null)}
@@ -629,6 +665,8 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
   const [albums, setAlbums] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const availableAlbums = useMemo(() => albums.filter(album => !isCatalogRetired(album)), [albums]);
+  const isLockedAlbumRetired = isCatalogRetired(lockedAlbum);
 
   useEffect(() => {
     setAlbumId(initialAlbumId ?? '');
@@ -666,7 +704,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
 
     let isMounted = true;
     catalogService
-      .listArtistAlbums(user.id)
+      .listManagedArtistAlbums(user.id)
       .then(albumResponse => {
         if (isMounted) setAlbums(albumResponse);
       })
@@ -678,6 +716,13 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
       isMounted = false;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!albumId) return;
+    if (isAlbumLocked) return;
+    if (availableAlbums.some(album => album.albumId === albumId)) return;
+    setAlbumId('');
+  }, [albumId, availableAlbums, isAlbumLocked]);
 
   useEffect(() => {
     if (!coverFile) {
@@ -715,6 +760,10 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
   const handlePublish = async () => {
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
+
+    if (isLockedAlbumRetired) {
+      return setError('No puedes agregar canciones a un álbum retirado.');
+    }
 
     if (hasEmptyTrackFields({ title, genre, audioFile, coverFile })) {
       return setError('Todos los campos son obligatorios.');
@@ -803,7 +852,9 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
               {lockedAlbum?.title ?? 'Cargando álbum...'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-              Esta canción se agregará directamente a este álbum.
+              {isLockedAlbumRetired
+                ? 'Este álbum está retirado y no acepta canciones nuevas.'
+                : 'Esta canción se agregará directamente a este álbum.'}
             </div>
           </div>
         ) : (
@@ -811,12 +862,12 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
             <label className="form-label" htmlFor="upload-track-album">Álbum destino</label>
             <select id="upload-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
               <option value="">Publicar como single</option>
-              {albums.map(album => (
+              {availableAlbums.map(album => (
                 <option key={album.albumId} value={album.albumId}>{album.title}</option>
               ))}
             </select>
             <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-              {albums.length ? 'Puedes publicarla como single o agregarla a un álbum existente.' : 'Crea un álbum para poder asociar canciones desde aquí.'}
+              {availableAlbums.length ? 'Puedes publicarla como single o agregarla a un álbum disponible.' : 'Crea un álbum disponible para poder asociar canciones desde aquí.'}
             </div>
           </div>
         )}
@@ -850,7 +901,7 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
           )}
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
-        <button className="btn-primary" onClick={handlePublish} disabled={isSubmitting}>
+        <button className="btn-primary" onClick={handlePublish} disabled={isSubmitting || isLockedAlbumRetired}>
           {isSubmitting ? 'Publicando...' : 'Publicar canción'}
         </button>
       </div>
@@ -873,6 +924,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
   const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const isAlbumRetired = isCatalogRetired(album);
 
   useEffect(() => {
     if (!coverFile) {
@@ -908,6 +960,10 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
   });
 
   const handleCreateTrack = async () => {
+    if (isAlbumRetired) {
+      return setError('No puedes agregar canciones a un álbum retirado.');
+    }
+
     const normalizedTitle = normalizeText(title);
     const normalizedGenre = normalizeText(genre);
 
@@ -953,6 +1009,11 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
   return (
     <div className="settings-card" style={{ maxWidth: 760 }}>
       <div className="settings-card-title">Agregar canción a {album.title}</div>
+      {isAlbumRetired && (
+        <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
+          Este álbum está retirado y no acepta canciones nuevas.
+        </div>
+      )}
       <div className="form-group-mb">
         <label className="form-label" htmlFor="album-created-track-title">Título de la canción</label>
         <input
@@ -961,7 +1022,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
           onChange={event => setTitle(event.target.value)}
           placeholder="Título de la canción"
           maxLength={TRACK_TITLE_MAX_LENGTH}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isAlbumRetired}
         />
       </div>
       <div className="form-group-mb">
@@ -973,7 +1034,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
           onChange={event => setGenre(event.target.value)}
           placeholder="Rock, Pop, Electrónica..."
           maxLength={GENRE_MAX_LENGTH}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isAlbumRetired}
         />
       </div>
       <div className="form-group-mb">
@@ -1006,7 +1067,7 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
         )}
       </div>
       {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
-      <button className="btn-primary" onClick={handleCreateTrack} disabled={isSubmitting}>
+      <button className="btn-primary" onClick={handleCreateTrack} disabled={isSubmitting || isAlbumRetired}>
         {isSubmitting ? 'Agregando...' : 'Agregar canción'}
       </button>
     </div>
@@ -1274,6 +1335,8 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [pendingAction, setPendingAction] = useState(null);
+  const availableAlbums = useMemo(() => albums.filter(album => !isCatalogRetired(album)), [albums]);
+  const isTrackRetired = isCatalogRetired(track);
 
   useEffect(() => {
     setTitle(track?.title ?? '');
@@ -1308,7 +1371,7 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
 
     let isMounted = true;
     catalogService
-      .listArtistAlbums(user.id)
+      .listManagedArtistAlbums(user.id)
       .then(albumResponse => {
         if (isMounted) setAlbums(albumResponse);
       })
@@ -1320,6 +1383,14 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
       isMounted = false;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!albumId) return;
+    if (availableAlbums.some(album => album.albumId === albumId)) return;
+    if (track?.albumId === albumId) {
+      setAlbumId('');
+    }
+  }, [albumId, availableAlbums, track?.albumId]);
 
   if (!track?.trackId) {
     return (
@@ -1336,6 +1407,9 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
     if (!normalizedTitle || !normalizedGenre) return setError('Todos los campos son obligatorios.');
     if (normalizedTitle.length > TRACK_TITLE_MAX_LENGTH) return setError('El título no puede superar 100 caracteres.');
     if (normalizedGenre.length > GENRE_MAX_LENGTH) return setError('El género no puede superar 80 caracteres.');
+    if (albumId && !availableAlbums.some(album => album.albumId === albumId)) {
+      return setError('No puedes asociar la pista a un álbum retirado.');
+    }
 
     return {
       title: normalizedTitle,
@@ -1345,6 +1419,11 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
   };
 
   const requestSave = () => {
+    if (isTrackRetired) {
+      setError('No puedes editar una pista retirada.');
+      return;
+    }
+
     const payload = validateTrackChanges();
     if (!payload) return;
 
@@ -1393,8 +1472,9 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
     setError('');
 
     try {
-      await catalogService.retireTrack(track.trackId);
-      toast('Pista retirada');
+      await catalogService.deleteTrack(track.trackId);
+      emitLibraryRefreshRequested();
+      toast('Pista eliminada.');
       setPendingAction(null);
       onDone();
     } catch (err) {
@@ -1435,7 +1515,7 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
           <label className="form-label" htmlFor="edit-track-album">Álbum</label>
           <select id="edit-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
             <option value="">Sencillo / sin álbum</option>
-            {albums.map(album => (
+            {availableAlbums.map(album => (
               <option key={album.albumId} value={album.albumId}>{album.title}</option>
             ))}
           </select>
@@ -1467,10 +1547,17 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-          <button className="btn-danger" onClick={() => setPendingAction({ type: 'retire' })} disabled={isSubmitting}>Retirar pista</button>
+          <button className="btn-danger" onClick={() => setPendingAction({ type: 'delete' })} disabled={isSubmitting}>Eliminar pista</button>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
-            <button className="btn-primary" onClick={requestSave} disabled={isSubmitting}>Guardar cambios</button>
+            <button
+              className="btn-primary"
+              onClick={requestSave}
+              disabled={isSubmitting || isTrackRetired}
+              title={isTrackRetired ? 'No puedes editar una pista retirada.' : undefined}
+            >
+              Guardar cambios
+            </button>
           </div>
         </div>
       </div>
@@ -1485,10 +1572,10 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
         onCancel={() => setPendingAction(null)}
       />
       <ConfirmDialog
-        open={pendingAction?.type === 'retire'}
-        title="Retirar pista"
-        message={`Esta acción retirará "${track.title}". Los oyentes ya no podrán reproducirla desde la app.`}
-        confirmLabel="Retirar pista"
+        open={pendingAction?.type === 'delete'}
+        title="Eliminar pista"
+        message={`Esta acción eliminará "${track.title}" de tu lista y dejará de estar disponible en la plataforma.`}
+        confirmLabel="Eliminar pista"
         isLoading={isSubmitting}
         onConfirm={retire}
         onCancel={() => setPendingAction(null)}

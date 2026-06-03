@@ -49,7 +49,7 @@ describe("toUserFacingMessage", () => {
       "Ese correo ya está registrado. Inicia sesión o usa otro correo.",
       "Ese nombre de usuario ya está en uso. Elige otro.",
       "No se pudo completar el registro con esos datos.",
-      "La sesión expiró. Inicia sesión nuevamente.",
+      "Tu sesión expiró. Inicia sesión nuevamente.",
       "No pudimos actualizar tu sesión. Inicia sesión nuevamente.",
       "No tienes permisos para esta acción.",
       "Ya existe una playlist con ese nombre.",

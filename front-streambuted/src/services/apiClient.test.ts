@@ -54,6 +54,19 @@ describe("apiClient", () => {
     expect(headers.get("Authorization")).toBe("Bearer access-token");
   });
 
+  it("disables cache for GET requests", async () => {
+    (globalThis.fetch as jest.Mock).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await apiRequest("/library/");
+
+    expect((globalThis.fetch as jest.Mock).mock.calls[0][1].cache).toBe("no-store");
+  });
+
   it("throws typed ApiError on failed responses", async () => {
     (globalThis.fetch as jest.Mock).mockResolvedValue(
       new Response(JSON.stringify({ message: "No autorizado" }), {
@@ -266,7 +279,7 @@ describe("apiClient", () => {
       );
 
     await expect(apiRequest("/users/me")).rejects.toMatchObject({
-      message: "La sesión expiró. Inicia sesión nuevamente.",
+      message: "Tu sesión expiró. Inicia sesión nuevamente.",
     });
   });
 
@@ -282,7 +295,7 @@ describe("apiClient", () => {
       .mockRejectedValueOnce(new Error("offline-refresh"));
 
     await expect(apiRequest("/users/me")).rejects.toMatchObject({
-      message: "La sesión expiró. Inicia sesión nuevamente.",
+      message: "Tu sesión expiró. Inicia sesión nuevamente.",
     });
   });
 

@@ -377,11 +377,12 @@ export function LoginPage({
   const [bannedMessage, setBannedMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false);
+  const clearBannedMessage = () => setBannedMessage('');
 
   const handleLogin = async () => {
     const normalizedEmail = email.trim();
 
-    setBannedMessage('');
+    clearBannedMessage();
 
     if (!normalizedEmail || !password) return setError('Todos los campos son obligatorios.');
     if (normalizedEmail.length > EMAIL_MAX_LENGTH) return setError('El correo supera 320 caracteres.');
@@ -393,11 +394,13 @@ export function LoginPage({
 
     try {
       await onLogin({ email: normalizedEmail, password });
+      clearBannedMessage();
     } catch (err) {
       const accountBanMessage = getBannedAccountMessage(err);
       if (accountBanMessage) {
         setBannedMessage(accountBanMessage);
       } else {
+        clearBannedMessage();
         setError(getErrorMessage(err));
       }
     } finally {
@@ -423,7 +426,10 @@ export function LoginPage({
             type="email"
             placeholder="Ingresa tu correo"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              clearBannedMessage();
+              setEmail(e.target.value);
+            }}
             autoComplete="email"
             maxLength={EMAIL_MAX_LENGTH}
           />
@@ -434,7 +440,10 @@ export function LoginPage({
           label="Contraseña"
           placeholder="Ingresa tu contraseña"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => {
+            clearBannedMessage();
+            setPassword(event.target.value);
+          }}
           onKeyDown={(event) => event.key === 'Enter' && void handleLogin()}
           autoComplete="current-password"
           maxLength={PASSWORD_MAX_LENGTH}
@@ -443,7 +452,10 @@ export function LoginPage({
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button
             className="auth-link auth-inline-link"
-            onClick={() => setIsPasswordResetOpen(true)}
+            onClick={() => {
+              clearBannedMessage();
+              setIsPasswordResetOpen(true);
+            }}
             type="button"
           >
             ¿Olvidaste tu contraseña?
@@ -476,7 +488,14 @@ export function LoginPage({
 
         <div className="auth-footer">
           ¿No tienes cuenta?{' '}
-          <button className="auth-link" onClick={onRegister} type="button">
+          <button
+            className="auth-link"
+            onClick={() => {
+              clearBannedMessage();
+              onRegister();
+            }}
+            type="button"
+          >
             Regístrate
           </button>
         </div>

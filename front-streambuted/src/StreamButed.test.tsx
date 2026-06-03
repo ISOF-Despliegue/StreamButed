@@ -183,6 +183,25 @@ jest.mock("./pages/listener/ListenerPages", () => ({
       >
         Play search result
       </button>
+      <button
+        onClick={() =>
+          onPlayTrack({
+            trackId: "track-2",
+            title: "Song 2",
+            artistId: "artist-2",
+            albumId: null,
+            genre: "Rock",
+            audioAssetId: "asset-2",
+            coverAssetId: "cover-2",
+            durationSeconds: 200,
+            status: "PUBLICADO",
+            createdAt: "2026-05-26T12:00:00.000Z",
+            updatedAt: "2026-05-26T12:00:00.000Z",
+          })
+        }
+      >
+        Play unavailable result
+      </button>
     </div>
   ),
   AlbumDetailPage: ({ albumId }: { albumId: string }) => <div>Album Detail {albumId}</div>,
@@ -966,6 +985,41 @@ describe("StreamButed suspension dialog", () => {
     await user.click(screen.getByRole("button", { name: "Play search result" }));
 
     await waitFor(() => expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledWith("track-1"));
+  });
+
+  it("keeps the current player track when a different track fails playback validation", async () => {
+    const user = userEvent.setup();
+    arrangeSuccessfulPlayback();
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("listener"),
+    });
+    mockedPlaybackService.createStreamSession.mockImplementation(async (requestedTrackId: string) => {
+      if (requestedTrackId === "track-2") {
+        throw new Error("Track not playable");
+      }
+
+      return {
+        trackId: requestedTrackId,
+        streamUrl: `https://example.com/${requestedTrackId}/stream`,
+        expiresAt: "2099-05-26T12:05:00.000Z",
+      };
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/search"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Play search result" }));
+    await waitFor(() => expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledWith("track-1"));
+
+    await user.click(screen.getByRole("button", { name: "Play unavailable result" }));
+
+    await waitFor(() => expect(mockedPlaybackService.createStreamSession).toHaveBeenCalledWith("track-2"));
+
+    expect(mockedBottomPlayer.mock.calls.at(-1)?.[0].track.trackId).toBe("track-1");
   });
 
   it("likes the current track from the bottom player", async () => {

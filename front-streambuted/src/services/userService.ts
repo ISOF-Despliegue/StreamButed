@@ -49,9 +49,10 @@ export const userService = {
     return normalizeUser(user);
   },
 
-  listAdminUsers(params: { limit?: number; offset?: number } = {}): Promise<AdminUserListResponse> {
+  listAdminUsers(params: { limit?: number; offset?: number; q?: string } = {}): Promise<AdminUserListResponse> {
     return apiRequest<AdminUserListResponse>(
       withQuery("/users/admin", {
+        q: params.q,
         limit: params.limit ?? 50,
         offset: params.offset ?? 0,
       })

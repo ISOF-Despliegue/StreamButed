@@ -63,19 +63,23 @@ describe("catalogService", () => {
   });
 
   it("calls admin catalog list and retire endpoints", async () => {
-    await catalogService.listAdminTracks({ includeRetired: false, limit: 25, offset: 50 });
-    await catalogService.listAdminAlbums({ limit: 10, offset: 5 });
+    await catalogService.listAdminTracks({ includeRetired: false, limit: 25, offset: 50, q: "ada" });
+    await catalogService.listAdminAlbums({ limit: 10, offset: 5, q: "noche" });
     await catalogService.retireTrack("track-1");
     await catalogService.retireAlbum("album-1");
+    await catalogService.reinstateTrack("track-2");
+    await catalogService.reinstateAlbum("album-2");
+    await catalogService.deleteTrack("track-3");
+    await catalogService.deleteAlbum("album-3");
 
     expect(globalThis.fetch).toHaveBeenNthCalledWith(
       1,
-      "http://localhost/api/v1/catalog/admin/tracks?includeRetired=false&limit=25&offset=50",
+      "http://localhost/api/v1/catalog/admin/tracks?includeRetired=false&q=ada&limit=25&offset=50",
       expect.any(Object)
     );
     expect(globalThis.fetch).toHaveBeenNthCalledWith(
       2,
-      "http://localhost/api/v1/catalog/admin/albums?includeRetired=true&limit=10&offset=5",
+      "http://localhost/api/v1/catalog/admin/albums?includeRetired=true&q=noche&limit=10&offset=5",
       expect.any(Object)
     );
     expect(globalThis.fetch).toHaveBeenNthCalledWith(
@@ -88,12 +92,34 @@ describe("catalogService", () => {
       "http://localhost/api/v1/catalog/albums/album-1/retire",
       expect.objectContaining({ method: "PATCH" })
     );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      5,
+      "http://localhost/api/v1/catalog/tracks/track-2/reinstate",
+      expect.objectContaining({ method: "PATCH" })
+    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      6,
+      "http://localhost/api/v1/catalog/albums/album-2/reinstate",
+      expect.objectContaining({ method: "PATCH" })
+    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      7,
+      "http://localhost/api/v1/catalog/tracks/track-3",
+      expect.objectContaining({ method: "DELETE" })
+    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      8,
+      "http://localhost/api/v1/catalog/albums/album-3",
+      expect.objectContaining({ method: "DELETE" })
+    );
   });
 
   it("maps artist, album, and track catalog commands to gateway endpoints", async () => {
     await catalogService.getArtist("artist-1");
     await catalogService.listArtistAlbums("artist-1");
     await catalogService.listArtistTracks("artist-1");
+    await catalogService.listManagedArtistAlbums("artist-1");
+    await catalogService.listManagedArtistTracks("artist-1");
     await catalogService.updateArtist("artist-1", { displayName: "Ada" });
     await catalogService.getAlbum("album-1");
     await catalogService.createAlbum({ title: "Album", coverAssetId: "cover-1" });
@@ -124,6 +150,8 @@ describe("catalogService", () => {
       ["http://localhost/api/v1/catalog/artists/artist-1", undefined, undefined],
       ["http://localhost/api/v1/catalog/artists/artist-1/albums", undefined, undefined],
       ["http://localhost/api/v1/catalog/artists/artist-1/tracks", undefined, undefined],
+      ["http://localhost/api/v1/catalog/artists/artist-1/albums/managed", undefined, undefined],
+      ["http://localhost/api/v1/catalog/artists/artist-1/tracks/managed", undefined, undefined],
       [
         "http://localhost/api/v1/catalog/artists/artist-1",
         "PATCH",

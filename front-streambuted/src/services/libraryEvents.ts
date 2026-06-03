@@ -15,6 +15,7 @@ type LibraryPlaylistDetailEventPayload = LibraryPlaylistSummaryEventPayload & {
 
 export type LibraryEvent =
   | { type: 'liked-songs-changed' }
+  | { type: 'library-refresh-requested' }
   | { type: 'playlist-created'; playlist: LibraryPlaylistSummaryEventPayload }
   | { type: 'playlist-deleted'; playlistId: string }
   | { type: 'playlist-updated'; playlist: LibraryPlaylistSummaryEventPayload | LibraryPlaylistDetailEventPayload };
@@ -34,6 +35,10 @@ export function subscribeToLibraryEvents(listener: (event: LibraryEvent) => void
 
 export function emitLikedSongsChanged() {
   emit({ type: 'liked-songs-changed' });
+}
+
+export function emitLibraryRefreshRequested() {
+  emit({ type: 'library-refresh-requested' });
 }
 
 export function emitPlaylistCreated(playlist: LibraryPlaylistSummaryEventPayload) {

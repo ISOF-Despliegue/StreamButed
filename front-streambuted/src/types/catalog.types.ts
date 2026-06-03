@@ -1,4 +1,5 @@
 export type CatalogStatus = "PUBLICADO" | "RETIRADO";
+export type CatalogVisibilityReason = "ADMIN_RETIRED" | "ARTIST_DELETED";
 
 export interface Artist {
   artistId: string;
@@ -15,6 +16,7 @@ export interface Album {
   title: string;
   coverAssetId: string | null;
   status: CatalogStatus;
+  visibilityReason?: CatalogVisibilityReason | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -29,6 +31,7 @@ export interface Track {
   coverAssetId: string | null;
   durationSeconds?: number | null;
   status: CatalogStatus;
+  visibilityReason?: CatalogVisibilityReason | null;
   createdAt: string;
   updatedAt: string;
 }
