@@ -403,6 +403,56 @@ describe("AdminPages", () => {
     }));
   });
 
+  it("keeps the newest account search results when an older request resolves later", async () => {
+    const user = userEvent.setup();
+    let resolveInitialUsers;
+    let resolveSearchedUsers;
+    const initialUsersPromise = new Promise((resolve) => {
+      resolveInitialUsers = resolve;
+    });
+    const searchedUsersPromise = new Promise((resolve) => {
+      resolveSearchedUsers = resolve;
+    });
+
+    jest.mocked(userService.listAdminUsers)
+      .mockImplementationOnce(() => initialUsersPromise)
+      .mockImplementationOnce(() => searchedUsersPromise);
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Cuentas" }));
+    await user.type(screen.getByPlaceholderText("Buscar cuentas"), "urielito{Enter}");
+
+    resolveSearchedUsers({
+      data: [
+        {
+          id: "user-search",
+          username: "urielito",
+          email: "urielito@example.com",
+          role: "listener",
+          isActive: true,
+          banStatus: "ACTIVE",
+          bannedUntil: null,
+          createdAt: "2026-06-03T12:00:00Z",
+        },
+      ],
+      pagination: {
+        ...pagination,
+        dataCount: 1,
+        total: 1,
+      },
+    });
+
+    expect(await screen.findByText("urielito@example.com")).toBeInTheDocument();
+
+    resolveInitialUsers(usersResponse);
+
+    await waitFor(() => {
+      expect(screen.getByText("urielito@example.com")).toBeInTheDocument();
+      expect(screen.queryByText("listener@example.com")).not.toBeInTheDocument();
+    });
+  });
+
   it("loads albums and retires an album through the in-app confirmation", async () => {
     const user = userEvent.setup();
 

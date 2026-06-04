@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { analyticsService } from '../../services/analyticsService';
 import { catalogService } from '../../services/catalogService';
@@ -461,6 +461,7 @@ export function AdminModerationPage({ toast }) {
   const [actionError, setActionError] = useState('');
   const [confirmation, setConfirmation] = useState(null);
   const [moderationSearchTerm, setModerationSearchTerm] = useState('');
+  const latestModerationRequestRef = useRef(0);
   const searchController = useSearchController({
     contextKey: activeTab,
     onClear: useCallback(() => setModerationSearchTerm(''), []),
@@ -475,10 +476,13 @@ export function AdminModerationPage({ toast }) {
   });
 
   const loadModerationItems = useCallback(async () => {
+    const requestId = latestModerationRequestRef.current + 1;
+    latestModerationRequestRef.current = requestId;
     setIsLoading(true);
     setError('');
     setActionError('');
     const searchParams = moderationSearchTerm ? { q: moderationSearchTerm } : {};
+    const isLatestRequest = () => latestModerationRequestRef.current === requestId;
 
     try {
       if (activeTab === 'tracks') {
@@ -488,6 +492,7 @@ export function AdminModerationPage({ toast }) {
           offset: 0,
           ...searchParams,
         });
+        if (!isLatestRequest()) return;
         setTracks(response.data);
         setPagination({ ...response.pagination, dataCount: response.data.length });
         return;
@@ -500,6 +505,7 @@ export function AdminModerationPage({ toast }) {
           offset: 0,
           ...searchParams,
         });
+        if (!isLatestRequest()) return;
         setAlbums(response.data);
         setPagination({ ...response.pagination, dataCount: response.data.length });
         return;
@@ -510,11 +516,14 @@ export function AdminModerationPage({ toast }) {
         offset: 0,
         ...searchParams,
       });
+      if (!isLatestRequest()) return;
       setUsers(response.data);
       setPagination({ ...response.pagination, dataCount: response.data.length });
     } catch (err) {
+      if (!isLatestRequest()) return;
       setError(getErrorMessage(err));
     } finally {
+      if (!isLatestRequest()) return;
       setIsLoading(false);
     }
   }, [activeTab, moderationSearchTerm]);
