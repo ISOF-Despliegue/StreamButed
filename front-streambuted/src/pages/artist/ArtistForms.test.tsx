@@ -363,6 +363,9 @@ describe("artist upload forms", () => {
       'Álbum "Album con canciones" creado. Ahora puedes agregar canciones con portada propia.'
     );
     expect(screen.getByText("Agregar canción a Album con canciones")).toBeInTheDocument();
+    const albumGenreInput = screen.getByLabelText("Género");
+    expect(albumGenreInput).toHaveAttribute("list", "album-created-track-genre-options");
+    expect(document.getElementById("album-created-track-genre-options")).not.toBeNull();
     expect(screen.queryByLabelText("Título del álbum")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Mostrar crear otro/ })).toHaveTextContent("+");
 

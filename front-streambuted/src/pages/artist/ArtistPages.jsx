@@ -156,6 +156,135 @@ function buildFileChangeHandler({ validate, setFile, setError }) {
   };
 }
 
+function TrackGenreInput({ disabled = false, id, onChange, value }) {
+  const datalistId = `${id}-options`;
+
+  return (
+    <>
+      <input
+        id={id}
+        list={datalistId}
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        placeholder="Rock, Pop, Electrónica..."
+        maxLength={GENRE_MAX_LENGTH}
+        disabled={disabled}
+      />
+      <datalist id={datalistId}>
+        {TRACK_GENRES.map(option => <option key={option} value={option} />)}
+      </datalist>
+    </>
+  );
+}
+
+TrackGenreInput.propTypes = {
+  disabled: PropTypes.bool,
+  id: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
+  value: PropTypes.string.isRequired,
+};
+
+function TrackUploadFields({
+  actionLabel,
+  audioFile,
+  coverFile,
+  coverLabel,
+  coverPreviewAlt,
+  coverPreviewUrl,
+  disabled = false,
+  error,
+  genre,
+  genreId,
+  onAudioChange,
+  onCoverChange,
+  onGenreChange,
+  onSubmit,
+  onTitleChange,
+  title,
+  titleId,
+  topContent = null,
+}) {
+  return (
+    <>
+      <div className="form-group-mb">
+        <label className="form-label" htmlFor={titleId}>Título de la canción</label>
+        <input
+          id={titleId}
+          value={title}
+          onChange={event => onTitleChange(event.target.value)}
+          placeholder="Título de la canción"
+          maxLength={TRACK_TITLE_MAX_LENGTH}
+          disabled={disabled}
+        />
+      </div>
+      <div className="form-group-mb">
+        <label className="form-label" htmlFor={genreId}>Género</label>
+        <TrackGenreInput
+          disabled={disabled}
+          id={genreId}
+          onChange={onGenreChange}
+          value={genre}
+        />
+      </div>
+      {topContent}
+      <div className="form-group-mb">
+        <div className="form-label">Archivo de audio</div>
+        <FilePicker
+          accept={AUDIO_ACCEPT}
+          file={audioFile}
+          onChange={onAudioChange}
+          helperText={AUDIO_FILE_HELPER}
+          buttonLabel="Seleccionar archivo"
+        />
+      </div>
+      <div className="form-group-mb">
+        <div className="form-label">{coverLabel}</div>
+        <FilePicker
+          accept="image/png,image/jpeg,image/webp"
+          file={coverFile}
+          onChange={onCoverChange}
+          helperText={IMAGE_FILE_HELPER}
+          buttonLabel="Seleccionar archivo"
+        />
+        {coverPreviewUrl && (
+          <div style={{ marginTop: 10 }}>
+            <img
+              src={coverPreviewUrl}
+              alt={coverPreviewAlt}
+              style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+            />
+          </div>
+        )}
+      </div>
+      {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
+      <button className="btn-primary" onClick={onSubmit} disabled={disabled}>
+        {actionLabel}
+      </button>
+    </>
+  );
+}
+
+TrackUploadFields.propTypes = {
+  actionLabel: PropTypes.string.isRequired,
+  audioFile: PropTypes.object,
+  coverFile: PropTypes.object,
+  coverLabel: PropTypes.string.isRequired,
+  coverPreviewAlt: PropTypes.string.isRequired,
+  coverPreviewUrl: PropTypes.string.isRequired,
+  disabled: PropTypes.bool,
+  error: PropTypes.string.isRequired,
+  genre: PropTypes.string.isRequired,
+  genreId: PropTypes.string.isRequired,
+  onAudioChange: PropTypes.func.isRequired,
+  onCoverChange: PropTypes.func.isRequired,
+  onGenreChange: PropTypes.func.isRequired,
+  onSubmit: PropTypes.func.isRequired,
+  onTitleChange: PropTypes.func.isRequired,
+  title: PropTypes.string.isRequired,
+  titleId: PropTypes.string.isRequired,
+  topContent: PropTypes.node,
+};
+
 const artistUserPropType = PropTypes.shape({
   id: PropTypes.string,
   username: PropTypes.string,
@@ -808,12 +937,38 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
         onUploadAlbumConsumed?.();
       }
     } catch (err) {
-      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const albumDestinationContent = isAlbumLocked ? (
+    <div className="form-group-mb">
+      <div className="form-label">Álbum destino</div>
+      <div style={{ fontSize: 14, color: 'var(--t1)' }}>
+        {lockedAlbum?.title ?? 'Cargando álbum...'}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
+        {isLockedAlbumRetired
+          ? 'Este álbum está retirado y no acepta canciones nuevas.'
+          : 'Esta canción se agregará directamente a este álbum.'}
+      </div>
+    </div>
+  ) : (
+    <div className="form-group-mb">
+      <label className="form-label" htmlFor="upload-track-album">Álbum destino</label>
+      <select id="upload-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
+        <option value="">Publicar como single</option>
+        {availableAlbums.map(album => (
+          <option key={album.albumId} value={album.albumId}>{album.title}</option>
+        ))}
+      </select>
+      <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
+        {availableAlbums.length ? 'Puedes publicarla como single o agregarla a un álbum disponible.' : 'Crea un álbum disponible para poder asociar canciones desde aquí.'}
+      </div>
+    </div>
+  );
 
   return (
     <div className="page-inner">
@@ -821,89 +976,26 @@ export function UploadSinglePage({ user, toast, initialAlbumId = null, onUploadA
 
       <div className="settings-card" style={{ maxWidth: 760 }}>
         <div className="settings-card-title">Audio</div>
-        <div className="form-group-mb">
-          <label className="form-label" htmlFor="upload-track-title">Título de la canción</label>
-          <input
-            id="upload-track-title"
-            value={title}
-            onChange={event => setTitle(event.target.value)}
-            placeholder="Título de la canción"
-            maxLength={TRACK_TITLE_MAX_LENGTH}
-          />
-        </div>
-        <div className="form-group-mb">
-          <label className="form-label" htmlFor="upload-track-genre">Género</label>
-          <input
-            id="upload-track-genre"
-            list="track-genres"
-            value={genre}
-            onChange={event => setGenre(event.target.value)}
-            placeholder="Rock, Pop, Electrónica..."
-            maxLength={GENRE_MAX_LENGTH}
-          />
-          <datalist id="track-genres">
-            {TRACK_GENRES.map(option => <option key={option} value={option} />)}
-          </datalist>
-        </div>
-        {isAlbumLocked ? (
-          <div className="form-group-mb">
-            <div className="form-label">Álbum destino</div>
-            <div style={{ fontSize: 14, color: 'var(--t1)' }}>
-              {lockedAlbum?.title ?? 'Cargando álbum...'}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-              {isLockedAlbumRetired
-                ? 'Este álbum está retirado y no acepta canciones nuevas.'
-                : 'Esta canción se agregará directamente a este álbum.'}
-            </div>
-          </div>
-        ) : (
-          <div className="form-group-mb">
-            <label className="form-label" htmlFor="upload-track-album">Álbum destino</label>
-            <select id="upload-track-album" value={albumId} onChange={event => setAlbumId(event.target.value)}>
-              <option value="">Publicar como single</option>
-              {availableAlbums.map(album => (
-                <option key={album.albumId} value={album.albumId}>{album.title}</option>
-              ))}
-            </select>
-            <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-              {availableAlbums.length ? 'Puedes publicarla como single o agregarla a un álbum disponible.' : 'Crea un álbum disponible para poder asociar canciones desde aquí.'}
-            </div>
-          </div>
-        )}
-        <div className="form-group-mb">
-          <div className="form-label">Archivo de audio</div>
-          <FilePicker
-            accept={AUDIO_ACCEPT}
-            file={audioFile}
-            onChange={handleAudioChange}
-            helperText={AUDIO_FILE_HELPER}
-            buttonLabel="Seleccionar archivo"
-          />
-        </div>
-        <div className="form-group-mb">
-          <div className="form-label">Portada</div>
-          <FilePicker
-            accept="image/png,image/jpeg,image/webp"
-            file={coverFile}
-            onChange={handleCoverChange}
-            helperText={IMAGE_FILE_HELPER}
-            buttonLabel="Seleccionar archivo"
-          />
-          {coverPreviewUrl && (
-            <div style={{ marginTop: 10 }}>
-              <img
-                src={coverPreviewUrl}
-                alt="Previsualización de portada"
-                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
-              />
-            </div>
-          )}
-        </div>
-        {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
-        <button className="btn-primary" onClick={handlePublish} disabled={isSubmitting || isLockedAlbumRetired}>
-          {isSubmitting ? 'Publicando...' : 'Publicar canción'}
-        </button>
+        <TrackUploadFields
+          actionLabel={isSubmitting ? 'Publicando...' : 'Publicar canción'}
+          audioFile={audioFile}
+          coverFile={coverFile}
+          coverLabel="Portada"
+          coverPreviewAlt="Previsualización de portada"
+          coverPreviewUrl={coverPreviewUrl}
+          disabled={isSubmitting || isLockedAlbumRetired}
+          error={error}
+          genre={genre}
+          genreId="upload-track-genre"
+          onAudioChange={handleAudioChange}
+          onCoverChange={handleCoverChange}
+          onGenreChange={setGenre}
+          onSubmit={handlePublish}
+          onTitleChange={setTitle}
+          title={title}
+          titleId="upload-track-title"
+          topContent={albumDestinationContent}
+        />
       </div>
     </div>
   );
@@ -999,7 +1091,6 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
       onTrackCreated?.(createdTrack);
       toast('Canción agregada al álbum');
     } catch (err) {
-      setPendingAction(null);
       setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
@@ -1014,62 +1105,25 @@ function AddTrackToAlbumForm({ album, onTrackCreated, toast }) {
           Este álbum está retirado y no acepta canciones nuevas.
         </div>
       )}
-      <div className="form-group-mb">
-        <label className="form-label" htmlFor="album-created-track-title">Título de la canción</label>
-        <input
-          id="album-created-track-title"
-          value={title}
-          onChange={event => setTitle(event.target.value)}
-          placeholder="Título de la canción"
-          maxLength={TRACK_TITLE_MAX_LENGTH}
-          disabled={isSubmitting || isAlbumRetired}
-        />
-      </div>
-      <div className="form-group-mb">
-        <label className="form-label" htmlFor="album-created-track-genre">Género</label>
-        <input
-          id="album-created-track-genre"
-          list="track-genres"
-          value={genre}
-          onChange={event => setGenre(event.target.value)}
-          placeholder="Rock, Pop, Electrónica..."
-          maxLength={GENRE_MAX_LENGTH}
-          disabled={isSubmitting || isAlbumRetired}
-        />
-      </div>
-      <div className="form-group-mb">
-        <div className="form-label">Archivo de audio</div>
-        <FilePicker
-          accept={AUDIO_ACCEPT}
-          file={audioFile}
-          onChange={handleAudioChange}
-          helperText={AUDIO_FILE_HELPER}
-          buttonLabel="Seleccionar archivo"
-        />
-      </div>
-      <div className="form-group-mb">
-        <div className="form-label">Portada de la canción</div>
-        <FilePicker
-          accept="image/png,image/jpeg,image/webp"
-          file={coverFile}
-          onChange={handleCoverChange}
-          helperText={IMAGE_FILE_HELPER}
-          buttonLabel="Seleccionar archivo"
-        />
-        {coverPreviewUrl && (
-          <div style={{ marginTop: 10 }}>
-            <img
-              src={coverPreviewUrl}
-              alt="Previsualización de portada de la canción"
-              style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
-            />
-          </div>
-        )}
-      </div>
-      {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
-      <button className="btn-primary" onClick={handleCreateTrack} disabled={isSubmitting || isAlbumRetired}>
-        {isSubmitting ? 'Agregando...' : 'Agregar canción'}
-      </button>
+      <TrackUploadFields
+        actionLabel={isSubmitting ? 'Agregando...' : 'Agregar canción'}
+        audioFile={audioFile}
+        coverFile={coverFile}
+        coverLabel="Portada de la canción"
+        coverPreviewAlt="Previsualización de portada de la canción"
+        coverPreviewUrl={coverPreviewUrl}
+        disabled={isSubmitting || isAlbumRetired}
+        error={error}
+        genre={genre}
+        genreId="album-created-track-genre"
+        onAudioChange={handleAudioChange}
+        onCoverChange={handleCoverChange}
+        onGenreChange={setGenre}
+        onSubmit={handleCreateTrack}
+        onTitleChange={setTitle}
+        title={title}
+        titleId="album-created-track-title"
+      />
     </div>
   );
 }

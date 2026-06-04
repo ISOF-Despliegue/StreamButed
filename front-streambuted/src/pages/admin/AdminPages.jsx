@@ -462,6 +462,7 @@ export function AdminModerationPage({ toast }) {
   const [confirmation, setConfirmation] = useState(null);
   const [moderationSearchTerm, setModerationSearchTerm] = useState('');
   const searchController = useSearchController({
+    contextKey: activeTab,
     onClear: useCallback(() => setModerationSearchTerm(''), []),
     onSearch: useCallback(searchTerm => setModerationSearchTerm(searchTerm), []),
   });

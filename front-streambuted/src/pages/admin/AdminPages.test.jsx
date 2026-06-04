@@ -347,6 +347,62 @@ describe("AdminPages", () => {
     });
   });
 
+  it("reuses the active search term when switching to account moderation", async () => {
+    const user = userEvent.setup();
+    jest.mocked(catalogService.listAdminTracks).mockResolvedValueOnce(trackResponse)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            trackId: "track-2",
+            title: "Dia gris",
+            genre: "Pop",
+            artistName: "Ada",
+            albumTitle: null,
+            status: "PUBLICADO",
+            createdAt: "2026-05-21T12:00:00Z",
+          },
+        ],
+        pagination: {
+          ...pagination,
+          dataCount: 1,
+          total: 1,
+        },
+      });
+    jest.mocked(userService.listAdminUsers).mockResolvedValueOnce(usersResponse)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "user-3",
+            username: "diana",
+            email: "diana@example.com",
+            role: "listener",
+            isActive: true,
+            banStatus: "ACTIVE",
+            bannedUntil: null,
+            createdAt: "2026-05-20T12:00:00Z",
+          },
+        ],
+        pagination: {
+          ...pagination,
+          dataCount: 1,
+          total: 1,
+        },
+      });
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    expect(await screen.findByText("Luna")).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText("Buscar canciones"), "dia{Enter}");
+    expect(await screen.findByText("Dia gris")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cuentas" }));
+    await waitFor(() => expect(userService.listAdminUsers).toHaveBeenCalledWith({
+      limit: 10,
+      offset: 0,
+      q: "dia",
+    }));
+  });
+
   it("loads albums and retires an album through the in-app confirmation", async () => {
     const user = userEvent.setup();
 

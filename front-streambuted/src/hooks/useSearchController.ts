@@ -6,6 +6,7 @@ export type SearchSubmitSource = "auto" | "manual";
 
 interface UseSearchControllerOptions {
   autoDebounceMs?: number;
+  contextKey?: string | number;
   manualCooldownMs?: number;
   maxLength?: number;
   minAutoLength?: number;
@@ -15,6 +16,7 @@ interface UseSearchControllerOptions {
 
 export function useSearchController({
   autoDebounceMs = SEARCH_BEHAVIOR.autoDebounceMs,
+  contextKey,
   manualCooldownMs = SEARCH_BEHAVIOR.manualCooldownMs,
   maxLength = TEXT_LIMITS.searchTerm,
   minAutoLength = SEARCH_BEHAVIOR.minAutoLength,
@@ -70,6 +72,12 @@ export function useSearchController({
     void onSearch(submittedSearchTerm, source);
     return true;
   }, [manualCooldownMs, minAutoLength, onClear, onSearch, searchValue]);
+
+  useEffect(() => {
+    lastSubmittedTermRef.current = "";
+    lastManualSubmitAtRef.current = 0;
+    setCooldownUntil(0);
+  }, [contextKey]);
 
   useEffect(() => {
     if (!normalizedSearchTerm) {
