@@ -53,6 +53,7 @@ export const userService = {
     return apiRequest<AdminUserListResponse>(
       withQuery("/users/admin", {
         q: params.q,
+        searchTerm: params.q,
         limit: params.limit ?? 50,
         offset: params.offset ?? 0,
       })

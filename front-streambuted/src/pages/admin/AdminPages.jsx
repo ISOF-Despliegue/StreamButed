@@ -5,6 +5,7 @@ import { catalogService } from '../../services/catalogService';
 import { emitLibraryRefreshRequested } from '../../services/libraryEvents';
 import { userService } from '../../services/userService';
 import { formatDate, formatNumber } from '../../utils/formatters';
+import { includesSearchTerm } from '../../utils/searchText';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InlineState } from '../../components/ui/InlineState';
@@ -237,6 +238,10 @@ function getSearchPlaceholder(activeTab) {
   }
 
   return 'Buscar cuentas';
+}
+
+function userMatchesSearchTerm(user, searchTerm) {
+  return includesSearchTerm(user.username, searchTerm) || includesSearchTerm(user.email, searchTerm);
 }
 
 function getBanConfirmationMessage(draft) {
@@ -517,8 +522,14 @@ export function AdminModerationPage({ toast }) {
         ...searchParams,
       });
       if (!isLatestRequest()) return;
-      setUsers(response.data);
-      setPagination({ ...response.pagination, dataCount: response.data.length });
+      const visibleUsers = moderationSearchTerm
+        ? response.data.filter(user => userMatchesSearchTerm(user, moderationSearchTerm))
+        : response.data;
+      const total = moderationSearchTerm && visibleUsers.length !== response.data.length
+        ? visibleUsers.length
+        : response.pagination.total;
+      setUsers(visibleUsers);
+      setPagination({ ...response.pagination, dataCount: visibleUsers.length, total });
     } catch (err) {
       if (!isLatestRequest()) return;
       setError(getErrorMessage(err));

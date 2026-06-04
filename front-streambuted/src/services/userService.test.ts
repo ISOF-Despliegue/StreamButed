@@ -131,7 +131,10 @@ describe("userService", () => {
     });
     await userService.unbanUser("user-1");
 
-    expect(apiRequest).toHaveBeenNthCalledWith(1, "/users/admin?q=artist&limit=25&offset=50");
+    expect(apiRequest).toHaveBeenNthCalledWith(
+      1,
+      "/users/admin?q=artist&searchTerm=artist&limit=25&offset=50"
+    );
     expect(apiRequest).toHaveBeenNthCalledWith(2, "/users/admin/user-1/ban", {
       method: "PATCH",
       body: {

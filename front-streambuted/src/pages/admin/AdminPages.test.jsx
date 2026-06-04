@@ -347,6 +347,25 @@ describe("AdminPages", () => {
     });
   });
 
+  it("keeps account search results limited to matching rows when the response includes extra accounts", async () => {
+    const user = userEvent.setup();
+    jest.mocked(userService.listAdminUsers)
+      .mockResolvedValueOnce(usersResponse)
+      .mockResolvedValueOnce(usersResponse);
+
+    render(<AdminModerationPage toast={jest.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Cuentas" }));
+    expect(await screen.findByText("listener@example.com")).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("Buscar cuentas"), "artist{Enter}");
+
+    expect(await screen.findByText("1 cuentas")).toBeInTheDocument();
+    expect(screen.getByText("artist@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("admin@example.com")).not.toBeInTheDocument();
+    expect(screen.queryByText("listener@example.com")).not.toBeInTheDocument();
+  });
+
   it("reuses the active search term when switching to account moderation", async () => {
     const user = userEvent.setup();
     jest.mocked(catalogService.listAdminTracks).mockResolvedValueOnce(trackResponse)
