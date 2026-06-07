@@ -18,51 +18,39 @@ export function TrackRow({
   const trackId = track.trackId || track.id;
   const artistName = track.artist || track.artistName || 'Artista';
   const duration = track.durationSeconds ?? track.duration;
-  const handleRowKeyDown = (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onPlay();
-    }
-  };
   let meta = metaText;
-
   if (meta === undefined) {
-    meta = track.plays !== undefined
-      ? formatNumber(track.plays)
-      : track.genre || track.status || 'Sin datos';
+    if (track.plays === undefined) {
+      meta = track.genre || track.status || 'Sin datos';
+    } else {
+      meta = formatNumber(track.plays);
+    }
   }
 
   return (
-    <tr
-      className={`track-row${isPlaying ? ' playing' : ''}`}
-      onClick={onPlay}
-      onKeyDown={handleRowKeyDown}
-      role="button"
-      tabIndex={0}
-    >
+    <tr className={`track-row${isPlaying ? ' playing' : ''}`}>
       <td><span className="track-num">{index + 1}</span></td>
       <td>
         <div className="track-title-cell">
-          <div className="track-thumb">
-            {track.coverAssetId ? (
-              <img src={getAssetUrl(track.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
-            )}
-          </div>
-          <div>
-            <div className="track-name">{track.title}</div>
-            <button
-              className="track-artist-link"
-              onClick={e => {
-                e.stopPropagation();
-                onArtistClick?.(track.artistId);
-              }}
-              type="button"
-            >
-              {artistName}
-            </button>
-          </div>
+          <button className="track-title-cell" onClick={onPlay} type="button">
+            <div className="track-thumb">
+              {track.coverAssetId ? (
+                <img src={getAssetUrl(track.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+              )}
+            </div>
+            <div>
+              <div className="track-name">{track.title}</div>
+            </div>
+          </button>
+          <button
+            className="track-artist-link"
+            onClick={() => onArtistClick?.(track.artistId)}
+            type="button"
+          >
+            {artistName}
+          </button>
         </div>
       </td>
       {actions !== undefined && actionsPosition === 'before-meta' && (
@@ -73,7 +61,7 @@ export function TrackRow({
       <td>
         <div className="track-meta-cell">
           {metaLeadingContent ? (
-            <div className="track-meta-leading" onClick={event => event.stopPropagation()}>
+            <div className="track-meta-leading">
               {metaLeadingContent}
             </div>
           ) : null}

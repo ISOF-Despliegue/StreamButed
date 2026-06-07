@@ -79,6 +79,72 @@ SidebarSectionLabel.propTypes = {
   children: PropTypes.node.isRequired,
 };
 
+const DISCOVER_ITEMS = [
+  { to: routes.home, end: true, label: 'Inicio', icon: <IcHome /> },
+  { to: routes.search, label: 'Buscar', icon: <IcSearch /> },
+  { to: routes.library, label: 'Biblioteca', icon: <IcLib /> },
+  { to: routes.lives, label: 'En vivo', icon: <IcCamera /> },
+  { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
+];
+
+const ARTIST_MANAGE_ITEMS = [
+  { to: routes.artistDashboard, end: true, label: 'Panel', icon: <IcDashboard /> },
+  { to: routes.artistTracks, label: 'Mis pistas', icon: <span className="nav-note-icon" aria-hidden="true">♪</span> },
+  { to: routes.artistAlbums, label: 'Álbumes', icon: <IcMusic /> },
+  { to: routes.artistAnalytics, label: 'Analíticas', icon: <IcChart /> },
+  { to: routes.artistUpload, label: 'Subir +', icon: <IcUpload /> },
+  { to: routes.artistLive, label: 'Transmitir', icon: <IcCamera /> },
+];
+
+const ADMIN_ITEMS = [
+  { to: routes.adminOverview, end: true, label: 'Resumen', icon: <IcOverview /> },
+  { to: routes.adminReports, label: 'Analíticas', icon: <IcReport /> },
+  { to: routes.adminModeration, label: 'Moderación', icon: <IcShield /> },
+  { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
+];
+
+function getManageItems(userRole) {
+  return userRole === 'artist' ? ARTIST_MANAGE_ITEMS : [];
+}
+
+function getProfileMetadata(user) {
+  const roleLabel = user.role === 'artist' ? 'Artista' : 'Oyente';
+  const profilePath = user.role === 'artist' && user.id
+    ? routes.artistProfile(user.id)
+    : routes.settings;
+  const profileLabel = user.role === 'artist'
+    ? `Ver perfil de ${user.username}`
+    : 'Abrir ajustes';
+
+  return { roleLabel, profileLabel, profilePath };
+}
+
+function renderSidebarHeader(showHeader) {
+  if (!showHeader) {
+    return null;
+  }
+
+  return (
+    <div className="sidebar-logo">
+      <div className="logo-mark">S</div>
+      <div className="logo-text">StreamButed</div>
+    </div>
+  );
+}
+
+function renderNavigationSection(title, items) {
+  return (
+    <>
+      <SidebarSectionLabel>{title}</SidebarSectionLabel>
+      <div className="sidebar-section" style={{ paddingTop: 4 }}>
+        {items.map((item) => (
+          <SidebarNavItem key={item.to} item={item} />
+        ))}
+      </div>
+    </>
+  );
+}
+
 function MainSidebarComponent({
   collapsed = false,
   onToggle,
@@ -94,34 +160,8 @@ function MainSidebarComponent({
     return <SidebarCollapsedRail onToggle={onToggle} />;
   }
 
-  const discoverItems = [
-    { to: routes.home, end: true, label: 'Inicio', icon: <IcHome /> },
-    { to: routes.search, label: 'Buscar', icon: <IcSearch /> },
-    { to: routes.library, label: 'Biblioteca', icon: <IcLib /> },
-    { to: routes.lives, label: 'En vivo', icon: <IcCamera /> },
-    { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
-  ];
-
-  const manageItems =
-    user.role === 'artist'
-      ? [
-          { to: routes.artistDashboard, end: true, label: 'Panel', icon: <IcDashboard /> },
-          { to: routes.artistTracks, label: 'Mis pistas', icon: <span className="nav-note-icon" aria-hidden="true">♪</span> },
-          { to: routes.artistAlbums, label: 'Álbumes', icon: <IcMusic /> },
-          { to: routes.artistAnalytics, label: 'Analíticas', icon: <IcChart /> },
-          { to: routes.artistUpload, label: 'Subir +', icon: <IcUpload /> },
-          { to: routes.artistLive, label: 'Transmitir', icon: <IcCamera /> },
-        ]
-      : [];
-
-  const roleLabel = user.role === 'artist' ? 'Artista' : 'Oyente';
-  const profilePath = user.role === 'artist' && user.id
-    ? routes.artistProfile(user.id)
-    : routes.settings;
-  const profileLabel = user.role === 'artist'
-    ? `Ver perfil de ${user.username}`
-    : 'Abrir ajustes';
-
+  const manageItems = getManageItems(user.role);
+  const { roleLabel, profileLabel, profilePath } = getProfileMetadata(user);
   const avatarNode = user.profileImageAssetId ? (
     <img
       src={getAssetUrl(user.profileImageAssetId)}
@@ -133,37 +173,13 @@ function MainSidebarComponent({
 
   return (
     <div className="sidebar">
-      {showHeader ? (
-        <div className="sidebar-logo">
-          <div className="logo-mark">S</div>
-          <div className="logo-text">StreamButed</div>
-        </div>
-      ) : null}
+      {renderSidebarHeader(showHeader)}
       {showCollapseButton ? <SidebarCollapseButton onToggle={onToggle} /> : null}
 
       {showNavigation ? (
         <>
-          {showDiscoverSection ? (
-            <>
-              <SidebarSectionLabel>Descubrir</SidebarSectionLabel>
-              <div className="sidebar-section" style={{ paddingTop: 4 }}>
-                {discoverItems.map((item) => (
-                  <SidebarNavItem key={item.to} item={item} />
-                ))}
-              </div>
-            </>
-          ) : null}
-
-          {showManageSection && manageItems.length > 0 ? (
-            <>
-              <SidebarSectionLabel>Gestionar</SidebarSectionLabel>
-              <div className="sidebar-section" style={{ paddingTop: 4 }}>
-                {manageItems.map((item) => (
-                  <SidebarNavItem key={item.to} item={item} />
-                ))}
-              </div>
-            </>
-          ) : null}
+          {showDiscoverSection ? renderNavigationSection('Descubrir', DISCOVER_ITEMS) : null}
+          {showManageSection && manageItems.length > 0 ? renderNavigationSection('Gestionar', manageItems) : null}
         </>
       ) : (
         <div className="sidebar-mobile-note">
@@ -199,32 +215,13 @@ function AdminSidebarComponent({
     return <SidebarCollapsedRail onToggle={onToggle} />;
   }
 
-  const items = [
-    { to: routes.adminOverview, end: true, label: 'Resumen', icon: <IcOverview /> },
-    { to: routes.adminReports, label: 'Analíticas', icon: <IcReport /> },
-    { to: routes.adminModeration, label: 'Moderación', icon: <IcShield /> },
-    { to: routes.settings, label: 'Ajustes', icon: <IcSettings /> },
-  ];
-
   return (
     <div className="sidebar">
-      {showHeader ? (
-        <div className="sidebar-logo">
-          <div className="logo-mark">S</div>
-          <div className="logo-text">StreamButed</div>
-        </div>
-      ) : null}
+      {renderSidebarHeader(showHeader)}
       {showCollapseButton ? <SidebarCollapseButton onToggle={onToggle} /> : null}
 
       {showNavigation ? (
-        <>
-          <SidebarSectionLabel>Administración</SidebarSectionLabel>
-          <div className="sidebar-section" style={{ paddingTop: 4 }}>
-            {items.map((item) => (
-              <SidebarNavItem key={item.to} item={item} />
-            ))}
-          </div>
-        </>
+        renderNavigationSection('Administración', ADMIN_ITEMS)
       ) : (
         <div className="sidebar-mobile-note">
           Las secciones administrativas ya estan disponibles en la barra inferior.

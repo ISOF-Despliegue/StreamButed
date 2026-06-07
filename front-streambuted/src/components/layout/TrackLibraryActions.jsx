@@ -6,6 +6,27 @@ import { emitPlaylistUpdated, subscribeToLibraryEvents } from '../../services/li
 import { toPlaylistSummary } from '../../utils/libraryEventPayloads';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
+function mergeOrAppendPlaylist(current, nextPlaylist) {
+  if (current.some((playlist) => playlist.playlistId === nextPlaylist.playlistId)) {
+    return current.map((playlist) => (
+      playlist.playlistId === nextPlaylist.playlistId ? nextPlaylist : playlist
+    ));
+  }
+
+  return [...current, nextPlaylist];
+}
+
+function replacePlaylistSummary(current, playlistSummary) {
+  return current.map((playlist) => (
+    playlist.playlistId === playlistSummary.playlistId
+      ? {
+        ...playlist,
+        ...playlistSummary,
+      }
+      : playlist
+  ));
+}
+
 export function TrackLibraryActions({
   trackId,
   isLiked = false,
@@ -39,15 +60,7 @@ export function TrackLibraryActions({
   useEffect(() => {
     const handlePlaylistEvent = (event) => {
       if (event.type === 'playlist-created') {
-        setPlaylists((current) => {
-          if (current.some((playlist) => playlist.playlistId === event.playlist.playlistId)) {
-            return current.map((playlist) => (
-              playlist.playlistId === event.playlist.playlistId ? event.playlist : playlist
-            ));
-          }
-
-          return [...current, event.playlist];
-        });
+        setPlaylists((current) => mergeOrAppendPlaylist(current, event.playlist));
         return;
       }
 
@@ -62,14 +75,7 @@ export function TrackLibraryActions({
           return;
         }
 
-        setPlaylists((current) => current.map((playlist) => (
-          playlist.playlistId === playlistSummary.playlistId
-            ? {
-              ...playlist,
-              ...playlistSummary,
-            }
-            : playlist
-        )));
+        setPlaylists((current) => replacePlaylistSummary(current, playlistSummary));
       }
     };
 
@@ -112,6 +118,26 @@ export function TrackLibraryActions({
     }
   };
 
+  let playlistMenuContent = (
+    <div className="player-playlist-menu-empty">No tienes playlists privadas.</div>
+  );
+  if (isLoadingPlaylists) {
+    playlistMenuContent = <div className="player-playlist-menu-empty">Cargando...</div>;
+  } else if (playlists.length > 0) {
+    playlistMenuContent = playlists.map((playlist) => (
+      <button
+        className="player-playlist-option"
+        disabled={isAddingToPlaylist}
+        key={playlist.playlistId}
+        onClick={() => addToPlaylist(playlist.playlistId)}
+        role="menuitem"
+        type="button"
+      >
+        {playlist.name}
+      </button>
+    ));
+  }
+
   return (
     <div className={rootClassName}>
       <button
@@ -140,24 +166,7 @@ export function TrackLibraryActions({
         {isPlaylistMenuOpen && (
           <div className="player-playlist-menu" role="menu">
             <div className="player-playlist-menu-title">Agregar a playlist</div>
-            {isLoadingPlaylists ? (
-              <div className="player-playlist-menu-empty">Cargando...</div>
-            ) : playlists.length === 0 ? (
-              <div className="player-playlist-menu-empty">No tienes playlists privadas.</div>
-            ) : (
-              playlists.map((playlist) => (
-                <button
-                  className="player-playlist-option"
-                  disabled={isAddingToPlaylist}
-                  key={playlist.playlistId}
-                  onClick={() => addToPlaylist(playlist.playlistId)}
-                  role="menuitem"
-                  type="button"
-                >
-                  {playlist.name}
-                </button>
-              ))
-            )}
+            {playlistMenuContent}
           </div>
         )}
       </div>

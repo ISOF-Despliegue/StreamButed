@@ -132,11 +132,12 @@ function PasswordResetDialog({
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const confirmLabel = step === 'complete'
-    ? 'Actualizar contraseña'
-    : step === 'verify'
-      ? 'Verificar código'
-      : 'Enviar código';
+  let confirmLabel = 'Enviar código';
+  if (step === 'verify') {
+    confirmLabel = 'Verificar código';
+  } else if (step === 'complete') {
+    confirmLabel = 'Actualizar contraseña';
+  }
 
   const closeDialog = () => {
     setStep('request');

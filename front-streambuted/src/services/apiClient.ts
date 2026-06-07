@@ -237,6 +237,24 @@ function resolveErrorMessage(status: number, body: unknown): string {
   });
 }
 
+function throwIfBannedPayload(status: number, body: unknown): void {
+  const bannedPayload = extractBannedPayload(body);
+  if (!bannedPayload) {
+    return;
+  }
+
+  terminateSession(bannedPayload);
+  throw new ApiError(status, resolveErrorMessage(status, bannedPayload), bannedPayload);
+}
+
+function resolveRequestFailureMessage(status: number, attemptedRefresh: boolean, errorBody: unknown): string {
+  if (status === 401 && attemptedRefresh) {
+    return "Tu sesión expiró. Inicia sesión nuevamente.";
+  }
+
+  return resolveErrorMessage(status, errorBody);
+}
+
 export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {}
@@ -257,12 +275,7 @@ export async function apiRequest<T>(
 
   if (response.status === 403) {
     parsedErrorBody = await parseErrorBody(response);
-    const bannedPayload = extractBannedPayload(parsedErrorBody);
-
-    if (bannedPayload) {
-      terminateSession(bannedPayload);
-      throw new ApiError(403, resolveErrorMessage(403, bannedPayload), bannedPayload);
-    }
+    throwIfBannedPayload(403, parsedErrorBody);
   }
 
   if ((response.status === 401 || response.status === 403) && shouldAttemptRefresh) {
@@ -282,14 +295,8 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     const errorBody = parsedErrorBody ?? await parseErrorBody(response);
-    const bannedPayload = extractBannedPayload(errorBody);
-    if (bannedPayload) {
-      terminateSession(bannedPayload);
-      throw new ApiError(response.status, resolveErrorMessage(response.status, bannedPayload), bannedPayload);
-    }
-    const message = response.status === 401 && attemptedRefresh
-      ? "Tu sesión expiró. Inicia sesión nuevamente."
-      : resolveErrorMessage(response.status, errorBody);
+    throwIfBannedPayload(response.status, errorBody);
+    const message = resolveRequestFailureMessage(response.status, attemptedRefresh, errorBody);
     throw new ApiError(response.status, message, errorBody);
   }
 

@@ -12,9 +12,9 @@
 }
 
 .logout-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.3);
   border-color: rgba(248, 113, 113, 0.65);
-  color: #b91c1c;
+  color: #7f1d1d;
   transform: translateY(-1px);
 }
 

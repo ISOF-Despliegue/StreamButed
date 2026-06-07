@@ -16,33 +16,22 @@ permissions:
   pull-requests: read
 
 jobs:
-  sonarqube:
-    name: SonarQube Analysis
+  frontend-coverage:
+    name: Frontend Coverage
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
-          submodules: recursive
+          fetch-depth: 1
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 20
-
-      - name: Set up Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 21
-          cache: maven
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+          cache: npm
+          cache-dependency-path: front-streambuted/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: front-streambuted
@@ -50,10 +39,31 @@ jobs:
 
       - name: Test frontend with coverage
         working-directory: front-streambuted
-        run: npm test -- --coverage --runInBand
+        run: npm test -- --coverage --maxWorkers=50%
 
-      - name: Normalize frontend LCOV paths
-        run: sed -i 's#^SF:src/#SF:front-streambuted/src/#' front-streambuted/coverage/lcov.info
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: front-streambuted/coverage/lcov.info
+          if-no-files-found: error
+
+  catalog-coverage:
+    name: Catalog Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: services/catalog-service/package-lock.json
 
       - name: Install catalog service dependencies
         working-directory: services/catalog-service
@@ -63,37 +73,154 @@ jobs:
         working-directory: services/catalog-service
         run: npm test -- --coverage
 
-      - name: Normalize catalog LCOV paths
-        run: |
-          sed -i 's#\\#/#g' services/catalog-service/coverage/lcov.info
-          sed -i 's#^SF:src/#SF:services/catalog-service/src/#' services/catalog-service/coverage/lcov.info
-          sed -i "s#^SF:front-streambuted/src/#SF:${GITHUB_WORKSPACE}/front-streambuted/src/#" front-streambuted/coverage/lcov.info
-          sed -i "s#^SF:services/catalog-service/src/#SF:${GITHUB_WORKSPACE}/services/catalog-service/src/#" services/catalog-service/coverage/lcov.info
+      - name: Upload catalog coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-coverage
+          path: services/catalog-service/coverage/lcov.info
+          if-no-files-found: error
+
+  identity-coverage:
+    name: Identity Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
 
       - name: Test identity service with coverage
         working-directory: services/identity-service
         run: mvn -B test
 
-      - name: Test media service with coverage
-        working-directory: services/media-service
+      - name: Upload identity coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-coverage
+          path: services/identity-service/target/site/jacoco/jacoco.xml
+          if-no-files-found: error
+
+  python-coverage:
+    name: Python Coverage (${{ matrix.service.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: media-service
+            path: services/media-service
+            requirements: services/media-service/requirements.txt
+          - name: streaming-service
+            path: services/streaming-service
+            requirements: services/streaming-service/requirements.txt
+          - name: analytics-service
+            path: services/analytics-service
+            requirements: services/analytics-service/requirements.txt
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ${{ matrix.service.requirements }}
+
+      - name: Install Python dependencies
+        working-directory: ${{ matrix.service.path }}
+        run: python -m pip install -r requirements.txt coverage
+
+      - name: Test ${{ matrix.service.name }} with coverage
+        working-directory: ${{ matrix.service.path }}
         run: |
-          python -m pip install -r requirements.txt coverage
           python -m coverage run -m pytest
           python -m coverage xml -o coverage.xml
 
-      - name: Test streaming service with coverage
-        working-directory: services/streaming-service
-        run: |
-          python -m pip install -r requirements.txt coverage
-          python -m coverage run -m pytest
-          python -m coverage xml -o coverage.xml
+      - name: Upload ${{ matrix.service.name }} coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service.name }}-coverage
+          path: ${{ matrix.service.path }}/coverage.xml
+          if-no-files-found: error
 
-      - name: Test analytics service with coverage
-        working-directory: services/analytics-service
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    needs:
+      - frontend-coverage
+      - catalog-coverage
+      - identity-coverage
+      - python-coverage
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v5
+        with:
+          name: frontend-coverage
+          path: front-streambuted/coverage
+
+      - name: Download catalog coverage
+        uses: actions/download-artifact@v5
+        with:
+          name: catalog-coverage
+          path: services/catalog-service/coverage
+
+      - name: Download identity coverage
+        uses: actions/download-artifact@v5
+        with:
+          name: identity-coverage
+          path: services/identity-service/target/site/jacoco
+
+      - name: Download media coverage
+        uses: actions/download-artifact@v5
+        with:
+          name: media-service-coverage
+          path: services/media-service
+
+      - name: Download streaming coverage
+        uses: actions/download-artifact@v5
+        with:
+          name: streaming-service-coverage
+          path: services/streaming-service
+
+      - name: Download analytics coverage
+        uses: actions/download-artifact@v5
+        with:
+          name: analytics-service-coverage
+          path: services/analytics-service
+
+      - name: Normalize LCOV paths
         run: |
-          python -m pip install -r requirements.txt coverage
-          python -m coverage run -m pytest
-          python -m coverage xml -o coverage.xml
+          sed -i 's#^SF:src/#SF:front-streambuted/src/#' front-streambuted/coverage/lcov.info
+          sed -i 's#\\#/#g' services/catalog-service/coverage/lcov.info
+          sed -i 's#^SF:src/#SF:services/catalog-service/src/#' services/catalog-service/coverage/lcov.info
+          sed -i "s#^SF:front-streambuted/src/#SF:${GITHUB_WORKSPACE}/front-streambuted/src/#" front-streambuted/coverage/lcov.info
+          sed -i "s#^SF:services/catalog-service/src/#SF:${GITHUB_WORKSPACE}/services/catalog-service/src/#" services/catalog-service/coverage/lcov.info
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v7

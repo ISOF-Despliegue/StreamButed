@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 const MOBILE_BREAKPOINT = 760;
 
 function getMatches() {
-  if (typeof globalThis.window === "undefined" || typeof globalThis.window.matchMedia !== "function") {
+  if (globalThis.window === undefined || typeof globalThis.window.matchMedia !== "function") {
     return false;
   }
 
@@ -14,7 +14,7 @@ export function useIsMobileViewport() {
   const [isMobile, setIsMobile] = useState(getMatches);
 
   useEffect(() => {
-    if (typeof globalThis.window === "undefined" || typeof globalThis.window.matchMedia !== "function") {
+    if (globalThis.window === undefined || typeof globalThis.window.matchMedia !== "function") {
       return undefined;
     }
 

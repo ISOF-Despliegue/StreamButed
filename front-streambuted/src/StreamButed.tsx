@@ -193,7 +193,7 @@ export function readPendingDesktopAuth(): PendingDesktopAuth | null {
 
 function savePendingDesktopAuth(state: string): boolean {
   const existingPending = parsePendingDesktopAuth(globalThis.window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY));
-  if (existingPending && existingPending.state === state) {
+  if (existingPending?.state === state) {
     if (isPendingDesktopAuthExpired(existingPending)) {
       clearPendingDesktopAuth();
       return false;
@@ -422,7 +422,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 
     const canReusePlaybackSession = useCallback((trackId: string) => {
       const session = playbackSessionRef.current;
-      if (!session || session.trackId !== trackId || !session.streamUrl?.trim()) {
+      if (session?.trackId !== trackId || !session?.streamUrl?.trim()) {
         return false;
       }
 

@@ -238,14 +238,45 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
     }
   }, []);
 
+  const handleLikedSongsPlaylistUpdate = useCallback((playlist) => {
+    const likedSongsSummary = toPlaylistSummary(playlist);
+    setLibrary((current) => (
+      current && likedSongsSummary
+        ? {
+          ...current,
+          likedSongs: {
+            ...current.likedSongs,
+            ...likedSongsSummary,
+          },
+        }
+        : current
+    ));
+  }, []);
+
+  const handlePlaylistSummaryUpdate = useCallback((playlist) => {
+    const playlistSummary = toPlaylistSummary(playlist);
+    setLibrary((current) => (
+      current && playlistSummary
+        ? {
+          ...current,
+          playlists: current.playlists.map((item) => (
+            item.playlistId === playlistSummary.playlistId
+              ? { ...item, ...playlistSummary }
+              : item
+          )),
+        }
+        : current
+    ));
+  }, []);
+
   useEffect(() => {
     if (location.pathname === routes.library || location.pathname === '/') {
       void loadLibrary();
     }
   }, [loadLibrary, location.pathname]);
 
-  useEffect(() => (
-    subscribeToLibraryEvents((event) => {
+  useEffect(() => {
+    const handleLibraryEvent = (event) => {
       if (event.type === 'liked-songs-changed') {
         void refreshLikedSongs();
         return;
@@ -279,37 +310,16 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
 
       if (event.type === 'playlist-updated' && event.playlist) {
         if (event.playlist.isSystem) {
-          const likedSongsSummary = toPlaylistSummary(event.playlist);
-          setLibrary((current) => (
-            current && likedSongsSummary
-              ? {
-                ...current,
-                likedSongs: {
-                  ...current.likedSongs,
-                  ...likedSongsSummary,
-                },
-              }
-              : current
-          ));
+          handleLikedSongsPlaylistUpdate(event.playlist);
           return;
         }
 
-        const playlistSummary = toPlaylistSummary(event.playlist);
-        setLibrary((current) => (
-          current && playlistSummary
-            ? {
-              ...current,
-              playlists: current.playlists.map((playlist) => (
-                playlist.playlistId === playlistSummary.playlistId
-                  ? { ...playlist, ...playlistSummary }
-                  : playlist
-              )),
-            }
-            : current
-        ));
+        handlePlaylistSummaryUpdate(event.playlist);
       }
-    })
-  ), [loadLibrary, refreshLikedSongs]);
+    };
+
+    return subscribeToLibraryEvents(handleLibraryEvent);
+  }, [handleLikedSongsPlaylistUpdate, handlePlaylistSummaryUpdate, loadLibrary, refreshLikedSongs]);
 
   useEffect(() => {
     const handleWindowFocus = () => {

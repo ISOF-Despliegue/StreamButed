@@ -546,10 +546,11 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
           )}
           {tracks.length === 0 ? (
             <InlineState title="Sin pistas publicadas" />
-          ) : filteredTracks.length === 0 ? (
-            <InlineState title="Sin pistas para esta búsqueda" />
           ) : (
-            <table className="data-table">
+            filteredTracks.length === 0 ? (
+              <InlineState title="Sin pistas para esta búsqueda" />
+            ) : (
+              <table className="data-table">
               <thead><tr><th>Título</th><th>Género</th><th>Álbum</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
               <tbody>
                 {filteredTracks.map(track => (
@@ -593,7 +594,8 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            )
           )}
         </div>
       )}
@@ -617,9 +619,12 @@ MyTracksPage.propTypes = {
   user: artistUserPropType.isRequired,
 };
 
-export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = undefined }) {
-  void currentTrack;
-  void onPlayTrack;
+export function MyAlbumsPage({
+  user,
+  toast,
+  currentTrack: _currentTrack = null,
+  onPlayTrack: _onPlayTrack = undefined,
+}) {
   const navigate = useNavigate();
   const [albums, setAlbums] = useState([]);
   const [tracks, setTracks] = useState([]);
@@ -712,10 +717,11 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
           )}
           {albums.length === 0 ? (
             <InlineState title="Sin álbumes publicados" message="Crea un álbum y luego agrega canciones desde esta misma vista." />
-          ) : filteredAlbums.length === 0 ? (
-            <InlineState title="Sin álbumes para esta búsqueda" />
           ) : (
-            <table className="data-table">
+            filteredAlbums.length === 0 ? (
+              <InlineState title="Sin álbumes para esta búsqueda" />
+            ) : (
+              <table className="data-table">
               <thead><tr><th>Álbum</th><th>Pistas</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
               <tbody>
                 {filteredAlbums.map(album => (
@@ -758,7 +764,8 @@ export function MyAlbumsPage({ user, toast, currentTrack = null, onPlayTrack = u
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            )
           )}
         </div>
       )}
@@ -1230,7 +1237,6 @@ export function CreateAlbumPage({ toast }) {
           <div
             aria-label="Crear otro álbum"
             className={`create-another-album-action${isCreateAnotherOpen ? ' is-open' : ''}`}
-            role="group"
           >
             <button
               className="btn-icon create-another-album-plus"
@@ -1590,13 +1596,15 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
                 alt="Previsualización de nueva portada"
                 style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
               />
-            ) : track.coverAssetId ? (
-              <img
-                src={getAssetUrl(track.coverAssetId)}
-                alt={`Portada actual de ${track.title}`}
-                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
-              />
-            ) : null}
+            ) : (
+              track.coverAssetId ? (
+                <img
+                  src={getAssetUrl(track.coverAssetId)}
+                  alt={`Portada actual de ${track.title}`}
+                  style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+                />
+              ) : null
+            )}
           </div>
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
