@@ -132,6 +132,11 @@ function PasswordResetDialog({
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const confirmLabel = step === 'complete'
+    ? 'Actualizar contraseña'
+    : step === 'verify'
+      ? 'Verificar código'
+      : 'Enviar código';
 
   const closeDialog = () => {
     setStep('request');
@@ -260,7 +265,7 @@ function PasswordResetDialog({
       open={isOpen}
       title="Recuperar contraseña"
       message=""
-      confirmLabel={step === 'complete' ? 'Actualizar contraseña' : step === 'verify' ? 'Verificar código' : 'Enviar código'}
+      confirmLabel={confirmLabel}
       cancelLabel="Cerrar"
       tone="primary"
       isLoading={isSubmitting}
@@ -347,7 +352,7 @@ function PasswordResetDialog({
       )}
 
       {notice && (
-        <output role="status" style={{ display: 'block', fontSize: 13, color: 'var(--success)', marginTop: 12 }}>
+        <output style={{ display: 'block', fontSize: 13, color: 'var(--success)', marginTop: 12 }}>
           {notice}
         </output>
       )}
@@ -760,7 +765,7 @@ export function RegisterPage({
         )}
 
         {notice && (
-          <output role="status" style={{ fontSize: 13, color: 'var(--success)', marginBottom: 12 }}>
+          <output style={{ fontSize: 13, color: 'var(--success)', marginBottom: 12 }}>
             {notice}
           </output>
         )}

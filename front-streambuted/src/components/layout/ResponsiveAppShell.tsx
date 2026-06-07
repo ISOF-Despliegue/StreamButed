@@ -110,14 +110,16 @@ export function ResponsiveAppShell({
       </div>
 
       {mobileMenuOpen && mobileSidebar ? (
-        <div
-          className="mobile-drawer-backdrop"
-          onClick={onCloseMobileMenu}
-        >
+        <div className="mobile-drawer-backdrop">
+          <button
+            aria-label="Cerrar menu"
+            className="mobile-drawer-backdrop"
+            onClick={onCloseMobileMenu}
+            type="button"
+          />
           <aside
             aria-label="Menu de navegacion"
             className="mobile-drawer"
-            onClick={(event) => event.stopPropagation()}
           >
             <div className="mobile-drawer-header">
               <div>

@@ -20,6 +20,8 @@ export function TrackLibraryActions({
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [isAddingToPlaylist, setIsAddingToPlaylist] = useState(false);
   const playlistMenuRef = useRef(null);
+  const rootClassName = className ? `track-library-actions ${className}` : 'track-library-actions';
+  const likeButtonClassName = isLiked ? 'btn-icon active' : 'btn-icon';
 
   useEffect(() => {
     if (!isPlaylistMenuOpen) return undefined;
@@ -34,8 +36,8 @@ export function TrackLibraryActions({
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [isPlaylistMenuOpen]);
 
-  useEffect(() => (
-    subscribeToLibraryEvents((event) => {
+  useEffect(() => {
+    const handlePlaylistEvent = (event) => {
       if (event.type === 'playlist-created') {
         setPlaylists((current) => {
           if (current.some((playlist) => playlist.playlistId === event.playlist.playlistId)) {
@@ -69,8 +71,10 @@ export function TrackLibraryActions({
             : playlist
         )));
       }
-    })
-  ), []);
+    };
+
+    return subscribeToLibraryEvents(handlePlaylistEvent);
+  }, []);
 
   const openPlaylistMenu = async () => {
     if (!trackId) return;
@@ -109,11 +113,11 @@ export function TrackLibraryActions({
   };
 
   return (
-    <div className={`track-library-actions${className ? ` ${className}` : ''}`}>
+    <div className={rootClassName}>
       <button
         aria-label={isLiked ? 'Quitar de canciones que te gustan' : 'Guardar en canciones que te gustan'}
         aria-pressed={isLiked}
-        className={`btn-icon${isLiked ? ' active' : ''}`}
+        className={likeButtonClassName}
         disabled={isLikeLoading || !onToggleLike}
         onClick={onToggleLike}
         title={isLiked ? 'Quitar me gusta' : 'Me gusta'}

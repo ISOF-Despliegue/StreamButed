@@ -7,7 +7,7 @@ const DEFAULT_STATUS = {
 };
 
 function getUpdatesApi() {
-  return window.streambuted?.updates ?? null;
+  return globalThis.window.streambuted?.updates ?? null;
 }
 
 function getButtonLabel(status, isChecking, isInstalling) {
@@ -79,9 +79,15 @@ export function AppUpdateButton({ fullWidth = false }) {
         {getButtonLabel(status, isChecking, isInstalling)}
       </button>
       {status.message && (
-        <div className="app-update-status" role={status.state === 'error' ? 'alert' : 'status'}>
-          {status.message}
-        </div>
+        status.state === 'error' ? (
+          <div className="app-update-status" role="alert">
+            {status.message}
+          </div>
+        ) : (
+          <output className="app-update-status">
+            {status.message}
+          </output>
+        )
       )}
     </div>
   );

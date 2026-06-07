@@ -591,8 +591,7 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
 .form-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; }
 .form-divider span { font-size: 12px; color: var(--t3); white-space: nowrap; }
 .form-divider::before, .form-divider::after { content: ''; flex: 1; height: 1px; background: var(--border2); }
-.auth-link { color: var(--accent); text-decoration: none; font-weight: 500; }
-.auth-link { background: transparent; padding: 0; }
+.auth-link { color: var(--accent); text-decoration: none; font-weight: 500; background: transparent; padding: 0; }
 .auth-link:hover { text-decoration: underline; }
 .auth-footer { text-align: center; font-size: 13px; color: var(--t2); margin-top: 20px; }
 .forgot-row { display: flex; justify-content: flex-end; margin-top: 4px; margin-bottom: 16px; }
@@ -946,7 +945,7 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
 }
 .library-playlist-delete:hover {
   background: rgba(239,68,68,0.2);
-  color: #fff;
+  color: #fef2f2;
 }
 .library-cover-action {
   white-space: nowrap;
@@ -1358,7 +1357,7 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   min-width: 92px;
   height: 36px;
   border-radius: var(--r8);
-  background: rgba(255,255,255,0.15);
+  background: rgba(15,23,42,0.52);
   color: #fff;
   font-size: 13px;
   display: inline-flex;
@@ -1434,9 +1433,9 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   display: inline-flex; padding: 3px 10px; border-radius: 99px;
   font-size: 11px; font-weight: 600;
 }
-.badge-listener { background: rgba(56,189,248,0.22); color: #BAE6FD; }
+.badge-listener { background: rgba(14,116,144,0.2); color: #0f172a; }
 .badge-artist { background: var(--accent-dim); color: var(--accent); }
-.badge-admin { background: rgba(124,58,237,0.25); color: #DDD6FE; }
+.badge-admin { background: rgba(91,33,182,0.22); color: #1f1147; }
 .badge-success-soft { background: rgba(34,197,94,0.15); color: var(--success); }
 .badge-danger-soft { background: rgba(239,68,68,0.15); color: var(--danger); }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -1744,7 +1743,6 @@ button:disabled {
 
 @media (max-width: 760px) {
   .app-shell {
-    height: 100svh;
     min-height: 100svh;
     height: 100dvh;
     min-height: 100dvh;

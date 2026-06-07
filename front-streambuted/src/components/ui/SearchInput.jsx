@@ -13,9 +13,10 @@ export function SearchInput({
   wrapperClassName = '',
 }) {
   const isCoolingDown = cooldownUntil > Date.now();
+  const wrapClassName = wrapperClassName ? `search-input-wrap ${wrapperClassName}` : 'search-input-wrap';
 
   return (
-    <div className={`search-input-wrap${wrapperClassName ? ` ${wrapperClassName}` : ''}`}>
+    <div className={wrapClassName}>
       <button
         className="search-icon-button"
         type="button"

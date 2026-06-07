@@ -184,7 +184,7 @@ function PlaylistSongResults({
                   isAdded={isAdded}
                   onClick={(event) => {
                     event.stopPropagation();
-                    void onAddTrack(track.trackId);
+                    onAddTrack(track.trackId).catch(() => undefined);
                   }}
                 />
               </td>
@@ -645,9 +645,9 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
             albumTitle: track.albumTitle ?? null,
           }))
         );
-      } catch (searchFailure) {
+      } catch (error_) {
         setSearchCandidates([]);
-        setSearchError(getErrorMessage(searchFailure, 'No se pudieron buscar canciones.'));
+        setSearchError(getErrorMessage(error_, 'No se pudieron buscar canciones.'));
       } finally {
         setIsSearchingTracks(false);
       }

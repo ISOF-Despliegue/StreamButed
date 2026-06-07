@@ -3,22 +3,22 @@ import { useEffect, useState } from "react";
 const MOBILE_BREAKPOINT = 760;
 
 function getMatches() {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+  if (typeof globalThis.window === "undefined" || typeof globalThis.window.matchMedia !== "function") {
     return false;
   }
 
-  return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+  return globalThis.window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
 }
 
 export function useIsMobileViewport() {
   const [isMobile, setIsMobile] = useState(getMatches);
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    if (typeof globalThis.window === "undefined" || typeof globalThis.window.matchMedia !== "function") {
       return undefined;
     }
 
-    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const mediaQuery = globalThis.window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
     const handleChange = (event: MediaQueryListEvent) => {
       setIsMobile(event.matches);
     };

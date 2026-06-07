@@ -60,14 +60,14 @@ export function ConfirmDialog({
   const confirmClassName = tone === 'danger' ? 'btn-danger confirm-dialog-danger' : 'btn-primary';
 
   return (
-    <div
-      className="confirm-dialog-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !isLoading) {
-          onCancel();
-        }
-      }}
-    >
+    <div className="confirm-dialog-backdrop">
+      <button
+        aria-label="Cerrar dialogo"
+        className="confirm-dialog-backdrop"
+        disabled={isLoading}
+        onMouseDown={onCancel}
+        type="button"
+      />
       <dialog
         className="confirm-dialog"
         aria-labelledby={titleId}

@@ -9,6 +9,34 @@ type ListenerLiveRoomProps = Readonly<{
   onLeave?: () => void;
 }>;
 
+function renderOverlay(
+  state: string,
+  error: string | null,
+  onLeave: () => void
+) {
+  if (state === "watching") {
+    return null;
+  }
+
+  if (state === "idle") {
+    return <div className="live-room-overlay"><div className="live-room-overlay-title">Conectando</div><div>Preparando conexion...</div></div>;
+  }
+
+  if (state === "joining") {
+    return <div className="live-room-overlay"><div className="live-room-overlay-title">Cargando</div><div>Uniendose al concierto...</div></div>;
+  }
+
+  if (state === "ended") {
+    return <div className="live-room-overlay"><div className="live-room-ended-title">El concierto ha terminado</div><button className="live-primary-action" onClick={onLeave} type="button">Volver</button></div>;
+  }
+
+  if (state === "error") {
+    return <div className="live-room-overlay"><div className="live-room-error-text">{error || "Error al conectar"}</div><button className="live-secondary-action" onClick={onLeave} type="button">Salir</button></div>;
+  }
+
+  return null;
+}
+
 export function ListenerLiveRoom({ roomId, concertTitle, artistName, onLeave }: ListenerLiveRoomProps) {
   const { socket, connectionState } = useLive();
   const { remoteStream, state, error, listenerCount, joinRoom, leaveRoom } = useListenerLive(socket);
@@ -68,14 +96,7 @@ export function ListenerLiveRoom({ roomId, concertTitle, artistName, onLeave }: 
         onContextMenu={(event) => event.preventDefault()}
       />
 
-      {state !== "watching" ? (
-        <div className="live-room-overlay">
-          {state === "idle" ? <><div className="live-room-overlay-title">Conectando</div><div>Preparando conexion...</div></> : null}
-          {state === "joining" ? <><div className="live-room-overlay-title">Cargando</div><div>Uniendose al concierto...</div></> : null}
-          {state === "ended" ? <><div className="live-room-ended-title">El concierto ha terminado</div><button className="live-primary-action" onClick={handleLeave} type="button">Volver</button></> : null}
-          {state === "error" ? <><div className="live-room-error-text">{error || "Error al conectar"}</div><button className="live-secondary-action" onClick={handleLeave} type="button">Salir</button></> : null}
-        </div>
-      ) : null}
+      {renderOverlay(state, error, handleLeave)}
 
       {state === "watching" ? (
         <div className="live-room-controls">

@@ -42,6 +42,11 @@ interface PublicErrorDescriptor {
   status?: number | null;
 }
 
+interface MessageRule {
+  readonly patterns: readonly string[];
+  readonly result: string;
+}
+
 function normalizeMessage(message: string): string {
   return message
     .normalize("NFD")
@@ -50,13 +55,58 @@ function normalizeMessage(message: string): string {
     .trim();
 }
 
+function includesAny(value: string, patterns: readonly string[]): boolean {
+  return patterns.some((pattern) => value.includes(pattern));
+}
+
 function isPublicErrorCode(code: string): code is keyof typeof PUBLIC_ERROR_MESSAGES {
-  return Object.prototype.hasOwnProperty.call(PUBLIC_ERROR_MESSAGES, code);
+  return Object.hasOwn(PUBLIC_ERROR_MESSAGES, code);
 }
 
 function looksLikeInternalError(message: string): boolean {
   const normalized = normalizeMessage(message);
   return INTERNAL_ERROR_MARKERS.some((marker) => normalized.includes(marker));
+}
+
+function inferFromCombinedText(combined: string): PublicErrorCode | null {
+  if (includesAny(combined, ["timeout", "deadline exceeded", "tardo demasiado"])) {
+    return "request_timeout";
+  }
+
+  if (includesAny(combined, [
+    "serviceunavailable",
+    "not available",
+    "unavailable",
+    "no esta disponible temporalmente",
+  ])) {
+    return "service_temporarily_unavailable";
+  }
+
+  if (includesAny(combined, [
+    "dependency_validation_failed",
+    "no pudo validar",
+    "no es accesible",
+  ])) {
+    return "dependency_validation_failed";
+  }
+
+  if (includesAny(combined, ["conflict", "resource changed", "changed"])) {
+    return "conflict_or_state_changed";
+  }
+
+  return null;
+}
+
+function inferFromStatus(status: number | null | undefined, hasDescriptorData: boolean): PublicErrorCode | null {
+  if (status === 401) return "unauthorized";
+  if (status === 403) return "forbidden";
+  if (status === 404) return "resource_not_found";
+  if (status === 408 || status === 504) return "request_timeout";
+  if (status === 409) return "conflict_or_state_changed";
+  if ((status === 422 || status === 400) && hasDescriptorData) return "invalid_input";
+  if (status !== null && status !== undefined && status >= 500) return "service_temporarily_unavailable";
+
+  return null;
 }
 
 function inferPublicErrorCode({
@@ -78,49 +128,131 @@ function inferPublicErrorCode({
   const normalizedCode = normalizeMessage(code ?? "");
   const combined = `${normalizedCode} ${normalizedError} ${normalizedMessage}`.trim();
 
-  if (
-    combined.includes("timeout")
-    || combined.includes("deadline exceeded")
-    || combined.includes("tardo demasiado")
-  ) {
-    return "request_timeout";
-  }
-
-  if (
-    combined.includes("serviceunavailable")
-    || combined.includes("not available")
-    || combined.includes("unavailable")
-    || combined.includes("no esta disponible temporalmente")
-  ) {
-    return "service_temporarily_unavailable";
-  }
-
-  if (
-    combined.includes("dependency_validation_failed")
-    || combined.includes("no pudo validar")
-    || combined.includes("no es accesible")
-  ) {
-    return "dependency_validation_failed";
-  }
-
-  if (
-    combined.includes("conflict")
-    || combined.includes("resource changed")
-    || combined.includes("changed")
-  ) {
-    return "conflict_or_state_changed";
-  }
-
-  if (status === 401) return "unauthorized";
-  if (status === 403) return "forbidden";
-  if (status === 404) return "resource_not_found";
-  if (status === 408 || status === 504) return "request_timeout";
-  if (status === 409) return "conflict_or_state_changed";
-  if ((status === 422 || status === 400) && (message || error || code)) return "invalid_input";
-  if (status !== null && status !== undefined && status >= 500) return "service_temporarily_unavailable";
-
-  return null;
+  return inferFromCombinedText(combined) ?? inferFromStatus(status, Boolean(message || error || code));
 }
+
+const USER_FACING_MESSAGE_RULES: readonly MessageRule[] = [
+  {
+    patterns: ["invalid email or password", "invalid credentials", "bad credentials"],
+    result: "El correo o la contraseña son incorrectos.",
+  },
+  {
+    patterns: [
+      "codigo de recuperacion es incorrecto",
+      "password reset code is incorrect",
+      "password reset code invalid",
+    ],
+    result: "El código de recuperación es incorrecto.",
+  },
+  {
+    patterns: [
+      "verification code is incorrect",
+      "verification code invalid",
+      "codigo de verificacion es incorrecto",
+    ],
+    result: "El código de verificación es incorrecto.",
+  },
+  {
+    patterns: ["verification code has expired"],
+    result: "El código de verificación expiró. Solicita uno nuevo.",
+  },
+  {
+    patterns: ["codigo de recuperacion expiro", "password reset code has expired"],
+    result: "El código de recuperación expiró. Solicita uno nuevo.",
+  },
+  {
+    patterns: ["verification code must contain 6 digits"],
+    result: "El código debe tener 6 dígitos.",
+  },
+  {
+    patterns: ["verification attempt id is required"],
+    result: "No se pudo validar la verificación. Solicita un nuevo código.",
+  },
+  {
+    patterns: ["email must be a valid address"],
+    result: "Correo inválido.",
+  },
+  {
+    patterns: ["email must not exceed 320 characters"],
+    result: "El correo no puede superar 320 caracteres.",
+  },
+  {
+    patterns: ["username must be between 3 and 100 characters", "username must be between 3 and 50 characters"],
+    result: "El nombre de usuario debe tener entre 3 y 100 caracteres.",
+  },
+  {
+    patterns: ["password must be between 8 and 15 characters"],
+    result: "La contraseña debe tener entre 8 y 15 caracteres.",
+  },
+  {
+    patterns: ["password confirmation must be between 8 and 15 characters"],
+    result: "La confirmación de contraseña debe tener entre 8 y 15 caracteres.",
+  },
+  {
+    patterns: ["must not be blank", "is required"],
+    result: "Todos los campos son obligatorios.",
+  },
+  {
+    patterns: ["password confirmation does not match"],
+    result: "Las contraseñas no coinciden.",
+  },
+  {
+    patterns: ["password must contain at least one uppercase letter"],
+    result: "La contraseña debe incluir al menos una mayúscula.",
+  },
+  {
+    patterns: ["password must contain at least one number"],
+    result: "La contraseña debe incluir al menos un número.",
+  },
+  {
+    patterns: ["password must contain at least one special character"],
+    result: "La contraseña debe incluir al menos un símbolo especial.",
+  },
+  {
+    patterns: ["email is already registered", "email already exists"],
+    result: "Ese correo ya está registrado. Inicia sesión o usa otro correo.",
+  },
+  {
+    patterns: ["no existe ninguna cuenta asociada a ese correo", "password reset account not found"],
+    result: "No existe ninguna cuenta asociada a ese correo.",
+  },
+  {
+    patterns: ["username is already in use", "username already exists"],
+    result: "Ese nombre de usuario ya está en uso. Elige otro.",
+  },
+  {
+    patterns: ["registration cannot be completed"],
+    result: "No se pudo completar el registro con esos datos.",
+  },
+  {
+    patterns: ["refresh token is invalid"],
+    result: "Tu sesión expiró. Inicia sesión nuevamente.",
+  },
+  {
+    patterns: ["session refresh failed"],
+    result: "No pudimos actualizar tu sesión. Inicia sesión nuevamente.",
+  },
+  {
+    patterns: ["access denied", "forbidden"],
+    result: "No tienes permisos para esta acción.",
+  },
+  {
+    patterns: ["you already have a playlist with that name", "playlistnamealreadyexists"],
+    result: "Ya existe una playlist con ese nombre.",
+  },
+  {
+    patterns: [
+      "this song is already in that playlist",
+      "esta cancion ya se encuentra en esa playlist",
+      "trackalreadyinplaylist",
+    ],
+    result: "Esta canción ya se encuentra en esa playlist.",
+  },
+  {
+    patterns: ["not found"],
+    result: "No encontramos la información solicitada.",
+  },
+];
 
 export function getPublicErrorMessage(descriptor: PublicErrorDescriptor): string {
   const publicCode = inferPublicErrorCode(descriptor);
@@ -160,160 +292,24 @@ export function toUserFacingMessage(message: string | null | undefined): string 
   if (!message) return DEFAULT_FALLBACK_MESSAGE;
 
   const normalized = normalizeMessage(message);
-
-  if (
-    normalized.includes("invalid email or password")
-    || normalized.includes("invalid credentials")
-    || normalized.includes("bad credentials")
-  ) {
-    return "El correo o la contraseña son incorrectos.";
+  const matchedRule = USER_FACING_MESSAGE_RULES.find((rule) => includesAny(normalized, rule.patterns));
+  if (matchedRule) {
+    return matchedRule.result;
   }
 
   if (
-    normalized.includes("codigo de recuperacion es incorrecto")
-    || normalized.includes("password reset code is incorrect")
-    || normalized.includes("password reset code invalid")
-  ) {
-    return "El código de recuperación es incorrecto.";
-  }
-
-  if (
-    normalized.includes("verification code is incorrect")
-    || normalized.includes("verification code invalid")
-    || normalized.includes("codigo de verificacion es incorrecto")
-  ) {
-    return "El código de verificación es incorrecto.";
-  }
-
-  if (normalized.includes("verification code has expired")) {
-    return "El código de verificación expiró. Solicita uno nuevo.";
-  }
-
-  if (
-    normalized.includes("codigo de recuperacion expiro")
-    || normalized.includes("password reset code has expired")
-  ) {
-    return "El código de recuperación expiró. Solicita uno nuevo.";
-  }
-
-  if (normalized.includes("verification code must contain 6 digits")) {
-    return "El código debe tener 6 dígitos.";
-  }
-
-  if (normalized.includes("verification attempt id is required")) {
-    return "No se pudo validar la verificación. Solicita un nuevo código.";
-  }
-
-  if (normalized.includes("email must be a valid address")) {
-    return "Correo inválido.";
-  }
-
-  if (normalized.includes("email must not exceed 320 characters")) {
-    return "El correo no puede superar 320 caracteres.";
-  }
-
-  if (
-    normalized.includes("username must be between 3 and 100 characters")
-    || normalized.includes("username must be between 3 and 50 characters")
-  ) {
-    return "El nombre de usuario debe tener entre 3 y 100 caracteres.";
-  }
-
-  if (normalized.includes("password must be between 8 and 15 characters")) {
-    return "La contraseña debe tener entre 8 y 15 caracteres.";
-  }
-
-  if (normalized.includes("password confirmation must be between 8 and 15 characters")) {
-    return "La confirmación de contraseña debe tener entre 8 y 15 caracteres.";
-  }
-
-  if (normalized.includes("must not be blank") || normalized.includes("is required")) {
-    return "Todos los campos son obligatorios.";
-  }
-
-  if (normalized.includes("password confirmation does not match")) {
-    return "Las contraseñas no coinciden.";
-  }
-
-  if (normalized.includes("password must contain at least one uppercase letter")) {
-    return "La contraseña debe incluir al menos una mayúscula.";
-  }
-
-  if (normalized.includes("password must contain at least one number")) {
-    return "La contraseña debe incluir al menos un número.";
-  }
-
-  if (normalized.includes("password must contain at least one special character")) {
-    return "La contraseña debe incluir al menos un símbolo especial.";
-  }
-
-  if (
-    normalized.includes("email is already registered")
-    || normalized.includes("email already exists")
-  ) {
-    return "Ese correo ya está registrado. Inicia sesión o usa otro correo.";
-  }
-
-  if (
-    normalized.includes("no existe ninguna cuenta asociada a ese correo")
-    || normalized.includes("password reset account not found")
-  ) {
-    return "No existe ninguna cuenta asociada a ese correo.";
-  }
-
-  if (
-    normalized.includes("username is already in use")
-    || normalized.includes("username already exists")
-  ) {
-    return "Ese nombre de usuario ya está en uso. Elige otro.";
-  }
-
-  if (normalized.includes("registration cannot be completed")) {
-    return "No se pudo completar el registro con esos datos.";
-  }
-
-  if (normalized.includes("refresh token is invalid")) {
-    return "Tu sesión expiró. Inicia sesión nuevamente.";
-  }
-
-  if (normalized.includes("session refresh failed")) {
-    return "No pudimos actualizar tu sesión. Inicia sesión nuevamente.";
-  }
-
-  if (normalized.includes("access denied") || normalized.includes("forbidden")) {
-    return "No tienes permisos para esta acción.";
-  }
-
-  if (
-    normalized.includes("you already have a playlist with that name")
-    || normalized.includes("playlistnamealreadyexists")
-  ) {
-    return "Ya existe una playlist con ese nombre.";
-  }
-
-  if (
-    normalized.includes("this song is already in that playlist")
-    || normalized.includes("esta cancion ya se encuentra en esa playlist")
-    || normalized.includes("trackalreadyinplaylist")
-  ) {
-    return "Esta canción ya se encuentra en esa playlist.";
-  }
-
-  if (normalized.includes("not found")) {
-    return "No encontramos la información solicitada.";
-  }
-
-  if (
-    normalized.includes("network_unreachable")
-    || normalized.includes("service_temporarily_unavailable")
-    || normalized.includes("request_timeout")
-    || normalized.includes("resource_not_found")
-    || normalized.includes("invalid_input")
-    || normalized.includes("forbidden")
-    || normalized.includes("unauthorized")
-    || normalized.includes("conflict_or_state_changed")
-    || normalized.includes("dependency_validation_failed")
-    || normalized.includes("unexpected_operation_failure")
+    includesAny(normalized, [
+      "network_unreachable",
+      "service_temporarily_unavailable",
+      "request_timeout",
+      "resource_not_found",
+      "invalid_input",
+      "forbidden",
+      "unauthorized",
+      "conflict_or_state_changed",
+      "dependency_validation_failed",
+      "unexpected_operation_failure",
+    ])
   ) {
     const publicCode = inferPublicErrorCode({ code: normalized });
     return publicCode && publicCode !== "ACCOUNT_BANNED"

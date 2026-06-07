@@ -35,7 +35,7 @@ function hasUnsafePathSegment(pathname: string): boolean {
 
 function hasControlCharacter(value: string): boolean {
   return Array.from(value).some((character) => {
-    const charCode = character.charCodeAt(0);
+    const charCode = character.codePointAt(0) ?? 0;
     return charCode <= 31 || charCode === 127;
   });
 }
@@ -126,7 +126,7 @@ function extractBannedPayload(body: unknown): ApiErrorPayload | null {
 
 function terminateSession(payload: ApiErrorPayload): void {
   authTokenStore.clear();
-  window.dispatchEvent(
+  globalThis.dispatchEvent(
     new CustomEvent<ApiErrorPayload>(SESSION_TERMINATED_EVENT, {
       detail: payload,
     })
@@ -134,13 +134,13 @@ function terminateSession(payload: ApiErrorPayload): void {
 }
 
 async function refreshAccessToken(): Promise<string | null> {
-  if (refreshAccessTokenPromise) {
+  if (refreshAccessTokenPromise !== null) {
     return refreshAccessTokenPromise;
   }
 
   refreshAccessTokenPromise = (async () => {
     try {
-      const desktopAuth = window.streambuted?.isElectron ? window.streambuted.auth : undefined;
+      const desktopAuth = globalThis.window.streambuted?.isElectron ? globalThis.window.streambuted.auth : undefined;
       const payload = desktopAuth
         ? await desktopAuth.refresh()
         : await refreshAccessTokenWithCookie();

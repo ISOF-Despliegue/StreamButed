@@ -18,6 +18,12 @@ export function TrackRow({
   const trackId = track.trackId || track.id;
   const artistName = track.artist || track.artistName || 'Artista';
   const duration = track.durationSeconds ?? track.duration;
+  const handleRowKeyDown = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onPlay();
+    }
+  };
   let meta = metaText;
 
   if (meta === undefined) {
@@ -27,7 +33,13 @@ export function TrackRow({
   }
 
   return (
-    <tr className={`track-row${isPlaying ? ' playing' : ''}`} onClick={onPlay}>
+    <tr
+      className={`track-row${isPlaying ? ' playing' : ''}`}
+      onClick={onPlay}
+      onKeyDown={handleRowKeyDown}
+      role="button"
+      tabIndex={0}
+    >
       <td><span className="track-num">{index + 1}</span></td>
       <td>
         <div className="track-title-cell">

@@ -16,7 +16,7 @@ import type {
 } from "../types/auth.types";
 
 function getDesktopAuth() {
-  return window.streambuted?.isElectron ? window.streambuted.auth : undefined;
+  return globalThis.window.streambuted?.isElectron ? globalThis.window.streambuted.auth : undefined;
 }
 
 export const authService = {

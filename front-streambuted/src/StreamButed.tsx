@@ -183,7 +183,7 @@ function isPendingDesktopAuthExpired(pending: PendingDesktopAuth): boolean {
 }
 
 export function readPendingDesktopAuth(): PendingDesktopAuth | null {
-  const parsed = parsePendingDesktopAuth(window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY));
+  const parsed = parsePendingDesktopAuth(globalThis.window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY));
   if (!parsed || isPendingDesktopAuthExpired(parsed)) {
     clearPendingDesktopAuth();
     return null;
@@ -192,7 +192,7 @@ export function readPendingDesktopAuth(): PendingDesktopAuth | null {
 }
 
 function savePendingDesktopAuth(state: string): boolean {
-  const existingPending = parsePendingDesktopAuth(window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY));
+  const existingPending = parsePendingDesktopAuth(globalThis.window.sessionStorage.getItem(DESKTOP_AUTH_PENDING_KEY));
   if (existingPending && existingPending.state === state) {
     if (isPendingDesktopAuthExpired(existingPending)) {
       clearPendingDesktopAuth();
@@ -201,7 +201,7 @@ function savePendingDesktopAuth(state: string): boolean {
     return true;
   }
 
-  window.sessionStorage.setItem(
+  globalThis.window.sessionStorage.setItem(
     DESKTOP_AUTH_PENDING_KEY,
     JSON.stringify({ state, createdAt: Date.now() })
   );
@@ -209,7 +209,7 @@ function savePendingDesktopAuth(state: string): boolean {
 }
 
 function clearPendingDesktopAuth(): void {
-  window.sessionStorage.removeItem(DESKTOP_AUTH_PENDING_KEY);
+  globalThis.window.sessionStorage.removeItem(DESKTOP_AUTH_PENDING_KEY);
 }
 
 type DesktopLaunchOutcome = "idle" | "success" | "cancelled";
@@ -229,7 +229,7 @@ function DesktopAuthStartPage() {
 
   const clearLaunchOutcomeTimeout = useCallback(() => {
     if (launchOutcomeTimeoutRef.current !== null) {
-      window.clearTimeout(launchOutcomeTimeoutRef.current);
+      globalThis.clearTimeout(launchOutcomeTimeoutRef.current);
       launchOutcomeTimeoutRef.current = null;
     }
   }, []);
@@ -278,16 +278,16 @@ function DesktopAuthStartPage() {
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleWindowBlur);
+    globalThis.addEventListener("blur", handleWindowBlur);
     removeLaunchListenersRef.current = () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleWindowBlur);
+      globalThis.removeEventListener("blur", handleWindowBlur);
     };
-    launchOutcomeTimeoutRef.current = window.setTimeout(() => {
+    launchOutcomeTimeoutRef.current = globalThis.setTimeout(() => {
       updateLaunchOutcome(launchVisibilityHandledRef.current ? "success" : "cancelled");
     }, 1600);
 
-    window.location.assign(callbackUrl);
+    globalThis.window.location.assign(callbackUrl);
   }, [clearLaunchListeners, clearLaunchOutcomeTimeout, updateLaunchOutcome]);
 
   useEffect(() => {
@@ -302,7 +302,7 @@ function DesktopAuthStartPage() {
     }
 
     if (provider === "google") {
-      window.location.assign(authService.getGoogleAuthUrl(mode));
+      globalThis.window.location.assign(authService.getGoogleAuthUrl(mode));
       return;
     }
 
@@ -422,7 +422,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 
     const canReusePlaybackSession = useCallback((trackId: string) => {
       const session = playbackSessionRef.current;
-      if (!session || session.trackId !== trackId || !session.streamUrl) {
+      if (!session || session.trackId !== trackId || !session.streamUrl?.trim()) {
         return false;
       }
 
@@ -1506,9 +1506,12 @@ export default function StreamButed() {
     setCurrentTrack(null);
     setPlaybackQueue(EMPTY_QUEUE);
     const pendingDesktopAuth = nextUser ? readPendingDesktopAuth() : null;
-    const nextRoute = pendingDesktopAuth
-      ? `${routes.desktopAuthStart}?state=${encodeURIComponent(pendingDesktopAuth.state)}`
-      : nextUser ? getDefaultRoute(nextUser) : routes.login;
+    let nextRoute = routes.login;
+    if (pendingDesktopAuth) {
+      nextRoute = `${routes.desktopAuthStart}?state=${encodeURIComponent(pendingDesktopAuth.state)}`;
+    } else if (nextUser) {
+      nextRoute = getDefaultRoute(nextUser);
+    }
     navigate(nextRoute, { replace: true });
   }, [navigate]);
 
@@ -1531,13 +1534,13 @@ export default function StreamButed() {
   };
 
   const handleGoogleAuth = async (mode: "login" | "register") => {
-    const desktopAuth = window.streambuted?.isElectron ? window.streambuted.auth : undefined;
+    const desktopAuth = globalThis.window.streambuted?.isElectron ? globalThis.window.streambuted.auth : undefined;
     if (desktopAuth) {
       await desktopAuth.startGoogleOAuth();
       return;
     }
 
-    window.location.assign(authService.getGoogleAuthUrl(mode));
+    globalThis.window.location.assign(authService.getGoogleAuthUrl(mode));
   };
 
   const handleCompleteGooglePasswordSetup = async (request: {
@@ -1599,7 +1602,7 @@ export default function StreamButed() {
   }, [location.pathname, navigate, user]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(globalThis.window.location.search);
     const oauthStatus = params.get("oauth");
     if (!oauthStatus) return;
 
@@ -1616,11 +1619,11 @@ export default function StreamButed() {
     params.delete("message");
     const nextSearch = params.toString();
     const nextUrl = [
-      window.location.pathname,
+      globalThis.window.location.pathname,
       nextSearch ? `?${nextSearch}` : "",
-      window.location.hash,
+      globalThis.window.location.hash,
     ].join("");
-    window.history.replaceState(null, "", nextUrl);
+    globalThis.window.history.replaceState(null, "", nextUrl);
   }, []);
 
   useEffect(() => {
@@ -1631,9 +1634,9 @@ export default function StreamButed() {
       }
     };
 
-    window.addEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
+    globalThis.addEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
     return () => {
-      window.removeEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
+      globalThis.removeEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
     };
   }, []);
 

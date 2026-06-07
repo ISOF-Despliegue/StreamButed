@@ -71,7 +71,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [refreshSession]);
 
   useEffect(() => {
-    const desktopAuth = window.streambuted?.isElectron ? window.streambuted.auth : undefined;
+    const desktopAuth = globalThis.window.streambuted?.isElectron
+      ? globalThis.window.streambuted.auth
+      : undefined;
     if (!desktopAuth) {
       return undefined;
     }
@@ -98,9 +100,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearSession();
     };
 
-    window.addEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
+    globalThis.addEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
     return () => {
-      window.removeEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
+      globalThis.removeEventListener(SESSION_TERMINATED_EVENT, handleSessionTerminated);
     };
   }, [clearSession]);
 

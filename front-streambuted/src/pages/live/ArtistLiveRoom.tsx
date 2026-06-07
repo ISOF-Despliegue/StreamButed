@@ -61,7 +61,24 @@ export function ArtistLiveRoom() {
         </div>
 
         <div className="live-side-panel">
-          {!isLive ? (
+          {isLive ? (
+            <>
+              <div className="live-info-card">
+                <div className="live-info-label">Titulo</div>
+                <div className="live-info-value">{activeTitle || title}</div>
+                <div className="live-info-label live-info-gap">Oyentes</div>
+                <div className="live-info-value">{listenerCount}</div>
+              </div>
+
+              <button
+                onClick={() => void endLive()}
+                className="live-danger-action"
+                type="button"
+              >
+                Terminar concierto
+              </button>
+            </>
+          ) : (
             <>
               <div>
                 <label className="live-field-label" htmlFor="artist-live-title">Titulo del concierto</label>
@@ -85,23 +102,6 @@ export function ArtistLiveRoom() {
                 type="button"
               >
                 Iniciar concierto
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="live-info-card">
-                <div className="live-info-label">Titulo</div>
-                <div className="live-info-value">{activeTitle || title}</div>
-                <div className="live-info-label live-info-gap">Oyentes</div>
-                <div className="live-info-value">{listenerCount}</div>
-              </div>
-
-              <button
-                onClick={() => void endLive()}
-                className="live-danger-action"
-                type="button"
-              >
-                Terminar concierto
               </button>
             </>
           )}
