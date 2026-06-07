@@ -139,10 +139,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: |
-            services/media-service/requirements.txt
-            services/streaming-service/requirements.txt
-            services/analytics-service/requirements.txt
+          cache-dependency-path: ${{ matrix.service.requirements }}
 
       - name: Install Python dependencies
         working-directory: ${{ matrix.service.path }}
