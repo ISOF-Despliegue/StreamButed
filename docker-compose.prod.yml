@@ -450,6 +450,7 @@ services:
       - "127.0.0.1:${GATEWAY_INTERNAL_PORT:-8080}:80"
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docs/swagger:/usr/share/nginx/html/api/docs:ro
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1/api/v1/catalog/health || exit 1"]
       interval: 10s

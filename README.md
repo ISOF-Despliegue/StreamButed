@@ -58,6 +58,33 @@ docker compose logs -f catalog-service
 docker compose logs -f streaming-service
 ```
 
+## Documentacion viva Swagger / OpenAPI
+
+Con el gateway levantado, la documentacion agregada esta disponible en:
+
+```txt
+http://localhost/api/docs/
+```
+
+Cada microservicio tambien publica su propio spec:
+
+```txt
+GET /api/v1/identity/openapi.json
+GET /api/v1/catalog/openapi.json
+GET /api/v1/media/openapi.json
+GET /api/v1/streaming/openapi.json
+GET /api/v1/analytics/openapi.json
+GET /api/v1/live/openapi.json
+```
+
+Las Swagger UI por servicio viven en el mismo prefijo con `/docs`, por ejemplo:
+
+```txt
+http://localhost/api/v1/catalog/docs
+```
+
+Mas detalle: `docs/swagger-openapi.md`.
+
 ## Detener y limpiar
 
 ```bash
