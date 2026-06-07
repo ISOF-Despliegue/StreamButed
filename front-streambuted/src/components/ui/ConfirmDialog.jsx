@@ -63,7 +63,7 @@ export function ConfirmDialog({
     <div className="confirm-dialog-backdrop">
       <button
         aria-label="Cerrar dialogo"
-        className="confirm-dialog-backdrop"
+        className="confirm-dialog-dismiss"
         disabled={isLoading}
         onMouseDown={onCancel}
         type="button"

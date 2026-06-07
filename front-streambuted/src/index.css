@@ -742,6 +742,18 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   background: var(--accent-dim);
 }
 .track-title-cell { display: flex; align-items: center; gap: 10px; }
+.track-title-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
 .track-name { font-weight: 500; color: var(--t1); }
 .track-artist-label {
   color: var(--t2);
@@ -1579,6 +1591,13 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   backdrop-filter: blur(10px);
   animation: fadeIn .15s ease;
 }
+.confirm-dialog-dismiss {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
 .confirm-dialog {
   width: min(100%, 460px);
   background: var(--bg2);
@@ -1589,6 +1608,7 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   box-shadow: var(--shadow);
   padding: 24px;
   position: relative;
+  z-index: 1;
 }
 .confirm-dialog-marker {
   width: 44px;

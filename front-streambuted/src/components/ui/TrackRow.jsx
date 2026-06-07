@@ -32,7 +32,7 @@ export function TrackRow({
       <td><span className="track-num">{index + 1}</span></td>
       <td>
         <div className="track-title-cell">
-          <button className="track-title-cell" onClick={onPlay} type="button">
+          <button className="track-title-button" onClick={onPlay} type="button">
             <div className="track-thumb">
               {track.coverAssetId ? (
                 <img src={getAssetUrl(track.coverAssetId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
