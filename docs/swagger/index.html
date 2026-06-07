@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StreamButed API Docs</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegacion de servicios">
+        <a class="brand" href="/api/docs/">
+          <span class="brand-mark">SB</span>
+          <span>
+            <strong>StreamButed</strong>
+            <small>API Docs</small>
+          </span>
+        </a>
+
+        <nav class="service-nav" aria-label="Swagger dedicado por servicio">
+          <a href="/api/v1/identity/docs">
+            <span>ID</span>
+            Identity
+          </a>
+          <a href="/api/v1/catalog/docs">
+            <span>CA</span>
+            Catalog
+          </a>
+          <a href="/api/v1/media/docs">
+            <span>ME</span>
+            Media
+          </a>
+          <a href="/api/v1/streaming/docs">
+            <span>ST</span>
+            Streaming
+          </a>
+          <a href="/api/v1/analytics/docs">
+            <span>AN</span>
+            Analytics
+          </a>
+          <a href="/api/v1/live/docs">
+            <span>LV</span>
+            Live
+          </a>
+        </nav>
+
+        <section class="gateway-card" aria-label="Estado del gateway">
+          <div>
+            <span class="status-dot"></span>
+            Gateway local
+          </div>
+          <code>http://localhost</code>
+        </section>
+      </aside>
+
+      <main class="content">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">Documentacion viva</p>
+            <h1>StreamButed API Docs</h1>
+            <p>
+              Portal central para explorar contratos OpenAPI, rutas publicas y
+              vistas Swagger dedicadas de cada microservicio.
+            </p>
+          </div>
+          <div class="hero-actions" aria-label="Accesos rapidos">
+            <a class="button primary" href="/api/v1/identity/docs">Abrir Identity</a>
+            <a class="button secondary" href="/api/v1/identity/openapi.json">Ver JSON</a>
+          </div>
+        </section>
+
+        <section class="toolbar" aria-label="Busqueda y filtros">
+          <label class="search-box" for="service-search">
+            <span>Buscar servicio</span>
+            <input
+              id="service-search"
+              type="search"
+              autocomplete="off"
+              placeholder="Identity, audio, catalogo, health..."
+            />
+          </label>
+
+          <div class="filters" aria-label="Filtrar por dominio">
+            <button class="is-active" type="button" data-filter="all">Todos</button>
+            <button type="button" data-filter="core">Core</button>
+            <button type="button" data-filter="content">Contenido</button>
+            <button type="button" data-filter="ops">Operacion</button>
+          </div>
+        </section>
+
+        <section class="summary-strip" aria-label="Resumen de documentacion">
+          <div>
+            <strong id="visible-count">6 servicios</strong>
+            <span>disponibles desde el gateway</span>
+          </div>
+          <div>
+            <strong>OpenAPI 3</strong>
+            <span>contratos vivos por microservicio</span>
+          </div>
+          <div>
+            <strong>Swagger UI</strong>
+            <span>vistas dedicadas para probar endpoints</span>
+          </div>
+        </section>
+
+        <section class="services-grid" id="services-grid" aria-label="Servicios documentados">
+          <article
+            class="service-card"
+            data-service-card
+            data-domain="core"
+            data-search="identity autenticacion auth registro login usuarios oauth jwt jwks cuentas"
+          >
+            <header>
+              <span class="service-icon identity">ID</span>
+              <div>
+                <h2>Identity Service</h2>
+                <p>Spring Boot</p>
+              </div>
+              <span class="badge">Core</span>
+            </header>
+            <p>
+              Autenticacion, registro, refresh tokens, perfiles de usuario,
+              OAuth Google y administracion de cuentas.
+            </p>
+            <div class="endpoint-row">
+              <span>Spec</span>
+              <code>/api/v1/identity/openapi.json</code>
+            </div>
+            <div class="card-actions">
+              <a class="button primary" href="/api/v1/identity/docs">Abrir Swagger</a>
+              <a class="button secondary" href="/api/v1/identity/openapi.json">JSON</a>
+            </div>
+          </article>
+
+          <article
+            class="service-card"
+            data-service-card
+            data-domain="content"
+            data-search="catalog catalogo artistas albums pistas search ownership eventos musicales"
+          >
+            <header>
+              <span class="service-icon catalog">CA</span>
+              <div>
+                <h2>Catalog Service</h2>
+                <p>Express + TypeScript</p>
+              </div>
+              <span class="badge">Contenido</span>
+            </header>
+            <p>
+              Catalogo musical de artistas, albumes y pistas, con validacion de
+              ownership y eventos de catalogo.
+            </p>
+            <div class="endpoint-row">
+              <span>Spec</span>
+              <code>/api/v1/catalog/openapi.json</code>
+            </div>
+            <div class="card-actions">
+              <a class="button primary" href="/api/v1/catalog/docs">Abrir Swagger</a>
+              <a class="button secondary" href="/api/v1/catalog/openapi.json">JSON</a>
+            </div>
+          </article>
+
+          <article
+            class="service-card"
+            data-service-card
+            data-domain="content"
+            data-search="media assets imagen audio upload minio perfil catalogo archivos multimedia"
+          >
+            <header>
+              <span class="service-icon media">ME</span>
+              <div>
+                <h2>Media Service</h2>
+                <p>FastAPI</p>
+              </div>
+              <span class="badge">Contenido</span>
+            </header>
+            <p>
+              Carga y entrega de assets multimedia usando MinIO para imagenes,
+              audio y recursos del catalogo.
+            </p>
+            <div class="endpoint-row">
+              <span>Spec</span>
+              <code>/api/v1/media/openapi.json</code>
+            </div>
+            <div class="card-actions">
+              <a class="button primary" href="/api/v1/media/docs">Abrir Swagger</a>
+              <a class="button secondary" href="/api/v1/media/openapi.json">JSON</a>
+            </div>
+          </article>
+
+          <article
+            class="service-card"
+            data-service-card
+            data-domain="content"
+            data-search="streaming playback reproduccion biblioteca library progreso audio sesiones"
+          >
+            <header>
+              <span class="service-icon streaming">ST</span>
+              <div>
+                <h2>Streaming Service</h2>
+                <p>FastAPI</p>
+              </div>
+              <span class="badge">Contenido</span>
+            </header>
+            <p>
+              Playback, biblioteca del usuario, sesiones de reproduccion y
+              entrega de streams de audio.
+            </p>
+            <div class="endpoint-row">
+              <span>Spec</span>
+              <code>/api/v1/streaming/openapi.json</code>
+            </div>
+            <div class="card-actions">
+              <a class="button primary" href="/api/v1/streaming/docs">Abrir Swagger</a>
+              <a class="button secondary" href="/api/v1/streaming/openapi.json">JSON</a>
+            </div>
+          </article>
+
+          <article
+            class="service-card"
+            data-service-card
+            data-domain="ops"
+            data-search="analytics metricas eventos reproducciones dashboard reports mongo"
+          >
+            <header>
+              <span class="service-icon analytics">AN</span>
+              <div>
+                <h2>Analytics Service</h2>
+                <p>FastAPI</p>
+              </div>
+              <span class="badge">Operacion</span>
+            </header>
+            <p>
+              Ingesta de eventos, metricas de reproduccion, consultas analiticas
+              y reportes operativos.
+            </p>
+            <div class="endpoint-row">
+              <span>Spec</span>
+              <code>/api/v1/analytics/openapi.json</code>
+            </div>
+            <div class="card-actions">
+              <a class="button primary" href="/api/v1/analytics/docs">Abrir Swagger</a>
+              <a class="button secondary" href="/api/v1/analytics/openapi.json">JSON</a>
+            </div>
+          </article>
+
+          <article
+            class="service-card"
+            data-service-card
+            data-domain="ops"
+            data-search="live directos tiempo real socket stream transmisiones health rooms"
+          >
+            <header>
+              <span class="service-icon live">LV</span>
+              <div>
+                <h2>Live Service</h2>
+                <p>Express + Socket.IO</p>
+              </div>
+              <span class="badge">Operacion</span>
+            </header>
+            <p>
+              Transmisiones en vivo, sesiones en tiempo real y endpoints REST
+              para coordinar directos.
+            </p>
+            <div class="endpoint-row">
+              <span>Spec</span>
+              <code>/api/v1/live/openapi.json</code>
+            </div>
+            <div class="card-actions">
+              <a class="button primary" href="/api/v1/live/docs">Abrir Swagger</a>
+              <a class="button secondary" href="/api/v1/live/openapi.json">JSON</a>
+            </div>
+          </article>
+        </section>
+
+        <p class="empty-state" id="empty-state" hidden>
+          No hay servicios que coincidan con la busqueda actual.
+        </p>
+      </main>
+    </div>
+
+    <script src="./swagger-initializer.js"></script>
+  </body>
+</html>
