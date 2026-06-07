@@ -220,7 +220,7 @@ function DesktopAuthStartPage() {
   const { accessToken } = useAuth();
   const [message, setMessage] = useState("Preparando autenticación desktop...");
   const [error, setError] = useState("");
-  const launchOutcomeTimeoutRef = useRef<number | null>(null);
+  const launchOutcomeTimeoutRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const launchVisibilityHandledRef = useRef(false);
   const removeLaunchListenersRef = useRef<(() => void) | null>(null);
   const state = searchParams.get("state")?.trim() ?? "";
@@ -1506,7 +1506,7 @@ export default function StreamButed() {
     setCurrentTrack(null);
     setPlaybackQueue(EMPTY_QUEUE);
     const pendingDesktopAuth = nextUser ? readPendingDesktopAuth() : null;
-    let nextRoute = routes.login;
+    let nextRoute: string = routes.login;
     if (pendingDesktopAuth) {
       nextRoute = `${routes.desktopAuthStart}?state=${encodeURIComponent(pendingDesktopAuth.state)}`;
     } else if (nextUser) {
