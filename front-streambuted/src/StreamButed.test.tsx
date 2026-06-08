@@ -525,6 +525,7 @@ describe("StreamButed suspension dialog", () => {
     mockedAuthService.createDesktopHandoffCode.mockResolvedValue({
       code: "handoff-code",
       state: "abcdefghijklmnopqrstuvwxyz012345",
+      expiresIn: 300,
     });
     pausedState = true;
 
