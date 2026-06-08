@@ -6,7 +6,6 @@ import { PasswordField } from '../components/ui/PasswordField';
 import { TEXT_LIMITS } from '../constants/textLimits';
 import { toUserFacingMessage } from '../utils/userFacingMessages';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_MAX_LENGTH = TEXT_LIMITS.email;
 const USERNAME_MIN_LENGTH = TEXT_LIMITS.usernameMin;
 const USERNAME_MAX_LENGTH = TEXT_LIMITS.usernameMax;
@@ -26,6 +25,26 @@ function getErrorMessage(error) {
 
 function getFriendlyErrorMessage(message) {
   return toUserFacingMessage(message);
+}
+
+function isValidEmail(value) {
+  if (!value || value.includes(' ')) {
+    return false;
+  }
+
+  const atIndex = value.indexOf('@');
+  if (atIndex <= 0 || atIndex !== value.lastIndexOf('@') || atIndex === value.length - 1) {
+    return false;
+  }
+
+  const localPart = value.slice(0, atIndex);
+  const domain = value.slice(atIndex + 1);
+  if (!localPart || !domain || domain.startsWith('.') || domain.endsWith('.')) {
+    return false;
+  }
+
+  const lastDotIndex = domain.lastIndexOf('.');
+  return lastDotIndex > 0 && lastDotIndex < domain.length - 1;
 }
 
 function isObject(value) {
@@ -160,7 +179,7 @@ function PasswordResetDialog({
     if (normalizedEmail.length > EMAIL_MAX_LENGTH) {
       return setError('El correo no puede superar 320 caracteres.');
     }
-    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    if (!isValidEmail(normalizedEmail)) {
       return setError('Correo inválido.');
     }
 
@@ -392,7 +411,7 @@ export function LoginPage({
 
     if (!normalizedEmail || !password) return setError('Todos los campos son obligatorios.');
     if (normalizedEmail.length > EMAIL_MAX_LENGTH) return setError('El correo supera 320 caracteres.');
-    if (!EMAIL_PATTERN.test(normalizedEmail)) return setError('Correo inválido.');
+    if (!isValidEmail(normalizedEmail)) return setError('Correo inválido.');
     if (password.length > PASSWORD_MAX_LENGTH) return setError('La contraseña debe tener entre 8 y 15 caracteres.');
 
     setError('');
@@ -569,7 +588,7 @@ export function RegisterPage({
       return setError('El correo no puede superar 320 caracteres.');
     }
 
-    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    if (!isValidEmail(normalizedEmail)) {
       return setError('Correo inválido.');
     }
 

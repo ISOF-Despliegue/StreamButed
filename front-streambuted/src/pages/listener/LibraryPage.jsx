@@ -67,6 +67,71 @@ function removePlaylistFromLibrary(current, playlistId) {
   };
 }
 
+function applyPlaylistEventUpdate(current, eventPlaylist) {
+  return current ? { ...current, ...eventPlaylist } : current;
+}
+
+function filterPlaylistTracks(tracks, searchTerm) {
+  if (!searchTerm) {
+    return tracks;
+  }
+
+  return tracks.filter((track) => (
+    includesSearchTerm(track.title, searchTerm) ||
+    includesSearchTerm(track.artistName, searchTerm) ||
+    includesSearchTerm(track.albumTitle, searchTerm)
+  ));
+}
+
+function mapSearchCandidates(response) {
+  return (response.tracks ?? []).map((track) => ({
+    ...track,
+    artistName: track.artistName ?? track.artist ?? 'Artista',
+    albumTitle: track.albumTitle ?? null,
+  }));
+}
+
+function buildPlaylistUpdatePayload(playlist, normalizedName, upload) {
+  return {
+    ...(playlist.isSystem ? {} : { name: normalizedName }),
+    ...(upload ? { coverAssetId: upload.assetId } : {}),
+  };
+}
+
+function handlePlaylistDetailLibraryEvent({
+  event,
+  isSystemPlaylist,
+  loadPlaylist,
+  playlistId,
+  setError,
+  setPlaylist,
+}) {
+  if (event.type === 'liked-songs-changed' && isSystemPlaylist) {
+    fireAndForget(() => loadPlaylist({ silent: true }), 'silent liked songs playlist refresh');
+    return;
+  }
+
+  if (event.type === 'library-refresh-requested') {
+    fireAndForget(() => loadPlaylist({ silent: true }), 'silent library playlist refresh');
+    return;
+  }
+
+  if (event.type === 'playlist-updated' && event.playlist?.playlistId === playlistId) {
+    if (Array.isArray(event.playlist.tracks)) {
+      setPlaylist(event.playlist);
+      return;
+    }
+
+    setPlaylist((current) => applyPlaylistEventUpdate(current, event.playlist));
+    return;
+  }
+
+  if (event.type === 'playlist-deleted' && event.playlistId === playlistId) {
+    setPlaylist(null);
+    setError('Esta playlist ya no está disponible.');
+  }
+}
+
 function PlaylistCover({ coverAssetId, className }) {
   return (
     <div className={className}>
@@ -596,32 +661,14 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   }, [loadPlaylist]);
 
   useEffect(() => (
-    subscribeToLibraryEvents((event) => {
-      if (event.type === 'liked-songs-changed' && playlist?.isSystem) {
-        fireAndForget(() => loadPlaylist({ silent: true }), 'silent liked songs playlist refresh');
-        return;
-      }
-
-      if (event.type === 'library-refresh-requested') {
-        fireAndForget(() => loadPlaylist({ silent: true }), 'silent library playlist refresh');
-        return;
-      }
-
-      if (event.type === 'playlist-updated' && event.playlist?.playlistId === playlistId) {
-        if (Array.isArray(event.playlist.tracks)) {
-          setPlaylist(event.playlist);
-          return;
-        }
-
-        setPlaylist((current) => (current ? { ...current, ...event.playlist } : current));
-        return;
-      }
-
-      if (event.type === 'playlist-deleted' && event.playlistId === playlistId) {
-        setPlaylist(null);
-        setError('Esta playlist ya no está disponible.');
-      }
-    })
+    subscribeToLibraryEvents((event) => handlePlaylistDetailLibraryEvent({
+      event,
+      isSystemPlaylist: playlist?.isSystem,
+      loadPlaylist,
+      playlistId,
+      setError,
+      setPlaylist,
+    }))
   ), [loadPlaylist, playlist?.isSystem, playlistId]);
 
   useEffect(() => {
@@ -660,13 +707,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
           limit: 20,
           offset: 0,
         });
-        setSearchCandidates(
-          (response.tracks ?? []).map(track => ({
-            ...track,
-            artistName: track.artistName ?? track.artist ?? 'Artista',
-            albumTitle: track.albumTitle ?? null,
-          }))
-        );
+        setSearchCandidates(mapSearchCandidates(response));
       } catch (error_) {
         setSearchCandidates([]);
         setSearchError(getErrorMessage(error_, 'No se pudieron buscar canciones.'));
@@ -774,11 +815,11 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     setIsEditingPlaylist(true);
     try {
       const upload = editCoverFile ? await mediaService.uploadPlaylistCover(editCoverFile) : null;
-      const updatedPlaylist = await libraryService.updatePlaylist(playlistId, {
-        ...(playlist.isSystem ? {} : { name: normalizedName }),
-        ...(upload ? { coverAssetId: upload.assetId } : {}),
-      });
-      setPlaylist((current) => (current ? { ...current, ...updatedPlaylist } : current));
+      const updatedPlaylist = await libraryService.updatePlaylist(
+        playlistId,
+        buildPlaylistUpdatePayload(playlist, normalizedName, upload)
+      );
+      setPlaylist((current) => applyPlaylistEventUpdate(current, updatedPlaylist));
       emitPlaylistUpdated(updatedPlaylist);
       resetEditDialog();
       toast('Playlist actualizada');
@@ -811,20 +852,8 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   const isSystemPlaylist = Boolean(playlist.isSystem);
   const currentTrackId = getTrackIdentifier(currentTrack);
   const hasCurrentTrack = Boolean(currentTrackId && tracks.some(track => track.trackId === currentTrackId));
-  const filteredLikedSongCandidates = likedSongsSearchTerm
-    ? likedSongCandidates.filter(track => (
-      includesSearchTerm(track.title, likedSongsSearchTerm) ||
-      includesSearchTerm(track.artistName, likedSongsSearchTerm) ||
-      includesSearchTerm(track.albumTitle, likedSongsSearchTerm)
-    ))
-    : likedSongCandidates;
-  const filteredTracks = playlistTrackSearchTerm
-    ? tracks.filter(track => (
-      includesSearchTerm(track.title, playlistTrackSearchTerm) ||
-      includesSearchTerm(track.artistName, playlistTrackSearchTerm) ||
-      includesSearchTerm(track.albumTitle, playlistTrackSearchTerm)
-    ))
-    : tracks;
+  const filteredLikedSongCandidates = filterPlaylistTracks(likedSongCandidates, likedSongsSearchTerm);
+  const filteredTracks = filterPlaylistTracks(tracks, playlistTrackSearchTerm);
 
   return (
     <div className="page-inner">

@@ -956,7 +956,7 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   transition: background .15s, color .15s;
 }
 .library-playlist-delete:hover {
-  background: rgba(239,68,68,0.42);
+  background: rgba(127,29,29,0.86);
   color: #ffffff;
 }
 .library-cover-action {
@@ -1445,7 +1445,7 @@ button:focus-visible { box-shadow: 0 0 0 3px var(--accent-dim); }
   display: inline-flex; padding: 3px 10px; border-radius: 99px;
   font-size: 11px; font-weight: 600;
 }
-.badge-listener { background: rgba(8,145,178,0.28); color: #a5f3fc; }
+.badge-listener { background: rgba(14,116,144,0.88); color: #ecfeff; }
 .badge-artist { background: var(--accent-dim); color: var(--accent); }
 .badge-admin { background: rgba(91,33,182,0.3); color: #ddd6fe; }
 .badge-success-soft { background: rgba(34,197,94,0.15); color: var(--success); }
