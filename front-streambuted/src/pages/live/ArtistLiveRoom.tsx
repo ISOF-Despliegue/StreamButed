@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLive } from "../../hooks/useLive";
+import { fireAndForget } from "../../utils/fireAndForget";
 
 export function ArtistLiveRoom() {
   const { connectionState, artist } = useLive();
@@ -21,7 +22,7 @@ export function ArtistLiveRoom() {
     }
 
     clearError();
-    void goLive(title.trim());
+    fireAndForget(() => goLive(title.trim()), "start live concert");
   };
 
   const isLive = state === "live";
@@ -71,7 +72,7 @@ export function ArtistLiveRoom() {
               </div>
 
               <button
-                onClick={() => void endLive()}
+                onClick={() => fireAndForget(() => endLive(), "end live concert")}
                 className="live-danger-action"
                 type="button"
               >

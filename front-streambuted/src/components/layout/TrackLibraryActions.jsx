@@ -27,6 +27,31 @@ function replacePlaylistSummary(current, playlistSummary) {
   ));
 }
 
+function removePlaylistById(current, playlistId) {
+  return current.filter((playlist) => playlist.playlistId !== playlistId);
+}
+
+function applyPlaylistLibraryEvent(event, setPlaylists) {
+  if (event.type === 'playlist-created') {
+    setPlaylists((current) => mergeOrAppendPlaylist(current, event.playlist));
+    return;
+  }
+
+  if (event.type === 'playlist-deleted') {
+    setPlaylists((current) => removePlaylistById(current, event.playlistId));
+    return;
+  }
+
+  if (event.type === 'playlist-updated' && event.playlist && !event.playlist.isSystem) {
+    const playlistSummary = toPlaylistSummary(event.playlist);
+    if (!playlistSummary) {
+      return;
+    }
+
+    setPlaylists((current) => replacePlaylistSummary(current, playlistSummary));
+  }
+}
+
 export function TrackLibraryActions({
   trackId,
   isLiked = false,
@@ -58,28 +83,7 @@ export function TrackLibraryActions({
   }, [isPlaylistMenuOpen]);
 
   useEffect(() => {
-    const handlePlaylistEvent = (event) => {
-      if (event.type === 'playlist-created') {
-        setPlaylists((current) => mergeOrAppendPlaylist(current, event.playlist));
-        return;
-      }
-
-      if (event.type === 'playlist-deleted') {
-        setPlaylists((current) => current.filter((playlist) => playlist.playlistId !== event.playlistId));
-        return;
-      }
-
-      if (event.type === 'playlist-updated' && event.playlist && !event.playlist.isSystem) {
-        const playlistSummary = toPlaylistSummary(event.playlist);
-        if (!playlistSummary) {
-          return;
-        }
-
-        setPlaylists((current) => replacePlaylistSummary(current, playlistSummary));
-      }
-    };
-
-    return subscribeToLibraryEvents(handlePlaylistEvent);
+    return subscribeToLibraryEvents((event) => applyPlaylistLibraryEvent(event, setPlaylists));
   }, []);
 
   const openPlaylistMenu = async () => {

@@ -6,6 +6,7 @@ import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
 import { playbackService } from "./services/playbackService";
 import { catalogService } from "./services/catalogService";
 import { libraryService } from "./services/libraryService";
+import { authService } from "./services/authService";
 
 const mockedUseAuth = jest.fn();
 const mockedBottomPlayer = jest.fn();
@@ -364,6 +365,7 @@ jest.mock("./services/libraryService", () => ({
 jest.mock("./services/authService", () => ({
   authService: {
     getGoogleAuthUrl: jest.fn().mockReturnValue("http://localhost/google"),
+    createDesktopHandoffCode: jest.fn(),
   },
 }));
 
@@ -382,6 +384,7 @@ const baseAuthValue = {
 const mockedPlaybackService = playbackService as jest.Mocked<typeof playbackService>;
 const mockedCatalogService = catalogService as jest.Mocked<typeof catalogService>;
 const mockedLibraryService = libraryService as jest.Mocked<typeof libraryService>;
+const mockedAuthService = authService as jest.Mocked<typeof authService>;
 
 describe("desktop auth pending state", () => {
   afterEach(() => {
@@ -470,6 +473,8 @@ describe("StreamButed suspension dialog", () => {
     mockedUseAuth.mockReturnValue(baseAuthValue);
     mockedBottomPlayer.mockClear();
     jest.clearAllMocks();
+    window.sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
     mockedPlaybackService.getLatestPlaybackProgress.mockResolvedValue({
       trackId: null,
       positionSeconds: 0,
@@ -517,6 +522,10 @@ describe("StreamButed suspension dialog", () => {
     mockedLibraryService.getTrackLikeStatus.mockResolvedValue({ trackId: "track-1", isLiked: false });
     mockedLibraryService.likeTrack.mockResolvedValue({ trackId: "track-1", isLiked: true });
     mockedLibraryService.unlikeTrack.mockResolvedValue({ trackId: "track-1", isLiked: false });
+    mockedAuthService.createDesktopHandoffCode.mockResolvedValue({
+      code: "handoff-code",
+      state: "abcdefghijklmnopqrstuvwxyz012345",
+    });
     pausedState = true;
 
     pausedSpy = jest.spyOn(HTMLMediaElement.prototype, "paused", "get").mockImplementation(() => pausedState);
@@ -817,6 +826,18 @@ describe("StreamButed suspension dialog", () => {
     );
   });
 
+  it("shows the Google OAuth error returned to the login screen", () => {
+    window.history.replaceState(null, "", "/auth/callback?oauth=google-error&message=Google%20fallo");
+
+    render(
+      <MemoryRouter initialEntries={["/auth/callback"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Google fallo")).toBeInTheDocument();
+  });
+
   it("starts registration from the register route", async () => {
     const user = userEvent.setup();
     baseAuthValue.startRegistration.mockResolvedValueOnce({ attemptId: "attempt-1" });
@@ -867,6 +888,83 @@ describe("StreamButed suspension dialog", () => {
     await user.click(screen.getByRole("button", { name: "Complete setup" }));
 
     await waitFor(() => expect(baseAuthValue.completeGooglePasswordSetup).toHaveBeenCalledTimes(1));
+  });
+
+  it("passes Google password setup guidance into the pending setup screen", () => {
+    window.history.replaceState(null, "", "/auth/callback?oauth=google-password-setup");
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: {
+        ...authenticatedUser("listener"),
+        passwordSetupRequired: true,
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/auth/callback"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Completa tu contraseña para terminar el registro con Google.")).toBeInTheDocument();
+  });
+
+  it("renders the admin overview shell for authenticated admins", () => {
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      user: authenticatedUser("admin"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Admin Overview")).toBeInTheDocument();
+  });
+
+  it("rejects invalid desktop auth requests before redirecting", () => {
+    render(
+      <MemoryRouter initialEntries={["/desktop-auth/start?state=bad state"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("La solicitud de autenticación desktop no es valida.")).toBeInTheDocument();
+  });
+
+  it("redirects Google desktop auth requests to the provider URL", async () => {
+    render(
+      <MemoryRouter initialEntries={["/desktop-auth/start?state=abcdefghijklmnopqrstuvwxyz012345&provider=google"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(mockedAuthService.getGoogleAuthUrl).toHaveBeenCalledWith("login");
+    });
+  });
+
+  it("creates a desktop handoff callback for authenticated web sessions", async () => {
+    mockedUseAuth.mockReturnValue({
+      ...baseAuthValue,
+      accessToken: "token-1",
+      user: authenticatedUser("listener"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/desktop-auth/start?state=abcdefghijklmnopqrstuvwxyz012345"]}>
+        <StreamButed />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(mockedAuthService.createDesktopHandoffCode).toHaveBeenCalledWith({
+        state: "abcdefghijklmnopqrstuvwxyz012345",
+        redirectUri: "streambuted://auth/callback",
+      });
+    });
   });
 
   it("logs the user out after confirming the settings dialog", async () => {

@@ -23,6 +23,7 @@ import { routes } from '../../routes/appRoutes';
 import { toPlaylistSummary } from '../../utils/libraryEventPayloads';
 import { getTrackIdentifier } from '../../utils/playbackQueue';
 import { includesSearchTerm } from '../../utils/searchText';
+import { fireAndForget } from '../../utils/fireAndForget';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 const PLAYLIST_NAME_MAX_LENGTH = 20;
@@ -41,6 +42,28 @@ function toPlayableTrack(track) {
     ...track,
     artist: track.artistName,
     artistName: track.artistName,
+  };
+}
+
+function appendPlaylistToLibrary(current, playlist) {
+  if (!current) {
+    return current;
+  }
+
+  return {
+    ...current,
+    playlists: [...current.playlists, playlist],
+  };
+}
+
+function removePlaylistFromLibrary(current, playlistId) {
+  if (!current) {
+    return current;
+  }
+
+  return {
+    ...current,
+    playlists: current.playlists.filter((playlist) => playlist.playlistId !== playlistId),
   };
 }
 
@@ -269,66 +292,55 @@ export function LibraryPage({ currentTrack, onPlayCollectionTrack, toast }) {
     ));
   }, []);
 
+  const handleLibraryEvent = useCallback((event) => {
+    if (event.type === 'liked-songs-changed') {
+      fireAndForget(() => refreshLikedSongs(), 'refresh liked songs');
+      return;
+    }
+
+    if (event.type === 'library-refresh-requested') {
+      fireAndForget(() => loadLibrary(), 'refresh library on event');
+      return;
+    }
+
+    if (event.type === 'playlist-created') {
+      setLibrary((current) => appendPlaylistToLibrary(current, event.playlist));
+      return;
+    }
+
+    if (event.type === 'playlist-deleted') {
+      setLibrary((current) => removePlaylistFromLibrary(current, event.playlistId));
+      return;
+    }
+
+    if (event.type === 'playlist-updated' && event.playlist) {
+      if (event.playlist.isSystem) {
+        handleLikedSongsPlaylistUpdate(event.playlist);
+        return;
+      }
+
+      handlePlaylistSummaryUpdate(event.playlist);
+    }
+  }, [handleLikedSongsPlaylistUpdate, handlePlaylistSummaryUpdate, loadLibrary, refreshLikedSongs]);
+
   useEffect(() => {
     if (location.pathname === routes.library || location.pathname === '/') {
-      void loadLibrary();
+      fireAndForget(() => loadLibrary(), 'load library page');
     }
   }, [loadLibrary, location.pathname]);
 
   useEffect(() => {
-    const handleLibraryEvent = (event) => {
-      if (event.type === 'liked-songs-changed') {
-        void refreshLikedSongs();
-        return;
-      }
-
-      if (event.type === 'library-refresh-requested') {
-        void loadLibrary();
-        return;
-      }
-
-      if (event.type === 'playlist-created') {
-        setLibrary((current) => (
-          current
-            ? { ...current, playlists: [...current.playlists, event.playlist] }
-            : current
-        ));
-        return;
-      }
-
-      if (event.type === 'playlist-deleted') {
-        setLibrary((current) => (
-          current
-            ? {
-              ...current,
-              playlists: current.playlists.filter((playlist) => playlist.playlistId !== event.playlistId),
-            }
-            : current
-        ));
-        return;
-      }
-
-      if (event.type === 'playlist-updated' && event.playlist) {
-        if (event.playlist.isSystem) {
-          handleLikedSongsPlaylistUpdate(event.playlist);
-          return;
-        }
-
-        handlePlaylistSummaryUpdate(event.playlist);
-      }
-    };
-
     return subscribeToLibraryEvents(handleLibraryEvent);
-  }, [handleLikedSongsPlaylistUpdate, handlePlaylistSummaryUpdate, loadLibrary, refreshLikedSongs]);
+  }, [handleLibraryEvent]);
 
   useEffect(() => {
     const handleWindowFocus = () => {
-      void loadLibrary();
+      fireAndForget(() => loadLibrary(), 'refresh library on window focus');
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        void loadLibrary();
+        fireAndForget(() => loadLibrary(), 'refresh library on visibility');
       }
     };
 
@@ -580,18 +592,18 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   }, [playlistId]);
 
   useEffect(() => {
-    void loadPlaylist();
+    fireAndForget(() => loadPlaylist(), 'load playlist detail');
   }, [loadPlaylist]);
 
   useEffect(() => (
     subscribeToLibraryEvents((event) => {
       if (event.type === 'liked-songs-changed' && playlist?.isSystem) {
-        void loadPlaylist({ silent: true });
+        fireAndForget(() => loadPlaylist({ silent: true }), 'silent liked songs playlist refresh');
         return;
       }
 
       if (event.type === 'library-refresh-requested') {
-        void loadPlaylist({ silent: true });
+        fireAndForget(() => loadPlaylist({ silent: true }), 'silent library playlist refresh');
         return;
       }
 
@@ -836,7 +848,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
             <span>Editar</span>
           </button>
           {!isSystemPlaylist && (
-            <button className="btn-ghost" onClick={() => void openAddSongsDialog()} type="button">
+            <button className="btn-ghost" onClick={() => fireAndForget(() => openAddSongsDialog(), 'open add songs dialog')} type="button">
               <IcPlus />
               <span>Agregar canciones</span>
             </button>
@@ -910,7 +922,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
                             style={{ padding: '6px 10px', fontSize: 12 }}
                             onClick={(event) => {
                               event.stopPropagation();
-                              void removeTrack(track.trackId);
+                              fireAndForget(() => removeTrack(track.trackId), `remove track ${track.trackId} from playlist`);
                             }}
                             type="button"
                           >

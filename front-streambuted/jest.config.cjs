@@ -20,6 +20,7 @@ module.exports = {
     "!src/main.tsx",
     "!src/App.tsx",
     "!src/app/**",
+    "!src/types/**",
     "electron/security.ts",
   ],
 };

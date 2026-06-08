@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLive } from "../../hooks/useLive";
 import { apiRequest } from "../../services/apiClient";
 import type { UserRole } from "../../types/user.types";
+import { fireAndForget } from "../../utils/fireAndForget";
 import { toUserFacingMessage } from "../../utils/userFacingMessages";
 
 export interface LiveRoom {
@@ -57,7 +58,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
       return;
     }
 
-    void fetchRooms();
+    fireAndForget(() => fetchRooms(), "fetch live rooms");
     const interval = globalThis.setInterval(fetchRooms, 15_000);
 
     return () => globalThis.clearInterval(interval);
@@ -77,7 +78,7 @@ export function LiveConcertsPage({ userRole, onJoinRoom, onStartBroadcast }: Liv
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => void fetchRooms()} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #2E2E3E", background: "transparent", color: "#9994A0", cursor: "pointer", fontSize: 13 }}>
+          <button onClick={() => fireAndForget(() => fetchRooms(), "manual fetch live rooms")} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #2E2E3E", background: "transparent", color: "#9994A0", cursor: "pointer", fontSize: 13 }}>
             Actualizar
           </button>
 

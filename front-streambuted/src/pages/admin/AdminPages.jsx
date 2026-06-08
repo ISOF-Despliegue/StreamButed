@@ -6,6 +6,7 @@ import { emitLibraryRefreshRequested } from '../../services/libraryEvents';
 import { userService } from '../../services/userService';
 import { formatDate, formatNumber } from '../../utils/formatters';
 import { includesSearchTerm } from '../../utils/searchText';
+import { fireAndForget } from '../../utils/fireAndForget';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InlineState } from '../../components/ui/InlineState';
@@ -43,7 +44,7 @@ function useAdminSummary() {
   }, []);
 
   useEffect(() => {
-    void loadSummary();
+    fireAndForget(() => loadSummary(), 'load admin summary');
   }, [loadSummary]);
 
   return {
@@ -540,7 +541,7 @@ export function AdminModerationPage({ toast }) {
   }, [activeTab, moderationSearchTerm]);
 
   useEffect(() => {
-    void loadModerationItems();
+    fireAndForget(() => loadModerationItems(), 'load moderation items');
   }, [loadModerationItems]);
 
   const retireTrack = async (track) => {

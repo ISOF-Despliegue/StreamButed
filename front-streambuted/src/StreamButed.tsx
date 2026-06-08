@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type MutableRefObject,
   type SetStateAction,
 } from "react";
 import {
@@ -67,6 +68,7 @@ import { emitLikedSongsChanged, subscribeToLibraryEvents } from "./services/libr
 import { SESSION_TERMINATED_EVENT } from "./services/apiClient";
 import { authService } from "./services/authService";
 import { browserLogger } from "./utils/browserLogger";
+import { fireAndForget } from "./utils/fireAndForget";
 import { getSecureRandomInt } from "./utils/secureRandom";
 import { toUserFacingMessage } from "./utils/userFacingMessages";
 import {
@@ -109,6 +111,54 @@ type CurrentTrackLikeState = {
 };
 
 type PlaybackSessionCache = StreamSessionResponse;
+
+function getPlaybackRestorePosition(
+  progress: Awaited<ReturnType<typeof playbackService.getPlaybackProgress>>,
+  resumeProgress: boolean
+): number {
+  return resumeProgress ? (progress.positionSeconds ?? 0) : 0;
+}
+
+function getFinitePlaybackValue(value: number, fallback: number | null): number | null {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+async function resumeAudioPlaybackSession({
+  audio,
+  progress,
+  requestId,
+  restorePosition,
+  setIsPlaying,
+  setPlaybackError,
+  trackId,
+  playbackRequestIdRef,
+}: {
+  audio: HTMLAudioElement;
+  progress: Awaited<ReturnType<typeof playbackService.getPlaybackProgress>>;
+  requestId: number;
+  restorePosition: number;
+  setIsPlaying: Dispatch<SetStateAction<boolean>>;
+  setPlaybackError: Dispatch<SetStateAction<string>>;
+  trackId: string;
+  playbackRequestIdRef: MutableRefObject<number>;
+}): Promise<void> {
+  try {
+    await audio.play();
+    if (playbackRequestIdRef.current !== requestId) {
+      return;
+    }
+
+    setIsPlaying(true);
+    await playbackService.updatePlaybackProgress(trackId, {
+      positionSeconds: getFinitePlaybackValue(audio.currentTime, restorePosition) ?? restorePosition,
+      durationSeconds: getFinitePlaybackValue(audio.duration, progress.durationSeconds ?? null),
+      isPlaying: true,
+    });
+  } catch (playError) {
+    browserLogger.error("Audio playback failed to start.", playError);
+    setPlaybackError("Presiona reproducir para continuar.");
+  }
+}
 
 const EMPTY_QUEUE: PlaybackQueueState = {
   sourceType: "single",
@@ -503,7 +553,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
             return;
           }
 
-          const restorePosition = resumeProgress ? (progress.positionSeconds ?? 0) : 0;
+          const restorePosition = getPlaybackRestorePosition(progress, resumeProgress);
           setCurrentTrack(track);
           setPlaybackQueue(nextQueue);
           setPlaybackError("");
@@ -519,25 +569,16 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           audio.volume = volume / 100;
           audio.load();
           lastProgressSyncAtRef.current = Date.now();
-
-          try {
-            await audio.play();
-            if (playbackRequestIdRef.current === requestId) {
-              setIsPlaying(true);
-              await playbackService.updatePlaybackProgress(trackId, {
-                positionSeconds: Number.isFinite(audio.currentTime)
-                  ? audio.currentTime
-                  : restorePosition,
-                durationSeconds: Number.isFinite(audio.duration)
-                  ? audio.duration
-                  : (progress.durationSeconds ?? null),
-                isPlaying: true,
-              });
-            }
-          } catch (playError) {
-            browserLogger.error("Audio playback failed to start.", playError);
-            setPlaybackError("Presiona reproducir para continuar.");
-          }
+          await resumeAudioPlaybackSession({
+            audio,
+            progress,
+            requestId,
+            restorePosition,
+            setIsPlaying,
+            setPlaybackError,
+            trackId,
+            playbackRequestIdRef,
+          });
         } catch (error) {
           browserLogger.error("Failed to start playback.", error);
           if (playbackRequestIdRef.current === requestId) {
@@ -557,14 +598,14 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 
     const playSingleTrack = useCallback(
       (track: AppTrack) => {
-        void startPlayback(track, buildSingleQueue(track));
+        fireAndForget(() => startPlayback(track, buildSingleQueue(track)), `play single track ${getTrackIdentifier(track) ?? "unknown"}`);
       },
       [startPlayback]
     );
 
     const playAlbumTrack = useCallback(
       (track: AppTrack, tracks: AppTrack[], albumId: string) => {
-        void startPlayback(track, buildAlbumQueue(albumId, tracks, track));
+        fireAndForget(() => startPlayback(track, buildAlbumQueue(albumId, tracks, track)), `play album track ${getTrackIdentifier(track) ?? "unknown"}`);
       },
       [startPlayback]
     );
@@ -643,16 +684,16 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       const nextTrackId = getNextQueueTrackId(queue, repeatEnabled);
 
       if (!nextTrackId) {
-        void finishPlayback();
+        fireAndForget(() => finishPlayback(), "finish playback");
         return;
       }
 
       if (nextTrackId === queue.currentTrackId) {
-        void restartCurrentTrack(true);
+        fireAndForget(() => restartCurrentTrack(true), "restart current track from next");
         return;
       }
 
-      void playQueueTrackById(nextTrackId);
+      fireAndForget(() => playQueueTrackById(nextTrackId), `play next queue track ${nextTrackId}`);
     }, [finishPlayback, playQueueTrackById, repeatEnabled, restartCurrentTrack]);
 
     const handlePreviousTrack = useCallback(() => {
@@ -660,22 +701,22 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       const audio = audioRef.current;
 
       if (queue.sourceType !== "album") {
-        void restartCurrentTrack(isPlaying);
+        fireAndForget(() => restartCurrentTrack(isPlaying), "restart current track from previous");
         return;
       }
 
       if (audio && audio.currentTime > 5) {
-        void restartCurrentTrack(isPlaying);
+        fireAndForget(() => restartCurrentTrack(isPlaying), "restart current track from seek threshold");
         return;
       }
 
       const previousTrackId = getPreviousQueueTrackId(queue);
       if (!previousTrackId) {
-        void restartCurrentTrack(isPlaying);
+        fireAndForget(() => restartCurrentTrack(isPlaying), "restart current track without previous");
         return;
       }
 
-      void playQueueTrackById(previousTrackId);
+      fireAndForget(() => playQueueTrackById(previousTrackId), `play previous queue track ${previousTrackId}`);
     }, [isPlaying, playQueueTrackById, restartCurrentTrack]);
 
     const resumePlayback = useCallback(async (forceRefresh = false) => {
@@ -816,7 +857,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 
         audio.currentTime = Math.max(0, positionSeconds);
         setPlaybackPositionSeconds(audio.currentTime);
-        void saveCurrentProgress(isPlaying);
+        fireAndForget(() => saveCurrentProgress(isPlaying), "save progress after seek");
       },
       [isPlaying, saveCurrentProgress]
     );
@@ -860,7 +901,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       const now = Date.now();
       if (now - lastProgressSyncAtRef.current >= 10000) {
         lastProgressSyncAtRef.current = now;
-        void saveCurrentProgress(true);
+        fireAndForget(() => saveCurrentProgress(true), "periodic playback progress sync");
       }
     }, [saveCurrentProgress]);
 
@@ -871,7 +912,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
       }
 
       setIsPlaying(false);
-      void saveCurrentProgress(false);
+      fireAndForget(() => saveCurrentProgress(false), "save progress on pause");
     }, [saveCurrentProgress]);
 
     const handleAudioEnded = useCallback(async () => {
@@ -901,7 +942,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
 
       if (pendingResumeRecoveryTrackIdRef.current === trackId) {
         pendingResumeRecoveryTrackIdRef.current = null;
-        void resumePlayback(true);
+        fireAndForget(() => resumePlayback(true), "resume playback after audio error");
         return;
       }
 
@@ -971,7 +1012,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
         }
       };
 
-      void loadLatestPlayback();
+      fireAndForget(() => loadLatestPlayback(), "load latest playback");
 
       return () => {
         mounted = false;
@@ -1014,7 +1055,7 @@ const PlaybackController = forwardRef<PlaybackControllerHandle, PlaybackControll
           onSelectTrack={(trackToSelect: AppTrack) => {
             const trackId = getTrackIdentifier(trackToSelect);
             if (playbackQueue.sourceType === "album" && trackId) {
-              void playQueueTrackById(trackId);
+              fireAndForget(() => playQueueTrackById(trackId), `select queue track ${trackId}`);
               return;
             }
             playSingleTrack(trackToSelect);
@@ -1076,6 +1117,22 @@ function getDefaultRoute(user: CurrentUser): string {
   }
 
   return routes.home;
+}
+
+function getGooglePasswordSetupError(oauthStatus: string, oauthError: string): string {
+  return oauthStatus === "google-password-setup" ? oauthError : "";
+}
+
+function getMobileProfileTarget(user: CurrentUser): string {
+  return user.role === "artist" && user.id
+    ? routes.artistProfile(user.id)
+    : routes.settings;
+}
+
+function getMobileProfileLabel(user: CurrentUser): string {
+  return user.role === "artist"
+    ? `Abrir perfil publico de ${user.username}`
+    : "Abrir ajustes";
 }
 
 function readSidebarPreference(storageKey: string): boolean {
@@ -1454,10 +1511,10 @@ export default function StreamButed() {
       }
     };
 
-    void loadLikeStatus();
+    fireAndForget(() => loadLikeStatus(), "load current track like status");
     const unsubscribe = subscribeToLibraryEvents((event) => {
       if (event.type === "liked-songs-changed") {
-        void loadLikeStatus(true);
+        fireAndForget(() => loadLikeStatus(true), "silent current track like refresh");
       }
     });
 
@@ -1724,7 +1781,7 @@ export default function StreamButed() {
       <GooglePasswordSetupPage
         email={user.email}
         onSubmit={handleCompleteGooglePasswordSetup}
-        externalError={oauthStatus === "google-password-setup" ? oauthError : ""}
+        externalError={getGooglePasswordSetupError(oauthStatus, oauthError)}
       />
     );
   }
@@ -1745,14 +1802,8 @@ export default function StreamButed() {
   ];
   const requestLogout = () => setShowLogoutConfirmation(true);
   const showArtistMobileMenu = isMobile && user.role === "artist";
-  const mobileProfileTarget =
-    user.role === "artist" && user.id
-      ? routes.artistProfile(user.id)
-      : routes.settings;
-  const mobileProfileLabel =
-    user.role === "artist"
-      ? `Abrir perfil publico de ${user.username}`
-      : "Abrir ajustes";
+  const mobileProfileTarget = getMobileProfileTarget(user);
+  const mobileProfileLabel = getMobileProfileLabel(user);
   const mobileProfileNode = (
     <Link className="mobile-profile-link" to={mobileProfileTarget} aria-label={mobileProfileLabel}>
       <div className="mobile-profile-avatar">
@@ -1779,7 +1830,7 @@ export default function StreamButed() {
       onCancel={() => setShowLogoutConfirmation(false)}
     />
   );
-  const toastNode = toastMsg ? <Toast msg={toastMsg} onDone={() => setToastMsg(null)} /> : null;
+  const toastNode = toastMsg && <Toast msg={toastMsg} onDone={() => setToastMsg(null)} />;
   const suspendedDialog = (
     <ConfirmDialog
       open={showSuspendedDialog}

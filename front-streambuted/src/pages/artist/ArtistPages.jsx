@@ -21,6 +21,7 @@ import { emitLibraryRefreshRequested } from '../../services/libraryEvents';
 import { routes } from '../../routes/appRoutes';
 import { formatDate, formatNumber } from '../../utils/formatters';
 import { includesSearchTerm } from '../../utils/searchText';
+import { fireAndForget } from '../../utils/fireAndForget';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 function getErrorMessage(error) {
@@ -154,6 +155,30 @@ function buildFileChangeHandler({ validate, setFile, setError }) {
     setError('');
     setFile(selectedFile);
   };
+}
+
+function renderCurrentCoverPreview(track, coverPreviewUrl) {
+  if (coverPreviewUrl) {
+    return (
+      <img
+        src={coverPreviewUrl}
+        alt="Previsualizacion de nueva portada"
+        style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+      />
+    );
+  }
+
+  if (!track.coverAssetId) {
+    return null;
+  }
+
+  return (
+    <img
+      src={getAssetUrl(track.coverAssetId)}
+      alt={`Portada actual de ${track.title}`}
+      style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+    />
+  );
 }
 
 function TrackGenreInput({ disabled = false, id, onChange, value }) {
@@ -351,7 +376,7 @@ export function ArtistDashboardPage({ user, onPlayTrack, currentTrack }) {
   }, [user.id]);
 
   useEffect(() => {
-    void loadCatalog();
+    fireAndForget(() => loadCatalog(), 'load artist dashboard catalog');
   }, [loadCatalog]);
 
   const publishedTracks = useMemo(
@@ -496,8 +521,61 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
   }, [albumTitleById, trackSearchTerm, tracks]);
 
   useEffect(() => {
-    void loadTracks();
+    fireAndForget(() => loadTracks(), 'load artist tracks');
   }, [loadTracks]);
+
+  let tracksContent = <InlineState title="Sin pistas publicadas" />;
+  if (tracks.length > 0) {
+    tracksContent = filteredTracks.length === 0 ? (
+      <InlineState title="Sin pistas para esta búsqueda" />
+    ) : (
+      <table className="data-table">
+        <thead><tr><th>Título</th><th>Género</th><th>Álbum</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
+        <tbody>
+          {filteredTracks.map(track => (
+            <tr key={track.trackId}>
+              <td>
+                <button
+                  className={`artist-track-play-button${currentTrack?.trackId === track.trackId ? ' active' : ''}`}
+                  type="button"
+                  onClick={() => onPlayTrack?.(getArtistPlayableTrack(track, user.username))}
+                  aria-label={`Reproducir ${track.title}`}
+                >
+                  <div className="track-thumb">
+                    {track.coverAssetId ? (
+                      <img src={getAssetUrl(track.coverAssetId)} alt={`Portada de ${track.title}`} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+                    )}
+                  </div>
+                  <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{track.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Pista publicada</div></div>
+                  <span className="artist-play-inline" aria-hidden="true"><IcPlay /></span>
+                </button>
+              </td>
+              <td style={{ color: 'var(--t2)' }}>{track.genre || 'Sin género'}</td>
+              <td style={{ color: 'var(--t2)' }}>{track.albumId && albumTitleById.has(track.albumId) ? albumTitleById.get(track.albumId) : 'Sencillo'}</td>
+              <td style={{ color: getCatalogStatusColor(track.status) }}>{getCatalogStatusLabel(track.status)}</td>
+              <td style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</td>
+              <td>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn-ghost"
+                    style={{ padding: '5px 12px', fontSize: 12 }}
+                    onClick={() => navigate(routes.artistTrackEdit(track.trackId))}
+                    disabled={isCatalogRetired(track)}
+                    title={isCatalogRetired(track) ? 'No puedes editar una pista retirada.' : undefined}
+                  >
+                    Editar
+                  </button>
+                  <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setTrackToRetire(track)}>Eliminar</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
 
   const retire = async () => {
     if (!trackToRetire?.trackId || isRetiringTrack) return;
@@ -544,59 +622,7 @@ export function MyTracksPage({ user, toast, currentTrack = null, onPlayTrack = u
               />
             </div>
           )}
-          {tracks.length === 0 ? (
-            <InlineState title="Sin pistas publicadas" />
-          ) : (
-            filteredTracks.length === 0 ? (
-              <InlineState title="Sin pistas para esta búsqueda" />
-            ) : (
-              <table className="data-table">
-              <thead><tr><th>Título</th><th>Género</th><th>Álbum</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
-              <tbody>
-                {filteredTracks.map(track => (
-                  <tr key={track.trackId}>
-                    <td>
-                      <button
-                        className={`artist-track-play-button${currentTrack?.trackId === track.trackId ? ' active' : ''}`}
-                        type="button"
-                        onClick={() => onPlayTrack?.(getArtistPlayableTrack(track, user.username))}
-                        aria-label={`Reproducir ${track.title}`}
-                      >
-                        <div className="track-thumb">
-                          {track.coverAssetId ? (
-                            <img src={getAssetUrl(track.coverAssetId)} alt={`Portada de ${track.title}`} />
-                          ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
-                          )}
-                        </div>
-                        <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{track.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Pista publicada</div></div>
-                        <span className="artist-play-inline" aria-hidden="true"><IcPlay /></span>
-                      </button>
-                    </td>
-                    <td style={{ color: 'var(--t2)' }}>{track.genre || 'Sin género'}</td>
-                    <td style={{ color: 'var(--t2)' }}>{track.albumId && albumTitleById.has(track.albumId) ? albumTitleById.get(track.albumId) : 'Sencillo'}</td>
-                    <td style={{ color: getCatalogStatusColor(track.status) }}>{getCatalogStatusLabel(track.status)}</td>
-                    <td style={{ color: 'var(--t2)' }}>{formatDate(track.createdAt)}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          className="btn-ghost"
-                          style={{ padding: '5px 12px', fontSize: 12 }}
-                          onClick={() => navigate(routes.artistTrackEdit(track.trackId))}
-                          disabled={isCatalogRetired(track)}
-                          title={isCatalogRetired(track) ? 'No puedes editar una pista retirada.' : undefined}
-                        >
-                          Editar
-                        </button>
-                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setTrackToRetire(track)}>Eliminar</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              </table>
-            )
-          )}
+          {tracksContent}
         </div>
       )}
       <ConfirmDialog
@@ -653,7 +679,7 @@ export function MyAlbumsPage({
   }, [user.id]);
 
   useEffect(() => {
-    void loadAlbums();
+    fireAndForget(() => loadAlbums(), 'load artist albums');
   }, [loadAlbums]);
 
   const retire = async () => {
@@ -689,6 +715,60 @@ export function MyAlbumsPage({
     return albums.filter(album => includesSearchTerm(album.title, albumSearchTerm));
   }, [albumSearchTerm, albums]);
 
+  let albumsContent = (
+    <InlineState title="Sin álbumes publicados" message="Crea un álbum y luego agrega canciones desde esta misma vista." />
+  );
+  if (albums.length > 0) {
+    albumsContent = filteredAlbums.length === 0 ? (
+      <InlineState title="Sin álbumes para esta búsqueda" />
+    ) : (
+      <table className="data-table">
+        <thead><tr><th>Álbum</th><th>Pistas</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
+        <tbody>
+          {filteredAlbums.map(album => (
+            <tr key={album.albumId}>
+              <td>
+                <div className="artist-album-cell">
+                  <button
+                    className="artist-album-link"
+                    type="button"
+                    onClick={() => navigate(routes.album(album.albumId))}
+                  >
+                    <div className="track-thumb">
+                      {album.coverAssetId ? (
+                        <img src={getAssetUrl(album.coverAssetId)} alt={`Portada de ${album.title}`} />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
+                      )}
+                    </div>
+                    <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Álbum publicado</div></div>
+                  </button>
+                </div>
+              </td>
+              <td style={{ color: 'var(--t2)' }}>{countTracks(album.albumId)}</td>
+              <td style={{ color: getCatalogStatusColor(album.status) }}>{getCatalogStatusLabel(album.status)}</td>
+              <td style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</td>
+              <td>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn-ghost"
+                    style={{ padding: '5px 12px', fontSize: 12 }}
+                    onClick={() => addTrackToAlbum(album.albumId)}
+                    disabled={isCatalogRetired(album)}
+                    title={isCatalogRetired(album) ? 'No puedes agregar canciones a un álbum retirado.' : undefined}
+                  >
+                    Agregar canción
+                  </button>
+                  <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setAlbumToRetire(album)}>Eliminar</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
   return (
     <div className="page-inner">
       <div className="my-tracks-header">
@@ -715,58 +795,7 @@ export function MyAlbumsPage({
               />
             </div>
           )}
-          {albums.length === 0 ? (
-            <InlineState title="Sin álbumes publicados" message="Crea un álbum y luego agrega canciones desde esta misma vista." />
-          ) : (
-            filteredAlbums.length === 0 ? (
-              <InlineState title="Sin álbumes para esta búsqueda" />
-            ) : (
-              <table className="data-table">
-              <thead><tr><th>Álbum</th><th>Pistas</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
-              <tbody>
-                {filteredAlbums.map(album => (
-                  <tr key={album.albumId}>
-                    <td>
-                      <div className="artist-album-cell">
-                        <button
-                          className="artist-album-link"
-                          type="button"
-                          onClick={() => navigate(routes.album(album.albumId))}
-                        >
-                          <div className="track-thumb">
-                            {album.coverAssetId ? (
-                              <img src={getAssetUrl(album.coverAssetId)} alt={`Portada de ${album.title}`} />
-                            ) : (
-                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)' }}><IcMusic /></div>
-                            )}
-                          </div>
-                          <div><div style={{ fontWeight: 500, color: 'var(--t1)' }}>{album.title}</div><div style={{ fontSize: 12, color: 'var(--t3)' }}>Álbum publicado</div></div>
-                        </button>
-                      </div>
-                    </td>
-                    <td style={{ color: 'var(--t2)' }}>{countTracks(album.albumId)}</td>
-                    <td style={{ color: getCatalogStatusColor(album.status) }}>{getCatalogStatusLabel(album.status)}</td>
-                    <td style={{ color: 'var(--t2)' }}>{formatDate(album.createdAt)}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          className="btn-ghost"
-                          style={{ padding: '5px 12px', fontSize: 12 }}
-                          onClick={() => addTrackToAlbum(album.albumId)}
-                          disabled={isCatalogRetired(album)}
-                          title={isCatalogRetired(album) ? 'No puedes agregar canciones a un álbum retirado.' : undefined}
-                        >
-                          Agregar canción
-                        </button>
-                        <button className="btn-danger" style={{ padding: '5px 12px' }} onClick={() => setAlbumToRetire(album)}>Eliminar</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              </table>
-            )
-          )}
+          {albumsContent}
         </div>
       )}
       <ConfirmDialog
@@ -1590,21 +1619,7 @@ export function EditTrackPage({ track, user, onCancel, onDone, toast }) {
             buttonLabel="Seleccionar portada"
           />
           <div style={{ marginTop: 10 }}>
-            {coverPreviewUrl ? (
-              <img
-                src={coverPreviewUrl}
-                alt="Previsualización de nueva portada"
-                style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
-              />
-            ) : (
-              track.coverAssetId ? (
-                <img
-                  src={getAssetUrl(track.coverAssetId)}
-                  alt={`Portada actual de ${track.title}`}
-                  style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
-                />
-              ) : null
-            )}
+            {renderCurrentCoverPreview(track, coverPreviewUrl)}
           </div>
         </div>
         {error && <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
@@ -1675,7 +1690,7 @@ export function ArtistAnalyticsPage({ user }) {
   }, [user.id]);
 
   useEffect(() => {
-    void loadAnalytics();
+    fireAndForget(() => loadAnalytics(), 'load artist analytics');
   }, [loadAnalytics]);
 
   const breakdownSearchController = useSearchController({

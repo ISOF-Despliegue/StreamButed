@@ -3,6 +3,7 @@ import { Device } from "mediasoup-client";
 import type { Consumer, ConsumerOptions, Transport, TransportOptions } from "mediasoup-client/types";
 import type { Socket } from "socket.io-client";
 import { browserLogger } from "../utils/browserLogger";
+import { fireAndForget } from "../utils/fireAndForget";
 import { toUserFacingMessage } from "../utils/userFacingMessages";
 
 export type ListenerLiveState = "idle" | "joining" | "watching" | "ended" | "error";
@@ -217,7 +218,7 @@ export function useListenerLive(socket: Socket | null): UseListenerLiveReturn {
     }
 
     const handleNewProducer = ({ producerId }: { producerId: string }) => {
-      void consumeProducer(producerId);
+      fireAndForget(() => consumeProducer(producerId), `consume producer ${producerId}`);
     };
 
     const handleEnded = ({ reason }: { reason: string }) => {

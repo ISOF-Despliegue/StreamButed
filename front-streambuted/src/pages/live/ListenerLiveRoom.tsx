@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useListenerLive } from "../../hooks/useListenerLive";
 import { useLive } from "../../hooks/useLive";
+import { fireAndForget } from "../../utils/fireAndForget";
 
 type ListenerLiveRoomProps = Readonly<{
   roomId: string;
@@ -53,17 +54,17 @@ export function ListenerLiveRoom({ roomId, concertTitle, artistName, onLeave }: 
     }
 
     video.srcObject = remoteStream;
-    void video.play().catch(() => {
+    video.play().catch(() => {
       video.muted = true;
       setMuted(true);
-      void video.play().catch(() => undefined);
+      video.play().catch(() => undefined);
     });
   }, [remoteStream]);
 
   useEffect(() => {
     if (socket && connectionState === "connected" && roomId && !hasJoinedRef.current) {
       hasJoinedRef.current = true;
-      void joinRoom(roomId);
+      fireAndForget(() => joinRoom(roomId), `join live room ${roomId}`);
     }
   }, [socket, connectionState, roomId, joinRoom]);
 
@@ -81,7 +82,7 @@ export function ListenerLiveRoom({ roomId, concertTitle, artistName, onLeave }: 
 
     if (video) {
       video.muted = nextMuted;
-      void video.play().catch(() => undefined);
+      video.play().catch(() => undefined);
     }
   };
 

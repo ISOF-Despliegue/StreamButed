@@ -4,6 +4,7 @@ import { TrackLibraryActions } from './TrackLibraryActions';
 import { emitLikedSongsChanged, subscribeToLibraryEvents } from '../../services/libraryEvents';
 import { libraryService } from '../../services/libraryService';
 import { browserLogger } from '../../utils/browserLogger';
+import { fireAndForget } from '../../utils/fireAndForget';
 import { toUserFacingMessage } from '../../utils/userFacingMessages';
 
 export function TrackRowLibraryActions({ className = '', toast = undefined, trackId }) {
@@ -43,13 +44,13 @@ export function TrackRowLibraryActions({ className = '', toast = undefined, trac
   }, [trackId]);
 
   useEffect(() => {
-    void loadLikeStatus();
+    fireAndForget(() => loadLikeStatus(), 'track row load like status');
   }, [loadLikeStatus]);
 
   useEffect(() => (
     subscribeToLibraryEvents((event) => {
       if (event.type === 'liked-songs-changed') {
-        void loadLikeStatus({ silent: true });
+        fireAndForget(() => loadLikeStatus({ silent: true }), 'track row silent like refresh');
       }
     })
   ), [loadLikeStatus]);

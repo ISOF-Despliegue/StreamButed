@@ -11,6 +11,7 @@ import { authTokenStore } from "../services/authTokenStore";
 import { SESSION_TERMINATED_EVENT } from "../services/apiClient";
 import { userService } from "../services/userService";
 import { browserLogger } from "../utils/browserLogger";
+import { fireAndForget } from "../utils/fireAndForget";
 import type {
   AuthContextValue,
   CompletePasswordResetRequest,
@@ -67,7 +68,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [clearSession, commitSession]);
 
   useEffect(() => {
-    void refreshSession();
+    fireAndForget(() => refreshSession(), "session refresh");
   }, [refreshSession]);
 
   useEffect(() => {
@@ -79,7 +80,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     const unsubscribeResult = desktopAuth.onOAuthResult((response) => {
-      void commitSession(response.accessToken);
+      fireAndForget(() => commitSession(response.accessToken), "desktop OAuth commit session");
     });
     const unsubscribeError = desktopAuth.onOAuthError((message) => {
       browserLogger.warn("Desktop OAuth failed.", message);

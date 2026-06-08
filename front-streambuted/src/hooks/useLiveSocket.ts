@@ -5,6 +5,14 @@ import { browserLogger } from "../utils/browserLogger";
 
 const LIVE_WS_PATH = import.meta.env.VITE_SOCKET_PATH || "/live/ws/socket.io/";
 
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
 export type ConnectionState =
   | "idle"
   | "connecting"
@@ -33,7 +41,7 @@ export function useLiveSocket(token: string | null): UseLiveSocketReturn {
 
     setConnectionState("connecting");
 
-    const gatewayUrl = (import.meta.env.VITE_SOCKET_URL || getGatewayBaseUrl()).replace(/\/+$/, "");
+    const gatewayUrl = trimTrailingSlashes(import.meta.env.VITE_SOCKET_URL || getGatewayBaseUrl());
     const socket = io(gatewayUrl, {
       path: LIVE_WS_PATH,
       transports: ["websocket", "polling"],
