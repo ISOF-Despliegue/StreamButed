@@ -746,7 +746,7 @@ describe("LibraryPage", () => {
     await screen.findByRole("button", { name: "Reproducir" });
     await user.type(screen.getByPlaceholderText("Buscar en esta playlist"), "zzzz{enter}");
 
-    expect(await screen.findByText("Sin canciones para esta busqueda")).toBeInTheDocument();
+    expect(await screen.findByText("Sin canciones para esta búsqueda")).toBeInTheDocument();
   });
 
   it("keeps the add-songs search prompt visible before a song search actually runs", async () => {
