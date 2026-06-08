@@ -1,6 +1,6 @@
 import { browserLogger } from "./browserLogger";
 
-type AsyncTask = () => Promise<unknown> | unknown;
+type AsyncTask = () => Promise<unknown> | void;
 
 export function fireAndForget(task: AsyncTask, context = "async task"): void {
   try {

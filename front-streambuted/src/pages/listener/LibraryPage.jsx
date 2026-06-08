@@ -98,6 +98,174 @@ function buildPlaylistUpdatePayload(playlist, normalizedName, upload) {
   };
 }
 
+function useObjectUrlPreview(file) {
+  const [previewUrl, setPreviewUrl] = useState('');
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl('');
+      return undefined;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [file]);
+
+  return previewUrl;
+}
+
+async function loadPlaylistDetail({ playlistId, setError, setIsLoading, setPlaylist, silent = false }) {
+  if (!playlistId) {
+    return;
+  }
+
+  if (!silent) {
+    setIsLoading(true);
+    setError('');
+  }
+
+  try {
+    setPlaylist(await libraryService.getPlaylist(playlistId));
+  } catch (error) {
+    if (silent) {
+      browserLogger.warn(`Failed to silently refresh playlist ${playlistId}.`, error);
+    } else {
+      setError(getErrorMessage(error, 'No se pudo cargar la playlist.'));
+    }
+  } finally {
+    if (!silent) {
+      setIsLoading(false);
+    }
+  }
+}
+
+function resetSongSearchState({ setHasSearchedSongs, setSearchCandidates, setSearchError }) {
+  setSearchCandidates([]);
+  setSearchError('');
+  setHasSearchedSongs(false);
+}
+
+async function searchPlaylistSongs({
+  searchTerm,
+  setHasSearchedSongs,
+  setIsSearchingTracks,
+  setSearchCandidates,
+  setSearchError,
+}) {
+  setIsSearchingTracks(true);
+  setSearchError('');
+  setHasSearchedSongs(true);
+
+  try {
+    const response = await catalogService.searchCatalog({
+      searchTerm,
+      limit: 20,
+      offset: 0,
+    });
+    setSearchCandidates(mapSearchCandidates(response));
+  } catch (error) {
+    setSearchCandidates([]);
+    setSearchError(getErrorMessage(error, 'No se pudieron buscar canciones.'));
+  } finally {
+    setIsSearchingTracks(false);
+  }
+}
+
+async function loadLikedSongCandidates({
+  isLoadingLikedSongs,
+  likedSongCandidates,
+  setIsLoadingLikedSongs,
+  setLikedSongCandidates,
+  toast,
+}) {
+  if (likedSongCandidates.length > 0 || isLoadingLikedSongs) {
+    return;
+  }
+
+  setIsLoadingLikedSongs(true);
+  try {
+    const likedSongs = await libraryService.getLikedSongs();
+    setLikedSongCandidates(likedSongs.tracks ?? []);
+  } catch (error) {
+    toast(getErrorMessage(error, 'No se pudieron cargar tus me gusta.'));
+  } finally {
+    setIsLoadingLikedSongs(false);
+  }
+}
+
+function resetAddSongsDialogState({
+  setActiveAddSongsTab,
+  setHasSearchedSongs,
+  setLikedSongsSearchTerm,
+  setLikedSongsSearchValue,
+  setSearchCandidates,
+  setSearchError,
+}) {
+  setActiveAddSongsTab('liked');
+  setLikedSongsSearchValue('');
+  setLikedSongsSearchTerm('');
+  setSearchCandidates([]);
+  setSearchError('');
+  setHasSearchedSongs(false);
+}
+
+async function addTrackToPlaylistDetail({
+  playlistId,
+  setPlaylist,
+  toast,
+  trackId,
+}) {
+  const updatedPlaylist = await libraryService.addTrackToPlaylist(playlistId, trackId);
+  setPlaylist(updatedPlaylist);
+  emitPlaylistUpdated(updatedPlaylist);
+  toast('Canción agregada a la playlist');
+}
+
+async function removeTrackFromPlaylistDetail({
+  playlistId,
+  setPlaylist,
+  toast,
+  trackId,
+}) {
+  const updatedPlaylist = await libraryService.removeTrackFromPlaylist(playlistId, trackId);
+  setPlaylist(updatedPlaylist);
+  emitPlaylistUpdated(updatedPlaylist);
+  toast('Canción quitada de la playlist');
+}
+
+async function savePlaylistDetailEdits({
+  editCoverFile,
+  normalizedName,
+  playlist,
+  playlistId,
+  resetEditDialog,
+  setIsEditingPlaylist,
+  setPlaylist,
+  toast,
+}) {
+  setIsEditingPlaylist(true);
+  try {
+    const upload = editCoverFile ? await mediaService.uploadPlaylistCover(editCoverFile) : null;
+    const updatedPlaylist = await libraryService.updatePlaylist(
+      playlistId,
+      buildPlaylistUpdatePayload(playlist, normalizedName, upload)
+    );
+    setPlaylist((current) => applyPlaylistEventUpdate(current, updatedPlaylist));
+    emitPlaylistUpdated(updatedPlaylist);
+    resetEditDialog();
+    toast('Playlist actualizada');
+  } catch (error) {
+    resetEditDialog();
+    toast(getErrorMessage(error, 'No se pudo actualizar la playlist.'));
+  } finally {
+    setIsEditingPlaylist(false);
+  }
+}
+
 function handlePlaylistDetailLibraryEvent({
   event,
   isSystemPlaylist,
@@ -281,6 +449,259 @@ function PlaylistSongResults({
         })}
       </tbody>
     </table>
+  );
+}
+
+function PlaylistTrackList({
+  currentTrack,
+  filteredTracks,
+  isSystemPlaylist,
+  onPlayTrack,
+  onRemoveTrack,
+  playlistId,
+  toast,
+  tracks,
+}) {
+  return (
+    <table className="track-list">
+      <thead><tr>
+        <th style={{ width: 40 }}>#</th>
+        <th>Titulo</th>
+        <th style={{ width: isSystemPlaylist ? 120 : 220 }}>Acciones</th>
+        <th>Genero</th>
+        <th className="track-duration-col">Duracion</th>
+      </tr></thead>
+      <tbody>
+        {filteredTracks.map((track, index) => (
+          <TrackRow
+            key={track.trackId}
+            track={track}
+            index={index}
+            isPlaying={currentTrack?.trackId === track.trackId}
+            actionsPosition="before-meta"
+            onPlay={() => onPlayTrack(track, tracks, playlistId)}
+            metaText={track.genre || 'Sin genero'}
+            actions={(
+              <div className="track-actions-group">
+                <TrackRowLibraryActions className="track-actions-group" toast={toast} trackId={track.trackId} />
+                {!isSystemPlaylist && (
+                  <button
+                    className="btn-ghost"
+                    style={{ padding: '6px 10px', fontSize: 12 }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      fireAndForget(() => onRemoveTrack(track.trackId), `remove track ${track.trackId} from playlist`);
+                    }}
+                    type="button"
+                  >
+                    Quitar
+                  </button>
+                )}
+              </div>
+            )}
+          />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function PlaylistTracksSection({
+  currentTrack,
+  filteredTracks,
+  isSystemPlaylist,
+  onPlayTrack,
+  onRemoveTrack,
+  playlistId,
+  playlistTrackSearchController,
+  toast,
+  tracks,
+}) {
+  if (tracks.length === 0) {
+    return (
+      <InlineState
+        title={isSystemPlaylist ? 'Aún no has dado me gusta a canciones' : 'Playlist vacía'}
+        message={isSystemPlaylist
+          ? 'Usa el corazón del reproductor para guardarlas aquí.'
+          : 'Usa "Agregar canciones" o agrega la pista actual desde este detalle.'}
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="table-header">
+        <SearchInput
+          cooldownUntil={playlistTrackSearchController.cooldownUntil}
+          placeholder={isSystemPlaylist ? 'Buscar en tus me gusta' : 'Buscar en esta playlist'}
+          value={playlistTrackSearchController.searchValue}
+          onChange={playlistTrackSearchController.setSearchValue}
+          onSubmit={playlistTrackSearchController.submitSearch}
+        />
+      </div>
+      {filteredTracks.length === 0 ? (
+        <InlineState title="Sin canciones para esta búsqueda" />
+      ) : (
+        <PlaylistTrackList
+          currentTrack={currentTrack}
+          filteredTracks={filteredTracks}
+          isSystemPlaylist={isSystemPlaylist}
+          onPlayTrack={onPlayTrack}
+          onRemoveTrack={onRemoveTrack}
+          playlistId={playlistId}
+          toast={toast}
+          tracks={tracks}
+        />
+      )}
+    </>
+  );
+}
+
+function PlaylistAddSongsPanel({
+  activeAddSongsTab,
+  addTrackFromDialog,
+  filteredLikedSongCandidates,
+  hasSearchedSongs,
+  isAddingDialogTrack,
+  isLoadingLikedSongs,
+  isSearchingTracks,
+  likedSongsSearchValue,
+  onLikedSongsSearchChange,
+  onLikedSongsSearchSubmit,
+  onSearchTabChange,
+  playlistTrackIds,
+  searchCandidates,
+  searchError,
+  searchSongsController,
+}) {
+  const isLikedTab = activeAddSongsTab === 'liked';
+  const isSearchTab = activeAddSongsTab === 'search';
+
+  return (
+    <>
+      <div className="playlist-picker-tabs">
+        <button
+          className={`role-tab${isLikedTab ? ' active' : ''}`}
+          onClick={() => onSearchTabChange('liked')}
+          type="button"
+        >
+          Tus Me Gusta
+        </button>
+        <button
+          className={`role-tab${isSearchTab ? ' active' : ''}`}
+          onClick={() => onSearchTabChange('search')}
+          type="button"
+        >
+          Buscar canciones
+        </button>
+      </div>
+
+      {isLikedTab ? (
+        <div className="playlist-picker-panel">
+          <SearchInput
+            cooldownUntil={0}
+            placeholder="Buscar en tus me gusta"
+            value={likedSongsSearchValue}
+            onChange={onLikedSongsSearchChange}
+            onSubmit={onLikedSongsSearchSubmit}
+          />
+          {isLoadingLikedSongs ? (
+            <InlineState title="Cargando tus me gusta..." />
+          ) : (
+            <PlaylistSongResults
+              emptyMessage="No encontramos canciones en tus me gusta."
+              isAddingTrack={isAddingDialogTrack}
+              onAddTrack={addTrackFromDialog}
+              playlistTrackIds={playlistTrackIds}
+              tracks={filteredLikedSongCandidates}
+            />
+          )}
+        </div>
+      ) : (
+        <div className="playlist-picker-panel">
+          <SearchInput
+            cooldownUntil={searchSongsController.cooldownUntil}
+            placeholder="Buscar canciones"
+            value={searchSongsController.searchValue}
+            onChange={searchSongsController.setSearchValue}
+            onSubmit={searchSongsController.submitSearch}
+          />
+          {isSearchingTracks && <InlineState title="Buscando canciones..." />}
+          {!isSearchingTracks && searchError && (
+            <InlineState title="No se pudo buscar" message={searchError} />
+          )}
+          {!isSearchingTracks && !searchError && hasSearchedSongs && (
+            <PlaylistSongResults
+              emptyMessage="No encontramos canciones para esta búsqueda."
+              isAddingTrack={isAddingDialogTrack}
+              onAddTrack={addTrackFromDialog}
+              playlistTrackIds={playlistTrackIds}
+              tracks={searchCandidates}
+            />
+          )}
+          {!isSearchingTracks && !searchError && !hasSearchedSongs && (
+            <InlineState title="Busca canciones para agregarlas a esta playlist." />
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function PlaylistDetailHeader({
+  currentTrackId,
+  hasCurrentTrack,
+  isAddingCurrent,
+  isSystemPlaylist,
+  onAddCurrentTrack,
+  onOpenAddSongsDialog,
+  onOpenEditDialog,
+  onPlayTrack,
+  playlist,
+  tracks,
+}) {
+  return (
+    <div className="my-tracks-header">
+      <div className="playlist-detail-title-row">
+        <PlaylistCover coverAssetId={playlist.coverAssetId} className="library-liked-cover playlist-detail-cover" />
+        <div>
+          <div className="page-title">{playlist.name}</div>
+          <div className="page-subtitle">
+            {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
+          </div>
+        </div>
+      </div>
+      <div className="playlist-detail-actions">
+        <button className="btn-ghost" onClick={onOpenEditDialog} type="button">
+          <IcEdit />
+          <span>Editar</span>
+        </button>
+        {!isSystemPlaylist && (
+          <button className="btn-ghost" onClick={onOpenAddSongsDialog} type="button">
+            <IcPlus />
+            <span>Agregar canciones</span>
+          </button>
+        )}
+        {!isSystemPlaylist && (
+          <button
+            className="btn-ghost"
+            disabled={!currentTrackId || hasCurrentTrack || isAddingCurrent}
+            onClick={onAddCurrentTrack}
+            type="button"
+          >
+            Agregar pista actual
+          </button>
+        )}
+        <button
+          className="btn-primary"
+          disabled={tracks.length === 0}
+          onClick={() => onPlayTrack(tracks[0], tracks, playlist.playlistId)}
+          type="button"
+        >
+          Reproducir
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -622,7 +1043,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   const [isAddingDialogTrack, setIsAddingDialogTrack] = useState(false);
   const [editName, setEditName] = useState('');
   const [editCoverFile, setEditCoverFile] = useState(null);
-  const [editCoverPreviewUrl, setEditCoverPreviewUrl] = useState('');
+  const editCoverPreviewUrl = useObjectUrlPreview(editCoverFile);
   const [activeAddSongsTab, setActiveAddSongsTab] = useState('liked');
   const [likedSongsSearchValue, setLikedSongsSearchValue] = useState('');
   const [likedSongsSearchTerm, setLikedSongsSearchTerm] = useState('');
@@ -633,28 +1054,15 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
   const [error, setError] = useState('');
   const [playlistTrackSearchTerm, setPlaylistTrackSearchTerm] = useState('');
 
-  const loadPlaylist = useCallback(async ({ silent = false } = {}) => {
-    if (!playlistId) return;
-
-    if (!silent) {
-      setIsLoading(true);
-      setError('');
-    }
-
-    try {
-      setPlaylist(await libraryService.getPlaylist(playlistId));
-    } catch (err) {
-      if (silent) {
-        browserLogger.warn(`Failed to silently refresh playlist ${playlistId}.`, err);
-      } else {
-        setError(getErrorMessage(err, 'No se pudo cargar la playlist.'));
-      }
-    } finally {
-      if (!silent) {
-        setIsLoading(false);
-      }
-    }
-  }, [playlistId]);
+  const loadPlaylist = useCallback(({ silent = false } = {}) => (
+    loadPlaylistDetail({
+      playlistId,
+      setError,
+      setIsLoading,
+      setPlaylist,
+      silent,
+    })
+  ), [playlistId]);
 
   useEffect(() => {
     fireAndForget(() => loadPlaylist(), 'load playlist detail');
@@ -671,20 +1079,6 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     }))
   ), [loadPlaylist, playlist?.isSystem, playlistId]);
 
-  useEffect(() => {
-    if (!editCoverFile) {
-      setEditCoverPreviewUrl('');
-      return undefined;
-    }
-
-    const previewUrl = URL.createObjectURL(editCoverFile);
-    setEditCoverPreviewUrl(previewUrl);
-
-    return () => {
-      URL.revokeObjectURL(previewUrl);
-    };
-  }, [editCoverFile]);
-
   const playlistTrackSearchController = useSearchController({
     onClear: useCallback(() => setPlaylistTrackSearchTerm(''), []),
     onSearch: useCallback(searchTerm => setPlaylistTrackSearchTerm(searchTerm), []),
@@ -692,29 +1086,17 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
   const searchSongsController = useSearchController({
     onClear: useCallback(() => {
-      setSearchCandidates([]);
-      setSearchError('');
-      setHasSearchedSongs(false);
+      resetSongSearchState({ setHasSearchedSongs, setSearchCandidates, setSearchError });
     }, []),
-    onSearch: useCallback(async (searchTerm) => {
-      setIsSearchingTracks(true);
-      setSearchError('');
-      setHasSearchedSongs(true);
-
-      try {
-        const response = await catalogService.searchCatalog({
-          searchTerm,
-          limit: 20,
-          offset: 0,
-        });
-        setSearchCandidates(mapSearchCandidates(response));
-      } catch (error_) {
-        setSearchCandidates([]);
-        setSearchError(getErrorMessage(error_, 'No se pudieron buscar canciones.'));
-      } finally {
-        setIsSearchingTracks(false);
-      }
-    }, []),
+    onSearch: useCallback((searchTerm) => (
+      searchPlaylistSongs({
+        searchTerm,
+        setHasSearchedSongs,
+        setIsSearchingTracks,
+        setSearchCandidates,
+        setSearchError,
+      })
+    ), []),
   });
 
   const resetEditDialog = useCallback(() => {
@@ -722,6 +1104,23 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     setEditName('');
     setEditCoverFile(null);
   }, []);
+
+  const handleLikedSongsSearchChange = useCallback((value) => {
+    setLikedSongsSearchValue(value);
+    setLikedSongsSearchTerm(value.trim());
+  }, []);
+
+  const handleLikedSongsSearchSubmit = useCallback(() => {
+    setLikedSongsSearchTerm(likedSongsSearchValue.trim());
+  }, [likedSongsSearchValue]);
+
+  const handleEditDialogCancel = useCallback(() => {
+    if (isEditingPlaylist) {
+      return;
+    }
+
+    resetEditDialog();
+  }, [isEditingPlaylist, resetEditDialog]);
 
   const openEditDialog = useCallback(() => {
     setEditName(playlist?.name ?? '');
@@ -731,27 +1130,27 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
   const openAddSongsDialog = useCallback(async () => {
     setIsAddSongsDialogOpen(true);
-    setActiveAddSongsTab('liked');
-    setLikedSongsSearchValue('');
-    setLikedSongsSearchTerm('');
-    setSearchCandidates([]);
-    setSearchError('');
-    setHasSearchedSongs(false);
+    resetAddSongsDialogState({
+      setActiveAddSongsTab,
+      setHasSearchedSongs,
+      setLikedSongsSearchTerm,
+      setLikedSongsSearchValue,
+      setSearchCandidates,
+      setSearchError,
+    });
 
-    if (likedSongCandidates.length > 0 || isLoadingLikedSongs) {
-      return;
-    }
-
-    setIsLoadingLikedSongs(true);
-    try {
-      const likedSongs = await libraryService.getLikedSongs();
-      setLikedSongCandidates(likedSongs.tracks ?? []);
-    } catch (loadError) {
-      toast(getErrorMessage(loadError, 'No se pudieron cargar tus me gusta.'));
-    } finally {
-      setIsLoadingLikedSongs(false);
-    }
+    await loadLikedSongCandidates({
+      isLoadingLikedSongs,
+      likedSongCandidates,
+      setIsLoadingLikedSongs,
+      setLikedSongCandidates,
+      toast,
+    });
   }, [isLoadingLikedSongs, likedSongCandidates.length, toast]);
+
+  const handleOpenAddSongsDialog = useCallback(() => {
+    fireAndForget(() => openAddSongsDialog(), 'open add songs dialog');
+  }, [openAddSongsDialog]);
 
   const addCurrentTrack = async () => {
     const trackId = getTrackIdentifier(currentTrack);
@@ -759,10 +1158,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
     setIsAddingCurrent(true);
     try {
-      const updatedPlaylist = await libraryService.addTrackToPlaylist(playlistId, trackId);
-      setPlaylist(updatedPlaylist);
-      emitPlaylistUpdated(updatedPlaylist);
-      toast('Canción agregada a la playlist');
+      await addTrackToPlaylistDetail({ playlistId, setPlaylist, toast, trackId });
     } catch (err) {
       toast(getErrorMessage(err, 'No se pudo agregar la canción a la playlist.'));
     } finally {
@@ -777,10 +1173,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
 
     setIsAddingDialogTrack(true);
     try {
-      const updatedPlaylist = await libraryService.addTrackToPlaylist(playlistId, trackId);
-      setPlaylist(updatedPlaylist);
-      emitPlaylistUpdated(updatedPlaylist);
-      toast('Canción agregada a la playlist');
+      await addTrackToPlaylistDetail({ playlistId, setPlaylist, toast, trackId });
     } catch (dialogError) {
       toast(getErrorMessage(dialogError, 'No se pudo agregar la canción a la playlist.'));
     } finally {
@@ -792,10 +1185,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
     if (!playlistId) return;
 
     try {
-      const updatedPlaylist = await libraryService.removeTrackFromPlaylist(playlistId, trackId);
-      setPlaylist(updatedPlaylist);
-      emitPlaylistUpdated(updatedPlaylist);
-      toast('Canción quitada de la playlist');
+      await removeTrackFromPlaylistDetail({ playlistId, setPlaylist, toast, trackId });
     } catch (err) {
       toast(getErrorMessage(err, 'No se pudo quitar la canción de la playlist.'));
     }
@@ -812,23 +1202,16 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
       return;
     }
 
-    setIsEditingPlaylist(true);
-    try {
-      const upload = editCoverFile ? await mediaService.uploadPlaylistCover(editCoverFile) : null;
-      const updatedPlaylist = await libraryService.updatePlaylist(
-        playlistId,
-        buildPlaylistUpdatePayload(playlist, normalizedName, upload)
-      );
-      setPlaylist((current) => applyPlaylistEventUpdate(current, updatedPlaylist));
-      emitPlaylistUpdated(updatedPlaylist);
-      resetEditDialog();
-      toast('Playlist actualizada');
-    } catch (editError) {
-      resetEditDialog();
-      toast(getErrorMessage(editError, 'No se pudo actualizar la playlist.'));
-    } finally {
-      setIsEditingPlaylist(false);
-    }
+    await savePlaylistDetailEdits({
+      editCoverFile,
+      normalizedName,
+      playlist,
+      playlistId,
+      resetEditDialog,
+      setIsEditingPlaylist,
+      setPlaylist,
+      toast,
+    });
   };
 
   if (!playlistId) {
@@ -861,112 +1244,30 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
         <Link className="breadcrumb-link" to={routes.library}>Biblioteca</Link>
         <span>/</span><span>{playlist.name}</span>
       </div>
-      <div className="my-tracks-header">
-        <div className="playlist-detail-title-row">
-          <PlaylistCover coverAssetId={playlist.coverAssetId} className="library-liked-cover playlist-detail-cover" />
-          <div>
-            <div className="page-title">{playlist.name}</div>
-            <div className="page-subtitle">
-              {playlist.trackCount} {playlist.trackCount === 1 ? 'canción' : 'canciones'}
-            </div>
-          </div>
-        </div>
-        <div className="playlist-detail-actions">
-          <button className="btn-ghost" onClick={openEditDialog} type="button">
-            <IcEdit />
-            <span>Editar</span>
-          </button>
-          {!isSystemPlaylist && (
-            <button className="btn-ghost" onClick={() => fireAndForget(() => openAddSongsDialog(), 'open add songs dialog')} type="button">
-              <IcPlus />
-              <span>Agregar canciones</span>
-            </button>
-          )}
-          {!isSystemPlaylist && (
-            <button
-              className="btn-ghost"
-              disabled={!currentTrackId || hasCurrentTrack || isAddingCurrent}
-              onClick={addCurrentTrack}
-              type="button"
-            >
-              Agregar pista actual
-            </button>
-          )}
-          <button
-            className="btn-primary"
-            disabled={tracks.length === 0}
-            onClick={() => onPlayTrack(tracks[0], tracks, playlist.playlistId)}
-            type="button"
-          >
-            Reproducir
-          </button>
-        </div>
-      </div>
+      <PlaylistDetailHeader
+        currentTrackId={currentTrackId}
+        hasCurrentTrack={hasCurrentTrack}
+        isAddingCurrent={isAddingCurrent}
+        isSystemPlaylist={isSystemPlaylist}
+        onAddCurrentTrack={addCurrentTrack}
+        onOpenAddSongsDialog={handleOpenAddSongsDialog}
+        onOpenEditDialog={openEditDialog}
+        onPlayTrack={onPlayTrack}
+        playlist={playlist}
+        tracks={tracks}
+      />
 
-      {tracks.length === 0 ? (
-        <InlineState
-          title={isSystemPlaylist ? 'Aún no has dado me gusta a canciones' : 'Playlist vacía'}
-          message={isSystemPlaylist
-            ? 'Usa el corazón del reproductor para guardarlas aqui.'
-            : 'Usa "Agregar canciones" o agrega la pista actual desde este detalle.'}
-        />
-      ) : (
-        <>
-          <div className="table-header">
-            <SearchInput
-              cooldownUntil={playlistTrackSearchController.cooldownUntil}
-              placeholder={isSystemPlaylist ? 'Buscar en tus me gusta' : 'Buscar en esta playlist'}
-              value={playlistTrackSearchController.searchValue}
-              onChange={playlistTrackSearchController.setSearchValue}
-              onSubmit={playlistTrackSearchController.submitSearch}
-            />
-          </div>
-          {filteredTracks.length === 0 ? (
-            <InlineState title="Sin canciones para esta busqueda" />
-          ) : (
-            <table className="track-list">
-              <thead><tr>
-                <th style={{ width: 40 }}>#</th>
-                <th>Titulo</th>
-                <th style={{ width: isSystemPlaylist ? 120 : 220 }}>Acciones</th>
-                <th>Genero</th>
-                <th className="track-duration-col">Duracion</th>
-              </tr></thead>
-              <tbody>
-                {filteredTracks.map((track, index) => (
-                  <TrackRow
-                    key={track.trackId}
-                    track={track}
-                    index={index}
-                    isPlaying={currentTrack?.trackId === track.trackId}
-                    actionsPosition="before-meta"
-                    onPlay={() => onPlayTrack(track, tracks, playlist.playlistId)}
-                    metaText={track.genre || 'Sin genero'}
-                    actions={(
-                      <div className="track-actions-group">
-                        <TrackRowLibraryActions className="track-actions-group" toast={toast} trackId={track.trackId} />
-                        {!isSystemPlaylist && (
-                          <button
-                            className="btn-ghost"
-                            style={{ padding: '6px 10px', fontSize: 12 }}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              fireAndForget(() => removeTrack(track.trackId), `remove track ${track.trackId} from playlist`);
-                            }}
-                            type="button"
-                          >
-                            Quitar
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  />
-                ))}
-              </tbody>
-            </table>
-          )}
-        </>
-      )}
+      <PlaylistTracksSection
+        currentTrack={currentTrack}
+        filteredTracks={filteredTracks}
+        isSystemPlaylist={isSystemPlaylist}
+        onPlayTrack={onPlayTrack}
+        onRemoveTrack={removeTrack}
+        playlistId={playlist.playlistId}
+        playlistTrackSearchController={playlistTrackSearchController}
+        toast={toast}
+        tracks={tracks}
+      />
 
       <ConfirmDialog
         open={isEditDialogOpen}
@@ -977,10 +1278,7 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
         isLoading={isEditingPlaylist}
         disabled={!isSystemPlaylist && !editName.trim()}
         onConfirm={savePlaylistEdits}
-        onCancel={() => {
-          if (isEditingPlaylist) return;
-          resetEditDialog();
-        }}
+        onCancel={handleEditDialogCancel}
       >
         <PlaylistEditorFields
           coverPreviewUrl={editCoverPreviewUrl || (playlist.coverAssetId ? getAssetUrl(playlist.coverAssetId) : '')}
@@ -1002,74 +1300,23 @@ export function PlaylistDetailPage({ playlistId, currentTrack, onPlayTrack, toas
         onConfirm={() => setIsAddSongsDialogOpen(false)}
         onCancel={() => setIsAddSongsDialogOpen(false)}
       >
-        <div className="playlist-picker-tabs">
-          <button
-            className={`role-tab${activeAddSongsTab === 'liked' ? ' active' : ''}`}
-            onClick={() => setActiveAddSongsTab('liked')}
-            type="button"
-          >
-            Tus Me Gusta
-          </button>
-          <button
-            className={`role-tab${activeAddSongsTab === 'search' ? ' active' : ''}`}
-            onClick={() => setActiveAddSongsTab('search')}
-            type="button"
-          >
-            Buscar canciones
-          </button>
-        </div>
-
-        {activeAddSongsTab === 'liked' ? (
-          <div className="playlist-picker-panel">
-            <SearchInput
-              cooldownUntil={0}
-              placeholder="Buscar en tus me gusta"
-              value={likedSongsSearchValue}
-              onChange={(value) => {
-                setLikedSongsSearchValue(value);
-                setLikedSongsSearchTerm(value.trim());
-              }}
-              onSubmit={() => setLikedSongsSearchTerm(likedSongsSearchValue.trim())}
-            />
-            {isLoadingLikedSongs ? (
-              <InlineState title="Cargando tus me gusta..." />
-            ) : (
-              <PlaylistSongResults
-                emptyMessage="No encontramos canciones en tus me gusta."
-                isAddingTrack={isAddingDialogTrack}
-                onAddTrack={addTrackFromDialog}
-                playlistTrackIds={playlistTrackIds}
-                tracks={filteredLikedSongCandidates}
-              />
-            )}
-          </div>
-        ) : (
-          <div className="playlist-picker-panel">
-            <SearchInput
-              cooldownUntil={searchSongsController.cooldownUntil}
-              placeholder="Buscar canciones"
-              value={searchSongsController.searchValue}
-              onChange={searchSongsController.setSearchValue}
-              onSubmit={searchSongsController.submitSearch}
-            />
-            {isSearchingTracks && <InlineState title="Buscando canciones..." />}
-            {!isSearchingTracks && searchError && (
-              <InlineState title="No se pudo buscar" message={searchError} />
-            )}
-            {!isSearchingTracks && !searchError && hasSearchedSongs && (
-              <PlaylistSongResults
-                emptyMessage="No encontramos canciones para esta busqueda."
-                isAddingTrack={isAddingDialogTrack}
-                onAddTrack={addTrackFromDialog}
-                playlistTrackIds={playlistTrackIds}
-                tracks={searchCandidates}
-              />
-            )}
-            {!isSearchingTracks && !searchError && !hasSearchedSongs && (
-              <InlineState title="Busca canciones para agregarlas a esta playlist." />
-            )}
-          </div>
-        )}
+        <PlaylistAddSongsPanel
+          activeAddSongsTab={activeAddSongsTab}
+          addTrackFromDialog={addTrackFromDialog}
+          filteredLikedSongCandidates={filteredLikedSongCandidates}
+          hasSearchedSongs={hasSearchedSongs}
+          isAddingDialogTrack={isAddingDialogTrack}
+          isLoadingLikedSongs={isLoadingLikedSongs}
+          isSearchingTracks={isSearchingTracks}
+          likedSongsSearchValue={likedSongsSearchValue}
+          onLikedSongsSearchChange={handleLikedSongsSearchChange}
+          onLikedSongsSearchSubmit={handleLikedSongsSearchSubmit}
+          onSearchTabChange={setActiveAddSongsTab}
+          playlistTrackIds={playlistTrackIds}
+          searchCandidates={searchCandidates}
+          searchError={searchError}
+          searchSongsController={searchSongsController}
+        />
       </ConfirmDialog>
     </div>
   );
@@ -1126,6 +1373,103 @@ PlaylistSongResults.propTypes = {
     genre: PropTypes.string,
     trackId: PropTypes.string,
     title: PropTypes.string,
+  })).isRequired,
+};
+
+PlaylistTrackList.propTypes = {
+  currentTrack: trackPropType,
+  filteredTracks: PropTypes.arrayOf(PropTypes.shape({
+    genre: PropTypes.string,
+    trackId: PropTypes.string,
+  })).isRequired,
+  isSystemPlaylist: PropTypes.bool.isRequired,
+  onPlayTrack: PropTypes.func.isRequired,
+  onRemoveTrack: PropTypes.func.isRequired,
+  playlistId: PropTypes.string.isRequired,
+  toast: PropTypes.func.isRequired,
+  tracks: PropTypes.arrayOf(PropTypes.shape({
+    genre: PropTypes.string,
+    trackId: PropTypes.string,
+  })).isRequired,
+};
+
+PlaylistTracksSection.propTypes = {
+  currentTrack: trackPropType,
+  filteredTracks: PropTypes.arrayOf(PropTypes.shape({
+    genre: PropTypes.string,
+    trackId: PropTypes.string,
+  })).isRequired,
+  isSystemPlaylist: PropTypes.bool.isRequired,
+  onPlayTrack: PropTypes.func.isRequired,
+  onRemoveTrack: PropTypes.func.isRequired,
+  playlistId: PropTypes.string.isRequired,
+  playlistTrackSearchController: PropTypes.shape({
+    cooldownUntil: PropTypes.number.isRequired,
+    searchValue: PropTypes.string.isRequired,
+    setSearchValue: PropTypes.func.isRequired,
+    submitSearch: PropTypes.func.isRequired,
+  }).isRequired,
+  toast: PropTypes.func.isRequired,
+  tracks: PropTypes.arrayOf(PropTypes.shape({
+    genre: PropTypes.string,
+    trackId: PropTypes.string,
+  })).isRequired,
+};
+
+PlaylistAddSongsPanel.propTypes = {
+  activeAddSongsTab: PropTypes.oneOf(['liked', 'search']).isRequired,
+  addTrackFromDialog: PropTypes.func.isRequired,
+  filteredLikedSongCandidates: PropTypes.arrayOf(PropTypes.shape({
+    albumTitle: PropTypes.string,
+    artistName: PropTypes.string,
+    coverAssetId: PropTypes.string,
+    genre: PropTypes.string,
+    trackId: PropTypes.string,
+    title: PropTypes.string,
+  })).isRequired,
+  hasSearchedSongs: PropTypes.bool.isRequired,
+  isAddingDialogTrack: PropTypes.bool.isRequired,
+  isLoadingLikedSongs: PropTypes.bool.isRequired,
+  isSearchingTracks: PropTypes.bool.isRequired,
+  likedSongsSearchValue: PropTypes.string.isRequired,
+  onLikedSongsSearchChange: PropTypes.func.isRequired,
+  onLikedSongsSearchSubmit: PropTypes.func.isRequired,
+  onSearchTabChange: PropTypes.func.isRequired,
+  playlistTrackIds: PropTypes.instanceOf(Set).isRequired,
+  searchCandidates: PropTypes.arrayOf(PropTypes.shape({
+    albumTitle: PropTypes.string,
+    artistName: PropTypes.string,
+    coverAssetId: PropTypes.string,
+    genre: PropTypes.string,
+    trackId: PropTypes.string,
+    title: PropTypes.string,
+  })).isRequired,
+  searchError: PropTypes.string.isRequired,
+  searchSongsController: PropTypes.shape({
+    cooldownUntil: PropTypes.number.isRequired,
+    searchValue: PropTypes.string.isRequired,
+    setSearchValue: PropTypes.func.isRequired,
+    submitSearch: PropTypes.func.isRequired,
+  }).isRequired,
+};
+
+PlaylistDetailHeader.propTypes = {
+  currentTrackId: PropTypes.string,
+  hasCurrentTrack: PropTypes.bool.isRequired,
+  isAddingCurrent: PropTypes.bool.isRequired,
+  isSystemPlaylist: PropTypes.bool.isRequired,
+  onAddCurrentTrack: PropTypes.func.isRequired,
+  onOpenAddSongsDialog: PropTypes.func.isRequired,
+  onOpenEditDialog: PropTypes.func.isRequired,
+  onPlayTrack: PropTypes.func.isRequired,
+  playlist: PropTypes.shape({
+    coverAssetId: PropTypes.string,
+    name: PropTypes.string.isRequired,
+    playlistId: PropTypes.string.isRequired,
+    trackCount: PropTypes.number.isRequired,
+  }).isRequired,
+  tracks: PropTypes.arrayOf(PropTypes.shape({
+    trackId: PropTypes.string,
   })).isRequired,
 };
 
