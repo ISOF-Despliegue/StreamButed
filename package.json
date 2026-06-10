@@ -1,0 +1,9 @@
+{
+  "name": "streambuted",
+  "private": true,
+  "scripts": {
+    "test:postman": "npm run test:postman:smoke",
+    "test:postman:smoke": "npx --yes newman run tests/postman/StreamButed-Current-Auth-Smoke.postman_collection.json -e tests/postman/StreamButed.local.postman_environment.json --working-dir .",
+    "test:postman:full": "npx --yes newman run tests/postman/StreamButed-Full-Flow.postman_collection.json -e tests/postman/StreamButed.local.postman_environment.json --working-dir ."
+  }
+}

@@ -1,0 +1,2187 @@
+{
+  "info": {
+    "_postman_id": "ff1d0c60-f3de-47a2-a0e6-f1f2bb1f0f10",
+    "name": "StreamButed - Full Flow Integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Functional end-to-end flows for StreamButed through the local gateway. Requires reproducible verified seed users, especially an ARTIST account."
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const now = Date.now();",
+          "const isRunStart = pm.info.requestName === 'Gateway - Identity Health';",
+          "if (isRunStart) {",
+          "  pm.environment.set('runSuffix', String(now));",
+          "  pm.environment.set('albumTitle', `Postman Album ${now}`);",
+          "  pm.environment.set('updatedAlbumTitle', `Postman Album ${now} Updated`);",
+          "  pm.environment.set('trackTitle', `Postman Track ${now}`);",
+          "  pm.environment.set('playlistName', `PF${String(now).slice(-8)}`);",
+          "  pm.environment.set('liveRoomTitle', `Postman Live ${now}`);",
+          "  pm.environment.set('catalogTrackCreated', 'false');",
+          "  pm.environment.set('playlistCreated', 'false');",
+          "  pm.environment.set('liveRoomCreated', 'false');",
+          "  pm.environment.unset('playbackToken');",
+          "  pm.environment.unset('streamUrl');",
+          "}",
+          "if (!pm.environment.get('runSuffix')) pm.environment.set('runSuffix', String(now));",
+          "if (!pm.environment.get('albumTitle')) pm.environment.set('albumTitle', `Postman Album ${now}`);",
+          "if (!pm.environment.get('updatedAlbumTitle')) pm.environment.set('updatedAlbumTitle', `Postman Album ${now} Updated`);",
+          "if (!pm.environment.get('trackTitle')) pm.environment.set('trackTitle', `Postman Track ${now}`);",
+          "if (!pm.environment.get('playlistName')) pm.environment.set('playlistName', `PF${String(now).slice(-8)}`);",
+          "if (!pm.environment.get('liveRoomTitle')) pm.environment.set('liveRoomTitle', `Postman Live ${now}`);",
+          "pm.environment.set('missingAlbumId', '11111111-1111-4111-8111-111111111111');",
+          "pm.environment.set('missingTrackId', '22222222-2222-4222-8222-222222222222');",
+          "pm.environment.set('missingArtistId', '44444444-4444-4444-8444-444444444444');",
+          "const createdTrackId = pm.environment.get('catalogTrackCreated') === 'true' ? pm.environment.get('trackId') : '';",
+          "pm.environment.set('playbackTrackId', createdTrackId || pm.environment.get('seedTrackId') || pm.environment.get('missingTrackId'));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Preconditions",
+      "item": [
+        {
+          "name": "Gateway - Identity Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('identity UP', function () { pm.expect(json.status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gateway - Catalog Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('catalog ok', function () { pm.expect(json.status).to.eql('ok'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gateway - Media Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('media UP', function () { pm.expect(json.status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Fast fail if the gateway or required services are unavailable."
+    },
+    {
+      "name": "1. Authentication With Seed Users",
+      "item": [
+        {
+          "name": "Auth - Artist Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{seedArtistEmail}}\",\n  \"password\": \"{{seedArtistPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasSeed = Boolean(pm.environment.get('seedArtistEmail') && pm.environment.get('seedArtistPassword'));",
+                  "pm.test('seed artist credentials are configured', function () { pm.expect(hasSeed, 'Set seedArtistEmail and seedArtistPassword in the Postman environment').to.eql(true); });",
+                  "if (!hasSeed) {",
+                  "  pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('accessToken', json.accessToken || '');",
+                  "    pm.environment.set('artistAccessToken', json.accessToken || '');",
+                  "    const setCookie = pm.response.headers.get('Set-Cookie') || '';",
+                  "    const refreshMatch = setCookie.match(/refresh_token=([^;]+)/);",
+                  "    if (refreshMatch) pm.environment.set('refreshToken', refreshMatch[1]);",
+                  "    pm.test('access token returned', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; });",
+                  "    pm.test('seed user is ARTIST', function () { pm.expect(String(json.role || '').toUpperCase()).to.eql('ARTIST'); });",
+                  "  } else {",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Validate Artist JWT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/validate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "validate"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('validated token has subject', function () { pm.expect(json.subject || json.userId || json.sub).to.exist; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Identity - Get Artist Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('userId', json.id);",
+                  "pm.environment.set('artistId', json.id);",
+                  "pm.test('user id captured', function () { pm.expect(json.id).to.match(/^[0-9a-fA-F-]{36}$/); });",
+                  "pm.test('profile role is ARTIST', function () { pm.expect(String(json.role || '').toUpperCase()).to.eql('ARTIST'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Refresh Artist Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "refresh_token={{refreshToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('accessToken', json.accessToken || pm.environment.get('accessToken'));",
+                  "pm.environment.set('artistAccessToken', json.accessToken || pm.environment.get('artistAccessToken'));",
+                  "const setCookie = pm.response.headers.get('Set-Cookie') || '';",
+                  "const refreshMatch = setCookie.match(/refresh_token=([^;]+)/);",
+                  "if (refreshMatch) pm.environment.set('refreshToken', refreshMatch[1]);",
+                  "pm.test('refreshed access token returned', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Optional Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{seedAdminEmail}}\",\n  \"password\": \"{{seedAdminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasSeed = Boolean(pm.environment.get('seedAdminEmail') && pm.environment.get('seedAdminPassword'));",
+                  "const hasToken = Boolean(pm.environment.get('adminAccessToken'));",
+                  "if (!hasSeed && !hasToken) {",
+                  "  pm.test('admin seed not configured, optional admin flow skipped', function () { pm.expect(hasSeed).to.eql(false); });",
+                  "} else if (!hasSeed && hasToken) {",
+                  "  pm.test('admin token already configured, optional login skipped', function () { pm.expect(pm.environment.get('adminAccessToken')).to.be.a('string').and.not.empty; });",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('adminAccessToken', json.accessToken || '');",
+                  "  pm.test('admin access token returned', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; });",
+                  "  pm.test('seed user is ADMIN', function () { pm.expect(String(json.role || '').toUpperCase()).to.eql('ADMIN'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Optional Listener Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{seedListenerEmail}}\",\n  \"password\": \"{{seedListenerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasSeed = Boolean(pm.environment.get('seedListenerEmail') && pm.environment.get('seedListenerPassword'));",
+                  "if (!hasSeed) {",
+                  "  pm.environment.unset('listenerAccessToken');",
+                  "  pm.test('listener seed not configured, optional flow skipped', function () { pm.expect(hasSeed).to.eql(false); });",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('listenerAccessToken', json.accessToken || '');",
+                  "  pm.test('listener access token returned', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Uses a verified ARTIST seed because email verification codes are not available deterministically to Newman."
+    },
+    {
+      "name": "2. Media Functional Flow",
+      "item": [
+        {
+          "name": "Media - Upload Album Cover",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media",
+                "images"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "usage",
+                  "value": "ALBUM_COVER",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "tests/postman/fixtures/postman-cover.webp",
+                  "contentType": "image/webp"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('albumCoverAssetId', json.assetId);",
+                  "pm.environment.set('assetId', json.assetId);",
+                  "pm.test('album cover asset created', function () { pm.expect(json.assetId).to.match(/^[0-9a-fA-F-]{36}$/); pm.expect(json.assetType).to.eql('ALBUM_COVER'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Media - Upload Track Cover",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media",
+                "images"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "usage",
+                  "value": "TRACK_COVER",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "tests/postman/fixtures/postman-cover.webp",
+                  "contentType": "image/webp"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('trackCoverAssetId', json.assetId);",
+                  "pm.test('track cover asset created', function () { pm.expect(json.assetId).to.match(/^[0-9a-fA-F-]{36}$/); pm.expect(json.assetType).to.eql('TRACK_COVER'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Media - Upload Audio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media/audio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media",
+                "audio"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "tests/postman/fixtures/postman-audio.mp3",
+                  "contentType": "audio/mpeg"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('audioAssetId', json.assetId);",
+                  "pm.test('audio asset created', function () { pm.expect(json.assetId).to.match(/^[0-9a-fA-F-]{36}$/); pm.expect(json.assetType).to.eql('AUDIO'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Media - Upload Without JWT Is Rejected",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media/profile-image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media",
+                "profile-image"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "tests/postman/fixtures/postman-cover.webp",
+                  "contentType": "image/webp"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('error status 401', function () { pm.expect(json.statusCode).to.eql(401); });",
+                  "pm.test('error has message', function () { pm.expect(json.message).to.be.a('string').and.not.empty; });",
+                  "pm.test('error has code', function () { pm.expect(json.error || json.code).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Uploads small deterministic fixtures and stores asset IDs for Catalog."
+    },
+    {
+      "name": "3. Catalog Functional Flow",
+      "item": [
+        {
+          "name": "Catalog - Create Album",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/albums",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{albumTitle}}\",\n  \"coverAssetId\": \"{{albumCoverAssetId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201 expected for album creation', function () { pm.response.to.have.status(201); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('albumId', json.albumId);",
+                  "  pm.environment.set('catalogFlowBlocked', 'false');",
+                  "  pm.test('album id captured', function () { pm.expect(json.albumId).to.match(/^[0-9a-fA-F-]{36}$/); });",
+                  "  pm.test('album title matches', function () { pm.expect(json.title).to.eql(pm.environment.get('albumTitle')); });",
+                  "} else {",
+                  "  pm.environment.unset('albumId');",
+                  "  pm.environment.set('catalogFlowBlocked', 'true');",
+                  "  pm.environment.set('catalogTrackCreated', 'false');",
+                  "  pm.execution.setNextRequest('Catalog - Public Search');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Get Created Album",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/albums/{{albumId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums",
+                "{{albumId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('album id matches', function () { pm.expect(json.albumId).to.eql(pm.environment.get('albumId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Update Album",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/albums/{{albumId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums",
+                "{{albumId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{updatedAlbumTitle}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('album title updated', function () { pm.expect(json.title).to.eql(pm.environment.get('updatedAlbumTitle')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Create Track In Album",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/albums/{{albumId}}/tracks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums",
+                "{{albumId}}",
+                "tracks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{trackTitle}}\",\n  \"genre\": \"Integration\",\n  \"audioAssetId\": \"{{audioAssetId}}\",\n  \"coverAssetId\": \"{{trackCoverAssetId}}\",\n  \"durationSeconds\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201 expected for track creation', function () { pm.response.to.have.status(201); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('trackId', json.trackId);",
+                  "  pm.environment.set('playbackTrackId', json.trackId);",
+                  "  pm.environment.set('catalogTrackCreated', 'true');",
+                  "  pm.environment.set('catalogFlowBlocked', 'false');",
+                  "  pm.test('track id captured', function () { pm.expect(json.trackId).to.match(/^[0-9a-fA-F-]{36}$/); });",
+                  "  pm.test('track linked to album', function () { pm.expect(json.albumId).to.eql(pm.environment.get('albumId')); });",
+                  "} else {",
+                  "  pm.environment.set('catalogFlowBlocked', 'true');",
+                  "  pm.environment.set('catalogTrackCreated', 'false');",
+                  "  pm.environment.set('playbackTrackId', pm.environment.get('seedTrackId') || pm.environment.get('missingTrackId'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Get Created Track",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/tracks/{{trackId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "tracks",
+                "{{trackId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('track id matches', function () { pm.expect(json.trackId).to.eql(pm.environment.get('trackId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Public Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/search?searchTerm={{runSuffix}}&limit=10&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "{{runSuffix}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('search returns arrays', function () { pm.expect(json.artists).to.be.an('array'); pm.expect(json.albums).to.be.an('array'); pm.expect(json.tracks).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog - Missing Album Returns 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/albums/{{missingAlbumId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "albums",
+                "{{missingAlbumId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', function () { pm.response.to.have.status(404); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('error status 404', function () { pm.expect(json.statusCode).to.eql(404); });",
+                  "pm.test('error has message', function () { pm.expect(json.message).to.be.a('string').and.not.empty; });",
+                  "pm.test('error has code', function () { pm.expect(json.error || json.code).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Strict Catalog assertions: current 500s should fail here until migrations/schema are fixed."
+    },
+    {
+      "name": "4. Playback And Streaming Functional Flow",
+      "item": [
+        {
+          "name": "Playback - Stream Without JWT Is Rejected",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/playback/tracks/{{playbackTrackId}}/stream",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "playback",
+                "tracks",
+                "{{playbackTrackId}}",
+                "stream"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('error status 401', function () { pm.expect(json.statusCode).to.eql(401); });",
+                  "pm.test('error has message', function () { pm.expect(json.message).to.be.a('string').and.not.empty; });",
+                  "pm.test('error has code', function () { pm.expect(json.error || json.code).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Playback - Create Stream Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/playback/tracks/{{playbackTrackId}}/stream-session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "playback",
+                "tracks",
+                "{{playbackTrackId}}",
+                "stream-session"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasTrack = Boolean(pm.environment.get('catalogTrackCreated') === 'true' || pm.environment.get('seedTrackId'));",
+                  "if (!hasTrack) {",
+                  "  pm.test('skipped because no created or seed track is available', function () { pm.expect(hasTrack).to.eql(false); });",
+                  "  pm.execution.setNextRequest('Library - Summary With JWT');",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('streamUrl', json.streamUrl);",
+                  "  const setCookie = pm.response.headers.get('Set-Cookie') || '';",
+                  "  const tokenMatch = setCookie.match(/streambuted_playback_token=([^;]+)/);",
+                  "  if (tokenMatch) pm.environment.set('playbackToken', tokenMatch[1]);",
+                  "  pm.test('stream session includes track and URL', function () { pm.expect(json.trackId).to.eql(pm.environment.get('playbackTrackId')); pm.expect(json.streamUrl).to.be.a('string').and.not.empty; });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Playback - Update Progress",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/playback/progress/{{playbackTrackId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "playback",
+                "progress",
+                "{{playbackTrackId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"positionSeconds\": 1,\n  \"durationSeconds\": 3,\n  \"isPlaying\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('progress saved for track', function () { pm.expect(json.trackId).to.eql(pm.environment.get('playbackTrackId')); pm.expect(json.positionSeconds).to.eql(1); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Playback - Get Progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/playback/progress/{{playbackTrackId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "playback",
+                "progress",
+                "{{playbackTrackId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('progress track matches', function () { pm.expect(json.trackId).to.eql(pm.environment.get('playbackTrackId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Playback - Latest Progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/playback/progress/latest",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "playback",
+                "progress",
+                "latest"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('latest progress has numeric position', function () { pm.expect(json.positionSeconds).to.be.a('number'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Playback - Stream With Playback Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Range",
+                "value": "bytes=0-2"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/playback/tracks/{{playbackTrackId}}/stream?playbackToken={{playbackToken}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "playback",
+                "tracks",
+                "{{playbackTrackId}}",
+                "stream"
+              ],
+              "query": [
+                {
+                  "key": "playbackToken",
+                  "value": "{{playbackToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasPlaybackToken = Boolean(pm.environment.get('playbackToken'));",
+                  "if (!hasPlaybackToken) {",
+                  "  pm.test('skipped because playback token is unavailable', function () { pm.expect(hasPlaybackToken).to.eql(false); });",
+                  "} else {",
+                  "  pm.test('status 206 partial content', function () { pm.response.to.have.status(206); });",
+                  "  pm.test('stream has byte range headers', function () { pm.expect(pm.response.headers.get('Content-Range') || '').to.match(/^bytes /); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Uses the track created by Catalog or seedTrackId if provided."
+    },
+    {
+      "name": "5. Library Functional Flow",
+      "item": [
+        {
+          "name": "Library - Summary With JWT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/library",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "library"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('library has likedSongs and playlists', function () { pm.expect(json.likedSongs).to.be.an('object'); pm.expect(json.playlists).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Library - Like Track",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/library/tracks/{{playbackTrackId}}/like",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "library",
+                "tracks",
+                "{{playbackTrackId}}",
+                "like"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasTrack = Boolean(pm.environment.get('catalogTrackCreated') === 'true' || pm.environment.get('seedTrackId'));",
+                  "if (!hasTrack) {",
+                  "  pm.test('skipped because no created or seed track is available', function () { pm.expect(hasTrack).to.eql(false); });",
+                  "  pm.execution.setNextRequest('Media - Upload Playlist Cover');",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  const json = pm.response.json();",
+                  "  pm.test('track liked', function () { pm.expect(json.trackId).to.eql(pm.environment.get('playbackTrackId')); pm.expect(json.isLiked).to.eql(true); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Media - Upload Playlist Cover",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media",
+                "images"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "usage",
+                  "value": "PLAYLIST_COVER",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "tests/postman/fixtures/postman-cover.webp",
+                  "contentType": "image/webp"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('playlistCoverAssetId', json.assetId);",
+                  "pm.test('playlist cover asset created', function () { pm.expect(json.assetType).to.eql('PLAYLIST_COVER'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Library - Create Playlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/library/playlists",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "library",
+                "playlists"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{playlistName}}\",\n  \"coverAssetId\": \"{{playlistCoverAssetId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('playlistId', json.playlistId);",
+                  "pm.environment.set('playlistCreated', 'true');",
+                  "pm.test('playlist created', function () { pm.expect(json.playlistId).to.match(/^[0-9a-fA-F-]{36}$/); pm.expect(json.name).to.eql(pm.environment.get('playlistName')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Library - Add Track To Playlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/library/playlists/{{playlistId}}/tracks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "library",
+                "playlists",
+                "{{playlistId}}",
+                "tracks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackId\": \"{{playbackTrackId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasTrack = Boolean(pm.environment.get('catalogTrackCreated') === 'true' || pm.environment.get('seedTrackId'));",
+                  "const hasPlaylist = pm.environment.get('playlistCreated') === 'true';",
+                  "if (!hasTrack || !hasPlaylist) {",
+                  "  pm.test('skipped because playlist or playable track is unavailable', function () { pm.expect(hasTrack && hasPlaylist).to.eql(false); });",
+                  "  pm.execution.setNextRequest('Analytics - Public Discovery Summary');",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  const json = pm.response.json();",
+                  "  pm.test('playlist contains at least one track', function () { pm.expect(json.trackCount).to.be.at.least(1); pm.expect(json.tracks).to.be.an('array'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Library - Remove Track From Playlist",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/library/playlists/{{playlistId}}/tracks/{{playbackTrackId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "library",
+                "playlists",
+                "{{playlistId}}",
+                "tracks",
+                "{{playbackTrackId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('playlist response remains valid', function () { pm.expect(json.playlistId).to.eql(pm.environment.get('playlistId')); pm.expect(json.tracks).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Library - Unlike Track",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/library/tracks/{{playbackTrackId}}/like",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "library",
+                "tracks",
+                "{{playbackTrackId}}",
+                "like"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('track unliked', function () { pm.expect(json.isLiked).to.eql(false); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Exercises library summary, likes and private playlists with a valid JWT."
+    },
+    {
+      "name": "6. Analytics Functional Flow",
+      "item": [
+        {
+          "name": "Analytics - Public Discovery Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/discovery/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "discovery",
+                "summary"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('public analytics arrays exist', function () { pm.expect(json.topAlbums).to.be.an('array'); pm.expect(json.topArtists).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Analytics - Artist Private Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/artists/{{artistId}}/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "artists",
+                "{{artistId}}",
+                "summary"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('artist summary matches artist', function () { pm.expect(json.artistId).to.eql(pm.environment.get('artistId')); pm.expect(json.topTracks).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Analytics - Admin Summary With Artist Is Forbidden",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/admin/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "admin",
+                "summary"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.response.to.have.status(403); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('error status 403', function () { pm.expect(json.statusCode).to.eql(403); });",
+                  "pm.test('error has message', function () { pm.expect(json.message).to.be.a('string').and.not.empty; });",
+                  "pm.test('error has code', function () { pm.expect(json.error || json.code).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Analytics - Optional Admin Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/admin/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "admin",
+                "summary"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasAdminToken = Boolean(pm.environment.get('adminAccessToken'));",
+                  "if (!hasAdminToken) {",
+                  "  pm.test('admin token not configured, optional admin summary skipped', function () { pm.expect(hasAdminToken).to.eql(false); });",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  const json = pm.response.json();",
+                  "  pm.test('admin summary fields exist', function () { pm.expect(json.totalPlays).to.be.a('number'); pm.expect(json.topArtists).to.be.an('array'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Admin success is optional and requires adminAccessToken or an admin seed flow outside this collection."
+    },
+    {
+      "name": "7. Live Functional Flow",
+      "item": [
+        {
+          "name": "Live - Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/live/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "live",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('live ok', function () { pm.expect(json.status).to.eql('ok'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Live - OpenAPI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/live/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "live",
+                "openapi.json"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('openapi paths exist', function () { pm.expect(json.paths).to.be.an('object'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Live - Rooms Without JWT Is Rejected",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/live/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "live",
+                "rooms"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('error status 401', function () { pm.expect(json.statusCode).to.eql(401); });",
+                  "pm.test('error has message', function () { pm.expect(json.message).to.be.a('string').and.not.empty; });",
+                  "pm.test('error has code', function () { pm.expect(json.error || json.code).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Live - Create Room With Artist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/live/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "live",
+                "rooms"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{liveRoomTitle}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('liveRoomId', json.id);",
+                  "  pm.environment.set('liveRoomCreated', 'true');",
+                  "  if (json.title) pm.environment.set('liveRoomTitle', json.title);",
+                  "  pm.test('live room created or active room returned', function () { pm.expect(json.id).to.be.a('string').and.not.empty; pm.expect(json.title).to.be.a('string').and.not.empty; });",
+                  "} else {",
+                  "  pm.environment.set('liveRoomCreated', 'false');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Live - List Rooms With Artist",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/live/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "live",
+                "rooms"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "const json = pm.response.json();",
+                  "pm.test('rooms response has data', function () { pm.expect(json.data).to.be.an('array'); pm.expect(json.total).to.be.a('number'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Live - Get Room Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/live/rooms/{{liveRoomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "live",
+                "rooms",
+                "{{liveRoomId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasRoom = pm.environment.get('liveRoomCreated') === 'true';",
+                  "if (!hasRoom) {",
+                  "  pm.test('skipped because live room was not created in this run', function () { pm.expect(hasRoom).to.eql(false); });",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  const json = pm.response.json();",
+                  "  pm.test('room id matches', function () { pm.expect(json.id).to.eql(pm.environment.get('liveRoomId')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Live - Optional Listener Lists Rooms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{listenerAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/live/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "live",
+                "rooms"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasListenerToken = Boolean(pm.environment.get('listenerAccessToken'));",
+                  "if (!hasListenerToken) {",
+                  "  pm.test('listener token not configured, optional listener live flow skipped', function () { pm.expect(hasListenerToken).to.eql(false); });",
+                  "} else {",
+                  "  pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "  pm.test('response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/json/i); });",
+                  "  const json = pm.response.json();",
+                  "  pm.test('listener can list live rooms', function () { pm.expect(json.data).to.be.an('array'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "REST live room flow. WebRTC/Socket.IO signalling is intentionally out of scope for Postman."
+    },
+    {
+      "name": "8. Cleanup",
+      "item": [
+        {
+          "name": "Auth - Logout Artist Refresh Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "refresh_token={{refreshToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', function () { pm.response.to.have.status(204); });",
+                  "pm.test('logout body is empty', function () { pm.expect(pm.response.text()).to.eql(''); });",
+                  "pm.environment.unset('refreshToken');"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Invalidates the artist refresh cookie at the end of the run."
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost"
+    },
+    {
+      "key": "seedArtistEmail",
+      "value": ""
+    },
+    {
+      "key": "seedArtistPassword",
+      "value": ""
+    },
+    {
+      "key": "seedListenerEmail",
+      "value": ""
+    },
+    {
+      "key": "seedListenerPassword",
+      "value": ""
+    },
+    {
+      "key": "seedAdminEmail",
+      "value": ""
+    },
+    {
+      "key": "seedAdminPassword",
+      "value": ""
+    },
+    {
+      "key": "adminAccessToken",
+      "value": ""
+    },
+    {
+      "key": "artistAccessToken",
+      "value": ""
+    },
+    {
+      "key": "listenerAccessToken",
+      "value": ""
+    },
+    {
+      "key": "artistId",
+      "value": ""
+    },
+    {
+      "key": "albumCoverAssetId",
+      "value": ""
+    },
+    {
+      "key": "trackCoverAssetId",
+      "value": ""
+    },
+    {
+      "key": "audioAssetId",
+      "value": ""
+    },
+    {
+      "key": "playlistCoverAssetId",
+      "value": ""
+    },
+    {
+      "key": "playlistId",
+      "value": ""
+    },
+    {
+      "key": "playbackTrackId",
+      "value": ""
+    },
+    {
+      "key": "playbackToken",
+      "value": ""
+    },
+    {
+      "key": "seedTrackId",
+      "value": ""
+    }
+  ]
+}
